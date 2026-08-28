@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edu-ai/contracts/schemas/qa-record.schema.json",
+  "title": "QaRecord",
+  "description": "Logical curated Q&A record the QA fast-path serves. Physically split across edu_ai.qa_entries (answer) and edu_ai.qa_variants (indexed phrasings). DDL is the physical source of truth (postgres/init/*.sql); this schema documents the logical shape the retrieval code reads.",
+  "type": "object",
+  "required": ["entry_id", "canonical_q", "answer_md", "variants"],
+  "additionalProperties": false,
+  "properties": {
+    "entry_id": { "type": "string", "description": "UUID. qa_entries.entry_id." },
+    "pack_id": { "type": "string", "description": "Owning QA pack (qa_pack_manifest.pack_id). Scoped by grade in the router." },
+    "canonical_q": { "type": "string", "description": "Canonical question text (shown in suggestions)." },
+    "answer_md": { "type": "string", "description": "Curated answer, Markdown. Returned verbatim on a QA hit (no LLM)." },
+    "tags": { "type": ["array", "null"], "items": { "type": "string" } },
+    "asset_refs": {
+      "type": ["array", "null"],
+      "description": "Sources the CURATOR cited for this answer (qa_entries.asset_refs), filled from the pack CSV's `sources` column. Returned as SearchResponse.sources on a QA hit. A claim about the real world, not retrieval provenance: nothing verifies the links, and the answer is delivered whether or not they resolve.",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "description": "Link text; the URL itself when the curator gave no title." },
+          "url": { "type": ["string", "null"], "description": "http(s) only — other schemes are dropped at ingest. Null for a source with no link (a paper document)." }
+        }
+      }
+    },
+    "is_active": { "type": "boolean", "description": "Soft-versioning flag; only active entries are matched." },
+    "variants": {
+      "type": "array",
+      "description": "Indexed phrasings of the question (qa_variants). Each carries the three reduced forms the lexical steps match on.",
+      "items": {
+        "type": "object",
+        "required": ["norm_text", "lemma_text", "stem_text"],
+        "properties": {
+          "norm_text": { "type": "string", "description": "Space-joined NORM tokens (surface)." },
+          "lemma_text": { "type": "string", "description": "Space-joined LEMMA tokens (simplemma)." },
+          "stem_text": { "type": "string", "description": "Space-joined STEM tokens (Dolamic–Savoy light)." }
+        },
+        "description": "Reduced forms MUST follow the parity contract (contracts/parity/); the index tsvectors (ts_norm/ts_lemma/ts_stem) are built from these."
+      }
+    },
+    "embedding": {
+      "type": ["array", "null"],
+      "items": { "type": "number" },
+      "description": "Optional question embedding (qa_embedding) for the qa_vector fallback; dimension per the active embedding_registry model."
+    }
+  }
+}

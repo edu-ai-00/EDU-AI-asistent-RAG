@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title data-i18n="title">EDU-AI</title>
+<style>
+  :root { font-family: -apple-system, "Segoe UI", sans-serif; }
+  body { max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; }
+  h1 { font-size: 1.3rem; } h1 small { color:#888; font-weight:normal; font-size:.8rem; }
+  .topbar { display:flex; justify-content:flex-end; align-items:center; gap:.4rem;
+            font-size:.8rem; color:#666; margin-bottom:.4rem; }
+  .topbar select { width:auto; padding:.25rem .4rem; font-size:.8rem; }
+  fieldset { border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  label { display: block; margin: .6rem 0 .15rem; font-size: .85rem; color: #555; }
+  input[type=text], input[type=url], select { width: 100%; padding: .45rem; border: 1px solid #ccc; border-radius: 6px; font-size: .95rem; box-sizing: border-box; }
+  .row { display: flex; gap: 1rem; } .row > div { flex: 1; }
+  .hint { font-size: .75rem; color: #999; margin-top: .15rem; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: .7rem 1.6rem; font-size: 1rem; cursor: pointer; margin-top: .5rem; }
+  button:disabled { background: #aaa; }
+  #result { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .78rem; background: #f6f7f9; border: 1px solid #e5e7eb; border-radius: 8px; padding: .8rem; margin-top: 1rem; max-height: 45vh; overflow: auto; }
+  .ok { border-color: #86efac !important; } .err { border-color: #fca5a5 !important; }
+  .tabs { display:flex; gap:.5rem; margin-bottom:.6rem; }
+  .tabs button { background:#e5e7eb; color:#333; padding:.4rem 1rem; margin:0; }
+  .tabs button.active { background:#2563eb; color:#fff; }
+  #status { font-size:.85rem; color:#666; margin-left:.8rem; }
+  #progress { margin-top:1rem; }
+  /* Hide with a CLASS, never `#progress { display:none }` — clearing the
+     inline style with style.display="" would just fall back to that rule
+     and the panel would stay invisible while quietly polling. */
+  .hidden { display:none; }
+  #progress table { width:100%; border-collapse:collapse; font-size:.78rem;
+                    border:1px solid #cbd5e1; }
+  #progress th, #progress td { text-align:left; padding:.28rem .45rem;
+                               border:1px solid #e2e8f0; vertical-align:top; }
+  #progress thead th { background:#f1f5f9; border-color:#cbd5e1; }
+  #progress td.num { text-align:right; white-space:nowrap; }
+  #progress td.cmp { color:#555; }
+  #progress td.cmp .msg { color:#1a1a2e; }
+  #progress tr.cur td { font-weight:600; }
+  #progress th { color:#666; font-weight:600; }
+  #progress td.src { word-break:break-word; width:11rem; }
+  #progress td.src .hint { font-size:.68rem; word-break:break-all; }
+  #progress .stored { color:#15803d; font-weight:600; }
+  #progress .stale { color:#b45309; }
+  #progress .ev { line-height:1.35; }
+</style>
+</head>
+<body>
+
+<!-- UI language = the language THIS PAGE is written in. Separate from the
+     "Jazyk" metadata select below, which is a property of the DOCUMENT. -->
+<div class="topbar">
+  <label for="uiLang" style="margin:0" data-i18n="ui_lang_label">Jazyk rozhraní</label>
+  <select id="uiLang"></select>
+</div>
+
+<h1><span data-i18n="title">EDU-AI</span> <small data-i18n="subtitle"></small></h1>
+
+<form id="f">
+  <fieldset>
+    <legend data-i18n="legend_source"></legend>
+    <div class="tabs">
+      <button type="button" id="tabUrl" class="active" onclick="mode('url')" data-i18n="tab_url"></button>
+      <button type="button" id="tabFile" onclick="mode('file')" data-i18n="tab_file"></button>
+    </div>
+    <div id="boxUrl">
+      <label data-i18n="label_url"></label>
+      <input type="url" id="url" placeholder="https://…">
+      <label><input type="checkbox" id="children"> <span data-i18n="children"></span></label>
+      <label data-i18n="max_links"></label>
+      <input type="text" id="maxChild" value="5" style="width:5rem">
+    </div>
+    <div id="boxFile" style="display:none">
+      <label data-i18n="label_file"></label>
+      <input type="file" id="file">
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend><span data-i18n="legend_metadata"></span>
+      <span class="hint" style="display:inline" data-i18n="metadata_hint"></span></legend>
+    <div class="row">
+      <div><label data-i18n="doc_type"></label><select id="document_type"></select></div>
+      <div><label data-i18n="language"></label><select id="document_language"></select></div>
+    </div>
+    <!-- entity FIRST: subject and grade are resolved from the entity's own
+         codebooks (per-unit since init 120), so the entity must be chosen
+         before them — and they sit right under it to make that binding
+         visible. Changing the entity refills both. -->
+    <div class="row">
+      <div><label data-i18n="entity"></label><select id="legal_entity"></select></div>
+      <div><label data-i18n="user"></label><select id="user_id"></select></div>
+    </div>
+    <!-- validity periods of the entity's ORGANISATION (edu_ai.validity_period),
+         read-only: defined once per organisation, shown here so the uploader
+         sees which periods exist before validity fields land on this form.
+         Filled on entity change from /v1/validity-periods. -->
+    <div id="validityBox" class="hidden" style="margin:.4rem 0 .2rem">
+      <label>Platnost dokumentu</label>
+      <select id="validity_select"></select>
+      <div id="validityCustom" style="display:flex; gap:1rem; padding:.35rem 0 0 .1rem">
+        <div><label style="font-size:.8em">od</label><input type="date" id="valid_from" disabled></div>
+        <div><label style="font-size:.8em">do</label><input type="date" id="valid_to" disabled></div>
+      </div>
+      <div class="hint">Období definuje organizace a platí pro všechny její školy. Vyhledávání dokumenty mimo platnost tvrdě filtruje (proti dnešnímu datu).</div>
+    </div>
+    <!-- binding (taxonomy_binding): appears once BOTH the school and a user are
+         chosen, independent of subject. It offers the situation-bindings valid for
+         THIS school's level (ZS/SS) plus a "manual" option. Picking a binding is a
+         MASTER choice — its DOMAIN is declared (overrides the LLM) and its grades
+         drive the per-chunk grade guard, so the manual domain checkboxes and the
+         grade select are disabled. Manual = free domains + a single grade; that is
+         the mode for a document spanning several situations (e.g. an MŠMT metodika
+         covering both 4-year SŠ and víceletá gymnázia → tick both admission
+         domains, guard keeps {5,7,9}). -->
+    <div id="bindingBox" class="hidden">
+      <label data-i18n="binding_box_label"></label>
+      <div id="bindingChoices" style="display:flex; flex-direction:column; gap:.35rem; padding-top:.2rem"></div>
+      <div class="hint" data-i18n-html="binding_box_hint"></div>
+    </div>
+    <div class="row">
+      <div><label data-i18n="subject"></label><select id="school_subject"></select></div>
+      <!-- grade is a SET now (item 1): one document may target several grades
+           (e.g. the whole "první stupeň" 1–5). Checkbox group, sent as repeated
+           school_subject_grades. In binding mode it is disabled (grades come from
+           the binding, applied per-chunk). -->
+      <div><label data-i18n="grade"></label>
+        <div id="grades" style="display:flex; gap:1rem; flex-wrap:wrap; padding-top:.35rem"></div>
+      </div>
+    </div>
+    <!-- doc-level subject & grade are NOT AI-classified (prompt v9): unlike type,
+         language and situation/theme, they are taken ONLY from what is declared
+         here; left empty they stay empty. -->
+    <div class="hint" data-i18n-html="subject_grade_note"></div>
+    <!-- domains (taxonomy_rules DOMAIN): OPTIONAL declared classification of the
+         document's situation (maturita, admissions, bullying, GDPR, …). When set,
+         it OVERRIDES the LLM domain classification. -->
+    <div class="row"><div>
+      <label data-i18n="domains_label"></label>
+      <div id="domains" style="display:flex; gap:1.2rem; flex-wrap:wrap; padding-top:.2rem"></div>
+      <div class="hint" data-i18n-html="domains_hint"></div>
+    </div></div>
+    <!-- audience roles (init 127): >=1 required. A DECLARED property (checkboxes),
+         not extracted. Rendered from code_list('role') so labels follow the UI
+         language and adding a role is a číselník row, not a code change. -->
+    <!-- visibility FIRST, then roles — a PRIVATE document's role is never consulted
+         at search (only the owner sees it), so the role picker is hidden for private
+         and roles are not required. -->
+    <div class="row">
+      <div><label data-i18n="visibility"></label>
+        <select id="visibility">
+          <option value="private" data-i18n="visibility_private"></option>
+          <option value="entity" data-i18n="visibility_entity" selected></option>
+          <option value="organization" data-i18n="visibility_organization"></option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+    <div class="row" id="rolesRow"><div>
+      <label data-i18n="roles"></label>
+      <div id="roles" style="display:flex; gap:1.2rem; padding-top:.2rem"></div>
+      <div class="hint" data-i18n="roles_hint"></div>
+    </div></div>
+    <!-- shown INSTEAD of the role picker for private: explains that a private
+         document's role is ignored at search (trap avoidance). i18n, 4 languages. -->
+    <div class="hint hidden" id="privateNote" data-i18n="roles_private_note"></div>
+  </fieldset>
+
+  <fieldset id="qaBox">
+    <legend><span data-i18n="legend_qa"></span>
+      <span class="hint" style="display:inline" data-i18n="qa_hint"></span></legend>
+    <label><span data-i18n="pack_id"></span>
+      <span class="hint" style="display:inline" data-i18n="optional"></span></label>
+    <input type="text" id="user_defined_pack_id" data-i18n-placeholder="pack_id_placeholder">
+    <div class="hint" id="packHelp"></div>
+    <div id="packPreview" class="hint"></div>
+  </fieldset>
+
+  <button type="submit" id="go" data-i18n="submit"></button><span id="status"></span>
+</form>
+
+<!-- Per-file ingest progress, polled every 10 s from the moment SUBMIT is
+     pressed. It cannot wait for the processing_uuid: POST /v1/ingest is
+     synchronous and returns it only when the whole flow has already finished, so
+     until then the run is found as "the newest one started since we submitted"
+     and pinned as soon as a response names it.
+     The gateway answering "completed" also does not mean the rows landed — the
+     markdown flow is async — so the chunk column is the real signal, and the
+     note under the table says so. -->
+<div id="progress" class="hidden">
+  <h2 style="font-size:1rem;margin:.2rem 0" data-i18n="status_heading"></h2>
+  <div class="hint" id="progressMeta"></div>
+  <table>
+    <thead><tr>
+      <th data-i18n="status_file"></th>
+      <th data-i18n="status_last_event"></th>
+      <th data-i18n="status_elapsed"></th>
+      <th data-i18n="status_since_last"></th>
+      <th data-i18n="status_chunks"></th>
+    </tr></thead>
+    <tbody id="progressBody"></tbody>
+  </table>
+  <div class="hint" data-i18n="status_note"></div>
+</div>
+
+<div id="result" data-i18n="result_placeholder"></div>
+
+<script>
+const API = "http://127.0.0.1:8080";
+// Progress is polled STRAIGHT from the search service, not through the gateway.
+// POST /v1/ingest is declared `async def` but does blocking IO (requests.*), so
+// for the whole duration of an ingest the gateway's event loop is frozen and it
+// answers nothing — measured: polls at 12/22/32 s all returned only once the
+// upload finished at 34 s. The search service is a separate process and stays
+// responsive. (The gateway blocking itself is a real bug of its own — gateway
+// architecture is Jan's area, so it is reported rather than patched here.)
+const SEARCH = "http://127.0.0.1:8090";
+const SCOPE = "upload_test";
+// Mirrors edu_ai.taxonomy_binding (domain × school level → grades). Hardcoded
+// because this is the TEST page and there is no /v1/bindings endpoint yet; the
+// production UI will fetch it. MUST stay in sync with that table (4 rows at init).
+// Labels are NOT here — they come from /v1/domains (i18n), keyed by domain_code.
+const BINDINGS = [
+  { domain_code: "SECONDARY_ADMISSIONS",           level: "ZS", grades: ["9"]     },
+  { domain_code: "MULTIYEAR_GYMNASIUM_ADMISSIONS", level: "ZS", grades: ["5", "7"] },
+  { domain_code: "UNIVERSITY_ADMISSIONS",          level: "SS", grades: ["4"]     },
+  { domain_code: "GRADUATION_EXAM",                level: "SS", grades: ["4"]     },
+];
+const POLL_MS = 5000;
+const POLL_MAX = 180;         // 15 min, then stop rather than poll forever
+const $ = id => document.getElementById(id);
+
+// Anything from the DB or the user that lands in innerHTML goes through this.
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// ── i18n ────────────────────────────────────────────────────────────────────
+// Copy lives in edu_ai.ui_label, served by /v1/ui-labels — adding a language is
+// INSERTs, no edit here. FALLBACK is only enough to render when the API is down.
+const FALLBACK = {
+  roles: "Role (pro koho)", roles_hint: "Vyber aspoň jednu roli.",
+  roles_required: "Vyber aspoň jednu roli (student / učitel / rodič).",
+  roles_none: "Číselník rolí je prázdný.", title: "EDU-AI asistent RAG modul", submit: "Nahrát",
+                   result_placeholder: "Výsledek se zobrazí zde.", error: "chyba" };
+let LABELS = {}, uiLang = null;
+// {s} is filled from POLL_MS, so changing the interval is not a migration in
+// four languages (and cannot leave one of them claiming the old number).
+const t = k => (LABELS[uiLang]?.[k] ?? LABELS.en?.[k] ?? LABELS.cs?.[k]
+                ?? FALLBACK[k] ?? k).replace("{s}", POLL_MS / 1000);
+const pickLabel = it => (it.labels?.[uiLang] ?? it.labels?.en ?? it.labels?.cs
+                         ?? it.code ?? it.type_code);
+
+function applyLang(){
+  document.documentElement.lang = uiLang || "cs";
+  for (const el of document.querySelectorAll("[data-i18n]"))
+    el.textContent = t(el.dataset.i18n);
+  // labels that carry <b>/markup — set as innerHTML instead of textContent
+  for (const el of document.querySelectorAll("[data-i18n-html]"))
+    el.innerHTML = t(el.dataset.i18nHtml);
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]"))
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  $("packHelp").innerHTML = t("pack_help");   // this one carries markup
+  document.title = t("title");
+}
+
+async function loadLabels(){
+  try {
+    const d = await fetch(`${API}/v1/ui-labels?scope=${SCOPE}`).then(r => r.json());
+    LABELS = d.labels || {};
+    // Only languages holding EVERY key of this scope are offered.
+    const avail = d.available || [];
+    const stored = localStorage.getItem("edu_ai_ui_lang");
+    uiLang = avail.includes(stored) ? stored : d.default;
+    const sel = $("uiLang");
+    sel.innerHTML = "";
+    for (const c of avail) sel.add(new Option(c.toUpperCase(), c));
+    sel.value = uiLang || "";
+    sel.style.display = avail.length > 1 ? "" : "none";
+    sel.onchange = () => {
+      uiLang = sel.value;
+      localStorage.setItem("edu_ai_ui_lang", uiLang);
+      applyLang(); loadLists().then(updatePackPreview);
+    };
+  } catch(e){
+    uiLang = "cs";
+    $("uiLang").style.display = "none";
+  }
+  applyLang();
+}
+
+function mode(m){
+  $("boxUrl").style.display = m==="url" ? "" : "none";
+  $("boxFile").style.display = m==="file" ? "" : "none";
+  $("tabUrl").classList.toggle("active", m==="url");
+  $("tabFile").classList.toggle("active", m==="file");
+}
+
+function renderRoles(items){
+  const box = $("roles");
+  box.innerHTML = items.map(it =>
+    `<label style="display:inline-flex;gap:.3rem;align-items:center;margin:0;font-size:.9rem">`
+    + `<input type="checkbox" class="roleCb" value="${esc(it.code)}"> ${esc(pickLabel(it))}</label>`
+  ).join("") || `<span class="hint">${esc(t("roles_none"))}</span>`;
+}
+
+function renderDomains(items){
+  const box = $("domains");
+  const keep = new Set([...box.querySelectorAll(".domainCb:checked")].map(c => c.value));
+  box.innerHTML = (items||[]).map(it =>
+    `<label style="display:inline-flex;gap:.3rem;align-items:center;margin:0;font-size:.9rem">`
+    + `<input type="checkbox" class="domainCb" value="${esc(it.code)}"${keep.has(it.code)?" checked":""}> ${esc(pickLabel(it))}</label>`
+  ).join("") || `<span class="hint">—</span>`;
+}
+
+// grades as a CHECKBOX SET (item 1). Preserves the current checks on refill so
+// switching entity keeps the picks the new codebook still offers. The GLOBAL
+// code-list (no entity) carries one row PER OWNER, so the same code appears many
+// times — dedupe by code (first wins) to render each grade once.
+// Grade and subject are per-school; until a school is chosen there is no codebook
+// to offer, so both stay inactive with a placeholder.
+function showGradesHint(){
+  $("grades").innerHTML = `<span class="hint">${esc(t("choose_entity_first"))}</span>`;
+}
+function showSubjectHint(){
+  const s = $("school_subject");
+  s.innerHTML = `<option value="">${esc(t("choose_entity_first"))}</option>`;
+  s.disabled = true;
+}
+
+function renderGradeChecks(items){
+  const box = $("grades");
+  const keep = new Set([...box.querySelectorAll(".gradeCb:checked")].map(c => c.value));
+  const seen = new Set();
+  const uniq = (items||[]).filter(it => {
+    const c = it.code || it.type_code;
+    if (seen.has(c)) return false;
+    seen.add(c); return true;
+  });
+  box.innerHTML = uniq.map(it => {
+    const _code = it.code || it.type_code;
+    const on = keep.has(_code) ? " checked" : "";
+    return `<label style="display:inline-flex;gap:.3rem;align-items:center;margin:0;font-size:.9rem">`
+      + `<input type="checkbox" class="gradeCb" value="${esc(_code)}"${on}> ${esc(pickLabel(it))}</label>`;
+  }).join("") || `<span class="hint">—</span>`;
+}
+
+function fillSelect(sel, items, showCode = true, emptyLabel = null){
+  const keep = sel.value;
+  sel.innerHTML = "";
+  // emptyLabel lets a field opt out of the shared "— nezadáno (klasifikuje AI) —":
+  // subject is NOT AI-classified at document level (prompt v9), so empty = none.
+  const empty = new Option(emptyLabel || t("select_empty"), "");
+  sel.add(empty);
+  let hasDefault = false;
+  for (const it of items){
+    // grades: the label already carries the meaning ("1. ročník", "Pro
+    // všechny ročníky"), so the raw code (9999) in parentheses only confuses;
+    // subjects/types keep it because there the code (MATHEMATICS) differs from
+    // the label and helps the tester verify what gets sent.
+    const _code = it.code || it.type_code;
+    const o = new Option(showCode ? `${pickLabel(it)} (${_code})` : pickLabel(it), _code);
+    // is_ui_default: presentation only — which option the form preselects.
+    // NOT is_processing_fallback (that one is the pipeline's, see migration 42).
+    if (it.is_ui_default){ o.selected = true; hasDefault = true; }
+    sel.add(o);
+  }
+  if (keep) sel.value = keep;
+  else if (!hasDefault) empty.selected = true;
+}
+
+async function loadLists(){
+  $("status").textContent = t("loading_lists");
+  try {
+    const [tp, c, dm] = await Promise.all([
+      fetch(API + "/v1/document-types").then(r => r.json()),
+      fetch(API + "/v1/code-lists").then(r => r.json()),
+      fetch(API + "/v1/domains").then(r => r.json()).catch(() => ({domains:[]})),
+    ]);
+    fillSelect($("document_type"), tp.document_types.map(x => ({...x, code: x.type_code})), false);
+    fillSelect($("document_language"), c.code_lists.language);
+    showSubjectHint();   // subject is per-school — inactive until an entity is chosen
+    renderGradeChecks(c.code_lists.school_grade || []);
+    renderRoles(c.code_lists.role || []);
+    DOMAINS = dm.domains || [];
+    renderDomains(DOMAINS);
+    // grades are the ENTITY'S codebook (per-unit) — don't show a global list;
+    // populated by loadEntityLists once a school is chosen.
+    showGradesHint();
+    await loadEntities();
+    $("status").textContent = t("lists_loaded");
+  } catch (e){
+    $("status").textContent = t("lists_error") + " (" + e.message + ")";
+  }
+}
+
+// ── who ingests, and for whom ───────────────────────────────────────────────
+// The entity comes first and the user list follows from it: a staff user belongs
+// to exactly one entity, and the database refuses a document whose owner is from
+// another one (the owner foreign key is the pair, not the id). Offering the wrong
+// user would only produce a rejected ingest, so the form does not offer it.
+let ENTITIES = [], DOMAINS = [];
+
+// ── binding panel (shown once school + user are chosen) ──────────────────────
+// One radio per taxonomy_binding valid for the school's level, plus a "manual"
+// radio. A binding = its domain is the master (declared, overrides LLM) and its
+// grades drive the per-chunk guard; manual = free domain checkboxes + one grade.
+function renderBindings(){
+  const box = $("bindingChoices");
+  const ent = ENTITIES.find(e => e.legal_entity_code === $("legal_entity").value);
+  const ready = !!ent && !!$("user_id").value;
+  $("bindingBox").classList.toggle("hidden", !ready);
+  if (!ready){ box.innerHTML = ""; applyBindingMode(); return; }
+  const lvl = ent.level || null;                 // ZS / SS; org root has none
+  // offer a binding ONLY when its domain is in THIS school's resolved catalog —
+  // otherwise the school can't declare that domain, the binding is meaningless,
+  // and its label would fall back to the raw (English) code. So a school with
+  // only the global domains sees no admissions bindings, just "manual".
+  const domCodes = new Set((DOMAINS || []).map(d => d.code));
+  const avail = BINDINGS.filter(b => (b.level === lvl || b.level == null)
+                                     && domCodes.has(b.domain_code));
+  const domLabel = c => { const d = DOMAINS.find(x => x.code === c); return d ? pickLabel(d) : c; };
+  box.innerHTML = avail.map(b =>
+      `<label style="display:flex;gap:.4rem;align-items:center;margin:0;font-size:.9rem">`
+      + `<input type="radio" name="binding" class="bindingRb" value="${esc(b.domain_code)}"> `
+      + `${esc(domLabel(b.domain_code))} `
+      + `<span class="hint" style="display:inline">${esc(t("binding_grade_arrow"))}${esc(b.grades.join(", "))}</span></label>`
+    ).join("")
+    + `<label style="display:flex;gap:.4rem;align-items:center;margin:0;font-size:.9rem">`
+    + `<input type="radio" name="binding" class="bindingRb" value="__manual__" checked> ${esc(t("binding_manual"))}</label>`;
+  box.querySelectorAll(".bindingRb").forEach(r => r.addEventListener("change", applyBindingMode));
+  applyBindingMode();
+}
+
+// Binding chosen → the domain checkboxes and the grade select are governed by the
+// binding, so disable and clear them. Manual → they are the free inputs.
+function applyBindingMode(){
+  const sel = document.querySelector(".bindingRb:checked");
+  const manual = !sel || sel.value === "__manual__";
+  document.querySelectorAll("#domains .domainCb").forEach(cb => {
+    cb.disabled = !manual;
+    if (!manual) cb.checked = false;
+  });
+  $("domains").style.opacity = manual ? "" : ".5";
+  document.querySelectorAll("#grades .gradeCb").forEach(cb => {
+    cb.disabled = !manual;
+    if (!manual) cb.checked = false;
+  });
+  $("grades").style.opacity = manual ? "" : ".5";
+}
+
+async function loadEntities(){
+  const d = await fetch(API + "/v1/entities").then(r => r.json());
+  ENTITIES = d.entities;
+  const sel = $("legal_entity");
+  // indented by hierarchy: a unit and its legal person are one organisation, and a
+  // flat list would hide that the choice changes who ends up seeing the document
+  sel.innerHTML = `<option value="">${esc(t("choose_entity"))}</option>` +
+    d.entities.map(e => `<option value="${esc(e.legal_entity_code)}">`
+      + (e.parent_code ? "\u00a0\u00a0└─ " : "") + esc(e.display_name) + `</option>`).join("");
+  sel.onchange = () => { loadStaffUsers(); applyVisibilityRights(); loadEntityLists(); };
+  $("user_id").onchange = renderBindings;   // binding depends on WHO too
+  await loadStaffUsers();
+  applyVisibilityRights();
+}
+
+// Subjects and grades are the ENTITY'S codebooks (per-unit since init 120):
+// the organisation offers only "Pro všechny ročníky", its ZŠ unit 1..9+ALL,
+// a SOŠ unit 1..4+ALL. The initial global fill is only the placeholder until
+// an entity is picked — the ingest stores row ids of the entity's own set.
+let VALIDITY = [];   // periods of the selected entity's organisation
+
+function validityChosen(){
+  // -> {valid_from, valid_to} or {} (no periods loaded)
+  const sel = $("validity_select");
+  if (!sel.options.length) return {};
+  if (sel.value === "custom"){
+    const f = $("valid_from").value, t = $("valid_to").value;
+    return (f || t) ? {valid_from: f || null, valid_to: t || null} : {};
+  }
+  const p = VALIDITY.find(x => String(x.id) === sel.value);
+  return p ? {valid_from: p.valid_from, valid_to: p.valid_to} : {};
+}
+
+async function loadValidityPeriods(){
+  const ent = $("legal_entity").value;
+  const box = $("validityBox"), sel = $("validity_select");
+  if (!ent){ box.classList.add("hidden"); return; }
+  try {
+    const d = await fetch(`${API}/v1/validity-periods?legal_entity=${encodeURIComponent(ent)}`,
+                          {cache: "no-store"}).then(r => r.json());
+    VALIDITY = d.validity_periods || [];
+    if (!VALIDITY.length){ box.classList.add("hidden"); return; }
+    const fmt = s => s ? s.split("-").map(Number).reverse().join(". ") : "…";
+    sel.innerHTML =
+      VALIDITY.map(p =>
+        `<option value="${p.id}"${p.is_default ? " selected" : ""}>${p.name}`
+        + ` — ${fmt(p.valid_from)} až ${fmt(p.valid_to)}`
+        + (p.is_default ? " (výchozí)" : "") + `</option>`).join("")
+      + `<option value="custom">Vlastní platnost — zadám datum od / do</option>`;
+    const syncDates = () => {
+      const custom = sel.value === "custom";
+      $("valid_from").disabled = $("valid_to").disabled = !custom;
+      if (!custom){
+        const p = VALIDITY.find(x => String(x.id) === sel.value);
+        $("valid_from").value = p ? (p.valid_from || "") : "";
+        $("valid_to").value = p ? (p.valid_to || "") : "";
+      }
+    };
+    sel.onchange = syncDates;
+    syncDates();
+    box.classList.remove("hidden");
+  } catch(e){ box.classList.add("hidden"); }
+}
+
+async function loadEntityLists(){
+  const ent = $("legal_entity").value;
+  loadValidityPeriods();   // independent fetch — the org's defined periods
+  if (!ent){ showGradesHint(); showSubjectHint(); return; }
+  try {
+    const c = await fetch(`${API}/v1/code-lists?legal_entity=${encodeURIComponent(ent)}`,
+                          {cache: "no-store"}).then(r => r.json());
+    const keepS = $("school_subject").value;
+    fillSelect($("school_subject"), c.code_lists.school_subject || [], false, "— nezadáno —");
+    $("school_subject").disabled = false;   // active once a school is chosen
+    renderGradeChecks(c.code_lists.school_grade || []);   // preserves checked grades itself
+    // domains are per-school too (nearest-owner-up, global fallback) — refresh for
+    // this entity so a school-specific situation set shows; global is the default.
+    try {
+      const dm = await fetch(`${API}/v1/domains?legal_entity=${encodeURIComponent(ent)}`,
+                             {cache: "no-store"}).then(r => r.json());
+      DOMAINS = dm.domains || DOMAINS;   // already the school's per-unit catalog
+      renderDomains(DOMAINS);
+      renderBindings();   // re-filter bindings against THIS school's domain catalog
+    } catch(e){ /* keep the global domains already rendered */ }
+    applyBindingMode();                                   // re-apply disabled state
+    // keep the user's pick when the new set still offers it
+    if ([...$("school_subject").options].some(o => o.value === keepS)) $("school_subject").value = keepS;
+  } catch(e){ /* the global placeholder stays — the server validates anyway */ }
+}
+
+// The page does not decide who may publish to the whole organisation — it asks.
+// /v1/entities answers per entity (may_publish_organization), so when the rule
+// changes (a policy switch today, a user role later) nothing here changes. Offering
+// an option the server will refuse would only reveal the refusal after the upload.
+function applyVisibilityRights(){
+  const code = $("legal_entity").value;
+  const ent = ENTITIES.find(e => e.legal_entity_code === code);
+  const opt = $("visibility").querySelector('option[value="organization"]');
+  if (!opt) return;
+  const allowed = !code || ent?.may_publish_organization !== false;
+  opt.disabled = !allowed;
+  if (!allowed && $("visibility").value === "organization") $("visibility").value = "entity";
+  applyVisibilityRoleGate();
+}
+
+// Role is offered ONLY for non-private visibility: a private document's role is
+// never consulted at search (only the owner sees it), so it is neither shown nor
+// required for private.
+function applyVisibilityRoleGate(){
+  const isPrivate = $("visibility").value === "private";
+  $("rolesRow").classList.toggle("hidden", isPrivate);
+  $("privateNote").classList.toggle("hidden", !isPrivate);
+  if (isPrivate)
+    document.querySelectorAll(".roleCb:checked").forEach(c => c.checked = false);
+}
+
+async function loadStaffUsers(){
+  const ent = $("legal_entity").value;
+  const sel = $("user_id");
+  if (!ent){
+    sel.innerHTML = `<option value="">${esc(t("choose_entity_first"))}</option>`;
+    renderBindings(); return;
+  }
+  try {
+    const d = await fetch(`${API}/v1/staff-users?legal_entity=${encodeURIComponent(ent)}`)
+                    .then(r => r.json());
+    sel.innerHTML = d.staff_users.length
+      ? d.staff_users.map(u =>
+          `<option value="${esc(u.user_id)}">${esc(u.display_name)}</option>`).join("")
+      : `<option value="">${esc(t("no_users"))}</option>`;
+  } catch (e){
+    sel.innerHTML = `<option value="">${esc(t("lists_error"))}</option>`;
+  }
+  renderBindings();   // school + (default) user now known
+}
+
+// ── ingest progress ─────────────────────────────────────────────────────────
+let pollTimer = null, pollCount = 0, pollStart = 0, pollUuid = null;
+// How many files the run REALLY has — known only once POST /v1/ingest returns.
+// Until then the log shows a growing subset (the parent stores its chunks
+// before the children even start logging), so "every visible file has chunks"
+// is NOT "done" — stopping on it froze the page at one document (2026-08-05).
+let expectedFiles = null;
+
+function stopPolling(reason){
+  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  $("progressMeta").textContent = reason;
+}
+
+// `pu` is null while the upload is still running: POST /v1/ingest is synchronous
+// and only reveals the processing_uuid once everything has finished, so until
+// then the run is identified by "the newest one started since we submitted".
+// Seconds, not a timestamp — the server computes the cutoff, so client clock
+// skew cannot shift the window.
+async function pollStatus(pu){
+  pollCount++;
+  const q = pu ? `processing_uuid=${pu}`
+               : `since_seconds=${Math.ceil((Date.now() - pollStart) / 1000) + 30}`;
+  try {
+    const d = await fetch(`${SEARCH}/v1/ingest-status?${q}`).then(r => r.json());
+    if (!pollUuid && d.processing_uuid) pollUuid = d.processing_uuid;  // pin the run
+    const body = $("progressBody");
+    if (!d.files.length){
+      body.innerHTML = `<tr><td colspan="5">${t("status_waiting")}</td></tr>`;
+      return;
+    }
+    // ONE ROW PER EVENT. The file and its chunk count span the group, so the
+    // sequence reads top-to-bottom like a log while the per-file facts stay
+    // stated once. Offsets are from that file's first event; the gap column is
+    // the distance from the PREVIOUS event, which is where a stall shows up.
+    body.innerHTML = d.files.map(f => {
+      const stored = f.chunks > 0;
+      const evs = (f.events || []);
+      const src = `<a href="${esc(f.url || "#")}" target="_blank">${esc(f.title)}</a>`
+                + `<div class="hint">${esc(f.file_name || "")}</div>`;
+      if (!evs.length){
+        return `<tr><td class="src">${src}</td><td colspan="3">${esc(f.last_message ?? "")}</td>` +
+               `<td class="${stored ? "stored" : ""}">${f.chunks}${stored ? " ✓" : ""}</td></tr>`;
+      }
+      return evs.map((e, i) => {
+        const prev = i ? (e.offset_s ?? 0) - (evs[i-1].offset_s ?? 0) : 0;
+        // the gap is only worth flagging while nothing has been stored yet
+        const stale = !stored && i === evs.length - 1 && f.seconds_since_last > 120;
+        const msg = e.message || "";
+        return `<tr class="${i === evs.length - 1 ? "cur" : ""}">`
+          + (i === 0 ? `<td class="src" rowspan="${evs.length}">${src}</td>` : "")
+          + `<td class="cmp">${esc(e.component || "")}<div class="msg" title="${esc(msg)}">`
+          + `${esc(msg.length > 110 ? msg.slice(0,110) + "…" : msg)}</div></td>`
+          + `<td class="num">+${e.offset_s ?? "?"}s</td>`
+          + `<td class="num ${stale ? "stale" : ""}">${i ? prev + "s" : "—"}</td>`
+          + (i === 0 ? `<td class="num ${stored ? "stored" : ""}" rowspan="${evs.length}">`
+                       + `${f.chunks}${stored ? " ✓" : ""}</td>` : "")
+          + `</tr>`;
+      }).join("");
+    }).join("");
+    // stop only when the file set is COMPLETE (count from the ingest response)
+    // and every file has stored chunks — the log alone can't tell completeness
+    const allStored = d.files.every(f => f.chunks > 0)
+                   && expectedFiles !== null && d.files.length >= expectedFiles;
+    if (allStored) stopPolling(`${t("status_stored")} ✓ — ${t("status_stopped")}`);
+    else if (pollCount >= POLL_MAX) stopPolling(t("status_stopped"));
+    else $("progressMeta").textContent = t("status_polling");
+  } catch(e){
+    $("progressMeta").textContent = `${t("error")}: ${e.message}`;
+  }
+}
+
+function startPolling(){
+  if (pollTimer) clearInterval(pollTimer);
+  pollCount = 0; pollStart = Date.now(); pollUuid = null; expectedFiles = null;
+  $("progress").classList.remove("hidden");
+  $("progressBody").innerHTML = `<tr><td colspan="5">${t("status_waiting")}</td></tr>`;
+  $("progressMeta").textContent = t("status_polling");
+  pollStatus(pollUuid);
+  // pollUuid is filled in either by the first response that finds the run, or by
+  // the ingest response when it finally returns — whichever happens first.
+  pollTimer = setInterval(() => pollStatus(pollUuid), POLL_MS);
+}
+
+$("f").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const fd = new FormData();
+  const isUrl = $("boxUrl").style.display !== "none";
+  if (isUrl){
+    if (!$("url").value){ alert(t("enter_url")); return; }
+    fd.append("url", $("url").value);
+    if ($("children").checked){
+      fd.append("save_level_1_child", "true");
+      fd.append("max_child_links", $("maxChild").value || "5");
+    }
+  } else {
+    if (!$("file").files[0]){ alert(t("choose_file")); return; }
+    fd.append("file", $("file").files[0]);
+  }
+  // WHO and FOR WHOM — the gateway verifies all three against the register and
+  // refuses the ingest if any is wrong, so there is nothing to default here.
+  if (!$("legal_entity").value){ alert(t("choose_entity")); return; }
+  if (!$("user_id").value){ alert(t("choose_user")); return; }
+  fd.append("legal_entity", $("legal_entity").value);
+  fd.append("user_id", $("user_id").value);
+  fd.append("visibility", $("visibility").value);
+  // role: required + sent only for non-private (private ignores role at search).
+  const isPrivate = $("visibility").value === "private";
+  const roles = isPrivate ? [] : [...document.querySelectorAll(".roleCb:checked")].map(c => c.value);
+  if (!isPrivate && !roles.length){ alert(t("roles_required")); return; }
+  roles.forEach(r => fd.append("audience_roles", r));
+  // binding vs manual. A chosen binding declares BOTH its domain AND its grade
+  // SET — so binding_id is identified (level + domain + grades match) and the
+  // document stores the domain id, the grade ids and binding_id. Manual sends the
+  // checked domains + the checked grade set.
+  const bind = document.querySelector(".bindingRb:checked");
+  const useBinding = bind && bind.value !== "__manual__";
+  if (useBinding){
+    fd.append("domains", bind.value);
+    const b = BINDINGS.find(x => x.domain_code === bind.value);
+    (b ? b.grades : []).forEach(g => fd.append("school_subject_grades", g));
+  } else {
+    [...document.querySelectorAll(".domainCb:checked")].forEach(c => fd.append("domains", c.value));
+    [...document.querySelectorAll("#grades .gradeCb:checked")].forEach(c => fd.append("school_subject_grades", c.value));
+  }
+  for (const k of ["document_type","document_language","school_subject"]){
+    if ($(k).value) fd.append(k, $(k).value);
+  }
+  // A QA pack (.csv) is versioned BY NAME, so the gateway REQUIRES the name and
+  // rejects anything outside [A-Za-z0-9_-]. Checked here too: learning about a
+  // character rule after the upload already started wastes the user's file pick.
+  // Other source types ignore the field entirely.
+  if (/\.csv$/i.test($("file").files[0]?.name || "")){
+    const _p = packIdProblem();
+    if (_p){ alert(_p); $("user_defined_pack_id").focus(); return; }
+  }
+  if ($("user_defined_pack_id").value.trim())
+    fd.append("user_defined_pack_id", $("user_defined_pack_id").value.trim());
+  // document validity: a chosen organisation period or custom dates; nothing
+  // chosen ("Bez platnosti") sends no fields -> NULL = unlimited
+  const _val = validityChosen();
+  if (_val.valid_from) fd.append("valid_from", _val.valid_from);
+  if (_val.valid_to)   fd.append("valid_to", _val.valid_to);
+  $("go").disabled = true;
+  $("status").textContent = t("uploading");
+  startPolling();          // POST /v1/ingest blocks to the end — watch from now
+  const box = $("result"); box.className = ""; box.textContent = "…";
+  const t0 = Date.now();
+  try {
+    const r = await fetch(API + "/v1/ingest", { method: "POST", body: fd });
+    const j = await r.json();
+    // surface the pack the server actually used (QA uploads report it in qa_tables)
+    const packLine = (j.files || []).map(f =>
+      (f.pipeline_status?.detail?.qa_tables || "").match(/pack '([^']+)'/)?.[1]
+    ).filter(Boolean).map(p => `pack: ${p}\n`).join("");
+    box.textContent = `HTTP ${r.status} · ${(Date.now()-t0)/1000|0}s\n${packLine}\n`
+      + JSON.stringify(j, null, 2);
+    box.className = r.ok && j.status === "completed" ? "ok" : "err";
+    $("status").textContent = r.ok ? t("done") : t("error") + " " + r.status;
+    if (j.processing_uuid) pollUuid = j.processing_uuid;
+    // the response is the only place that knows how many files the run has —
+    // from here on the poller may stop once ALL of them have stored chunks
+    if (r.ok) expectedFiles = (j.files || []).length || 1;
+    // A rejected upload (bad URL, unsupported type) never reaches the flow, so no
+    // ingestion_log row will ever appear — stop watching instead of sitting on
+    // "waiting for the first event" until the poll cap runs out.
+    else if (!r.ok) stopPolling(`${t("error")} ${r.status} — ${t("status_stopped")}`);
+  } catch (e){
+    box.textContent = `${t("error")}: ${e.message}`; box.className = "err";
+    $("status").textContent = t("failed");
+    stopPolling(`${t("error")} — ${t("status_stopped")}`);
+  } finally { $("go").disabled = false; }
+});
+
+// ── pack name: required, and constrained to a safe identifier ─────────────
+// The server no longer derives a name (the old language-subject-grade rule gave
+// every plain upload "cs-core", so a school's second QA upload silently replaced
+// its first). The name is the REPLACEMENT KEY the curator types, so this mirrors
+// the gateway's rule instead of predicting a derivation: same regex, same limit.
+// Checked live rather than only on submit — a rejected upload after choosing a
+// file and ticking grades is a bad way to learn about a character rule.
+const PACK_ID_RX = /^[A-Za-z0-9_-]{1,64}$/;
+function packIdProblem(){
+  const v = $("user_defined_pack_id").value.trim();
+  if (!v) return t("pack_id_required");
+  if (!PACK_ID_RX.test(v)) return t("pack_id_invalid");
+  return null;
+}
+function updatePackPreview(){
+  const custom = $("user_defined_pack_id").value.trim();
+  const box = $("packPreview");
+  // only a QA pack (.csv) needs the name — for a PDF the field is irrelevant,
+  // so an empty box must not be flagged as a problem
+  const isQa = /\.csv$/i.test($("file").files[0]?.name || "");
+  const problem = (isQa || custom) ? packIdProblem() : null;
+  $("user_defined_pack_id").style.borderColor = problem && custom ? "#c00" : "";
+  if (problem){
+    box.innerHTML = `<span style="color:#c00">${esc(problem)}</span>`;
+    return;
+  }
+  box.innerHTML = custom ? t("pack_preview_custom").replace("{id}", esc(custom)) : "";
+}
+for (const id of ["user_defined_pack_id","document_language","school_subject"]){
+  $(id).addEventListener("input", updatePackPreview);
+  $(id).addEventListener("change", updatePackPreview);
+}
+$("grades").addEventListener("change", updatePackPreview);
+$("file").addEventListener("change", updatePackPreview);   // .csv → name required
+$("visibility").addEventListener("change", applyVisibilityRoleGate);
+
+loadLabels().then(loadLists).then(updatePackPreview).then(applyVisibilityRoleGate);
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+# Secrets & environment
+edu_ai.env
+.env
+*.env
+!.env.example
+
+# LangFlow runtime data (DB, secret keys, uploads)
+langflow_data/
+langflow_data_1_8/
+langgraph_data/
+uploads/
+
+# Bifrost gateway state — config.db holds the provider API keys
+bifrost_data/
+
+# Database files
+postgres_data/
+weaviate_data/
+*.db
+*.db-shm
+*.db-wal
+
+# Backups
+backup_*/
+
+# Claude Code
+.claude/
+
+# Draw.io backup files
+*.drawio.bkp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Logs
+*.log
+
+# TLS certs / keys (never commit). nginx serves plain HTTP today — this stays as a
+# guard for whatever TLS material lands here when the edge moves behind Cloudflare.
+nginx/certs/
+
+# Local snapshots / generated docs (do not commit)
+AI_engineering_snapshot_v2.pdf
+AI_engineering_snapshot_v2.pptx
+docs/architecture_qa.md
+docs/architecture_qa.png
+docs/architecture_qa.svg
+langflow_data_backup*/
+
+# Generated QA packs
+sqllite_export/
+
+# Raw email / WhatsApp exports — private; keep only the design doc
+EMAILS/*
+!EMAILS/edu-ai-rag-redesign.md
+
+# nginx auth secrets (mounted, not committed)
+nginx/.htpasswd
+nginx/auth_keys.conf
+!nginx/.htpasswd.example
+!nginx/auth_keys.conf.example
+
+# Test / ingestion sample documents — local only (binaries: PDF/sqlite/xlsx), keep out of git
+Podklady pro testy/
+Ingestion testing documents/
+
+# pgAdmin storage bind target — keep the dir on clone (bind source must exist),
+# but never commit exported files (CSV, backups, per-user storage/<user>/)
+pgadmin_exports/*
+!pgadmin_exports/.gitkeep
+RFP/
+
+# private handover notes — shared with the team out of band, never public
+docs/HANDOFF_*.md
+
+# handover notes — mimo repo, mají vlastní život
+For_*_and_*/
+
+# interní nálezy z testování — do repa nepatří (dumpy DB, korespondence, analýzy)
+nalezy z testování/
+
+# Měřicí výstupy a datové sady pilotních škol — zůstávají lokálně, do repa nepatří
+eval/
+tests/eval_out/
+Instructions for documentation/
+scratchpad_server_flow_backup/

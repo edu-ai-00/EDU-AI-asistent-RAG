@@ -1,0 +1,81 @@
+# Eval set — from produktový vlastník's email "RAG EDU-AI - otázky přijímačky" (13.7.2026).
+# Real student questions; most are OUT of scope of the 72-entry přijímačky FAQ.
+# One question per line; blank lines and #-comments ignored.
+Můžu mít u přijímaček na SŠ papír na pomocné výpočty?
+Můžu mít u přijímaček na střední školu hodinky na ruce?
+Můžu u přijímaček na gymnázium psát do zadání?
+Co znamená přijímací zkoušky - OP?
+Dělají se na kadeřnické škole přijímačky?
+Cermat přijímací zkoušky, jak jste dopadli?
+Typy otázek v testech CERMAT
+Zdravím, jak nejlépe se naučit přísloví na přijímačky? Existuje nějaká stránka?
+Nevíte někdo, kdy mají být zveřejněny výsledky přijatých a nepřijatých žáků?
+Jakou si mám vybrat střední školu?
+Nevím, na kterou střední školu mám jít.
+Co se učí na nástavbovém studiu?
+Jak budou vypadat maturitni prijimaci zkousky?
+Jak podat a kde vzít přihlášku na čtyřletý obor SŠ?
+Přijetí bez přijímacích zkoušek?
+Nemáte někdo řešené příklady z Učebnice Jindra Petáková příprava k maturitě?
+Maturita z matematiky. Je moc těžká?
+Logická olympiáda, zadání minulých ročníků
+vzor odvolání proti výsledkům maturity z matematiky
+je na obchodní škole lehčí matematika než na gymnáziu?
+kde by se našli starší maturitní testy z matematiky?
+V čem je studium na gymnáziu jiné než na ZŠ? Na co se připravit? Jaké jsou ode mě požadavky?
+Co mám říct rodičům když jsem dostal napomenutí třídního učitele
+Mám přeskočit rocnik?
+V kterém ročníku se učí slovesný vid a v kterém ročníku slovesné třídy a vzory?
+Za chvíli začne škola, co dělat?
+Můžu jít na učiliště, když jsem měl v prvním pololetí deváté třídy jednu pětku?
+Pojedeme se třídou na exkurzi do ČNB. Nevíte, zda můžu mít v uších náušnice? Nemohu je totiž vyndat?
+Poradíte, co mám napsat do přáníčka oblíbené učitelce? (odcházím ze školy, loučíme se)
+Co mě čeká, když mám velký počet zameškaných hodin ve vyučování?
+Budu mít vyznamenání, když mám 8 jedniček a 8 dvojek, což je přesně průměr 1.5?
+Dobrý den, chtěl bych se zeptat, zda mohu opakovat 9.ročník pokud mám u 7 předmětů absenci 40%, ale uz jsem přijat na sš
+Bojím se mluvit před třídou, co mám dělat?
+V jakém vztahu ke mně je otec otce mého otce?
+Jak jste spokojeni s elektronickou žákovskou knížkou?
+Jak vysvětlit rodičům, že propadnu?
+Které jazyky ovládal Karel Čapek?
+Jaké zdroje referátu byste mi doporučili?
+Má základní vzdělání opravdu každý?
+Co mám dělat proti šikaně?
+Co hrozí páťákovi, kterého na základní škole šikanuje sedmák, a on si najme za 2 stovky deváťáka, aby mu rozbil hubu?
+Jaké jsou rozdíly mezi prvoukou a přírodopisem?
+Ve kterých zemích světa není povinná školní docházka?
+Je mozne, aby mi ucitelka pred celou tridou vyhrozovala socialkou?
+Vezmou mě na střední školu pedagogickou, když mám v 8. třídě dvě trojky?
+Když chci jít na střední pedagogickou školu, musím umět hrát na nějaký nástroj?
+Vyučuje se v USA na ZŠ přírodopis?
+Má pravdu učitel, že hodinu končí on?
+Probíhá v současnosti ve školách soutěž ve sběru kaštanů?
+Kam jít po základní škole, abych se stal učitelem na základní škole?
+Proč většina učitelů poučuje žáky a sami se podle toho nechovají?
+Jaké znáte nejlepší (nejnenápadnější) taháky do školy?
+Co se probírá v 9. třídě?
+Co mám koupit učitelovi za vysvědčení?
+Kdy se učí hlavní města?
+Je inspekce opravdu tak prisna?
+Jak se učíte, aby jste si pamatovali co nejvíce?
+Jak si mám najít kamarády na nové škole?
+Pokud žák řekne slušně svůj názor a učitel s ním nesouhlasí, může mu učitel snížit známku za celé čtvrtletí??
+Když neudělám opravky z telocviku v 2 polovině 9 ročníku může to zavinit nepřijetí na střední školu?
+Má učitel právo zabavit soukromý majetek?
+Může se napsat do omluvenky zaspal?
+Jak se zbavit sikany?
+Mohu být dyskalkulik nebo je to má hloupost?
+Jaký předmět jde humanitním typům ve škole nejvíc?
+Co jsou technické předměty ve škole?
+Jaká je doba možnosti dodělat SŠ?
+Jakej význam maj domácí oukoly?
+Byly jste někdy za školou?
+Má učitel(ka) na základní škole právo zabavit žákovi mobilní telefon? Pokud ano, na jak dlouho? Děkuji.
+Jsou učitelé na ZŠ limitováni maximálním počtem testů za den?
+Co psát do školního časopisu?
+Chtela bych se zeptat jake skoly musite mit vystudovane aby jste se mohl stat ortodentistou?
+Které učební obory budou mít vždy budoucnost a prosperitu?
+Jak se na střední škole vyučuje programování?
+Jak dlouho trvá, než dostanu dopis o přijetí ze střední školy z učebního oboru?
+Nevím, na kterou střední školu mám jít. Doporučíte některou?
+Který typ středních škol je nejtěžší?

@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "language": "en",
+  "generator": "search/app/text_norm.build_forms",
+  "config": "null (settings v1 defaults: lowercase + strip_diacritics + drop_stopwords)",
+  "note": "Canonical EN normalization/lemma/stem parity vectors. The Python server and the Dart offline app MUST both reproduce these outputs (query<->index parity). Regenerate with contracts/parity/gen_vectors.py.",
+  "vectors": [
+    {
+      "input": "When does the school year start?",
+      "norm": [
+        "when",
+        "school",
+        "year",
+        "start"
+      ],
+      "lemma": [
+        "when",
+        "school",
+        "year",
+        "start"
+      ],
+      "stem": [
+        "when",
+        "doe",
+        "school",
+        "year",
+        "start"
+      ]
+    },
+    {
+      "input": "Admission requirements for secondary schools",
+      "norm": [
+        "admission",
+        "requirements",
+        "secondary",
+        "schools"
+      ],
+      "lemma": [
+        "admission",
+        "requirement",
+        "secondary",
+        "school"
+      ],
+      "stem": [
+        "admiss",
+        "requir",
+        "secondari",
+        "school"
+      ]
+    },
+    {
+      "input": "APPLICATION",
+      "norm": [
+        "application"
+      ],
+      "lemma": [
+        "application"
+      ],
+      "stem": [
+        "applic"
+      ]
+    },
+    {
+      "input": "mathematics and the English language",
+      "norm": [
+        "mathematics",
+        "english",
+        "language"
+      ],
+      "lemma": [
+        "mathematics",
+        "english",
+        "language"
+      ],
+      "stem": [
+        "mathemat",
+        "english",
+        "languag"
+      ]
+    },
+    {
+      "input": "deadline 1 September 2025",
+      "norm": [
+        "deadline",
+        "1",
+        "september",
+        "2025"
+      ],
+      "lemma": [
+        "deadline",
+        "1",
+        "september",
+        "2025"
+      ],
+      "stem": [
+        "deadlin",
+        "1",
+        "septemb",
+        "2025"
+      ]
+    },
+    {
+      "input": "state-wide entrance examination",
+      "norm": [
+        "state",
+        "wide",
+        "entrance",
+        "examination"
+      ],
+      "lemma": [
+        "state",
+        "wide",
+        "entrance",
+        "examination"
+      ],
+      "stem": [
+        "state",
+        "wide",
+        "entranc",
+        "examin"
+      ]
+    },
+    {
+      "input": "How do I apply?",
+      "norm": [
+        "how",
+        "apply"
+      ],
+      "lemma": [
+        "how",
+        "apply"
+      ],
+      "stem": [
+        "how",
+        "appli"
+      ]
+    },
+    {
+      "input": "report card",
+      "norm": [
+        "report",
+        "card"
+      ],
+      "lemma": [
+        "report",
+        "card"
+      ],
+      "stem": [
+        "report",
+        "card"
+      ]
+    },
+    {
+      "input": "What is a standards-based assessment?",
+      "norm": [
+        "what",
+        "standards",
+        "based",
+        "assessment"
+      ],
+      "lemma": [
+        "what",
+        "standard",
+        "base",
+        "assessment"
+      ],
+      "stem": [
+        "what",
+        "standard",
+        "base",
+        "assess"
+      ]
+    },
+    {
+      "input": "school",
+      "norm": [
+        "school"
+      ],
+      "lemma": [
+        "school"
+      ],
+      "stem": [
+        "school"
+      ]
+    },
+    {
+      "input": "to the school",
+      "norm": [
+        "school"
+      ],
+      "lemma": [
+        "school"
+      ],
+      "stem": [
+        "school"
+      ]
+    },
+    {
+      "input": "the second round of admissions",
+      "norm": [
+        "second",
+        "round",
+        "admissions"
+      ],
+      "lemma": [
+        "second",
+        "round",
+        "admission"
+      ],
+      "stem": [
+        "second",
+        "round",
+        "admiss"
+      ]
+    },
+    {
+      "input": "German",
+      "norm": [
+        "german"
+      ],
+      "lemma": [
+        "german"
+      ],
+      "stem": [
+        "german"
+      ]
+    },
+    {
+      "input": "students' adaptations were necessary",
+      "norm": [
+        "students",
+        "adaptations",
+        "necessary"
+      ],
+      "lemma": [
+        "student",
+        "adaptation",
+        "necessary"
+      ],
+      "stem": [
+        "student",
+        "adapt",
+        "necessari"
+      ]
+    },
+    {
+      "input": "studying, studied, studies",
+      "norm": [
+        "studying",
+        "studied",
+        "studies"
+      ],
+      "lemma": [
+        "study",
+        "study",
+        "study"
+      ],
+      "stem": [
+        "studi",
+        "studi",
+        "studi"
+      ]
+    },
+    {
+      "input": "running quickly toward graduation",
+      "norm": [
+        "running",
+        "quickly",
+        "toward",
+        "graduation"
+      ],
+      "lemma": [
+        "run",
+        "quickly",
+        "toward",
+        "graduation"
+      ],
+      "stem": [
+        "run",
+        "quick",
+        "toward",
+        "graduat"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3324 @@
+-- last change in code by Martin Safranek (2026-08-28).
+-- 01_schema.sql — the complete schema for a clean install, dumped from the
+-- verified live database.
+--
+-- This file replaces the whole numbered migration chain: a clean install runs
+-- 00 → 01 → 02 and needs nothing else. The historical migrations are not part
+-- of this repository; they only ever served to bring an already-running
+-- installation forward.
+--
+-- The langchain_pg_* tables are omitted: nothing writes to them. The only
+-- vector store is document_chunks.embedding.
+--
+-- Run against the edu_ai database as the edu_ai role.
+
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+-- functions may reference tables created later in this file
+SET check_function_bodies = false;
+
+CREATE SCHEMA edu_ai;
+
+-- pg_trgm/unaccent live in the edu_ai schema; `vector` MUST live in public
+-- because pg_search (ParadeDB) hard-references public.vector — installing it
+-- elsewhere makes `CREATE EXTENSION pg_search` fail with "type public.vector
+-- does not exist". So vector columns/opclasses are qualified public.vector.
+CREATE EXTENSION IF NOT EXISTS vector   SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pg_trgm  SCHEMA edu_ai;
+CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA edu_ai;
+-- ParadeDB BM25 full-text (needs shared_preload_libraries='pg_search' + the
+-- extension binary baked into Dockerfile.postgres). CASCADE pulls `vector` if
+-- it is not created yet. Its own objects live in the paradedb schema.
+CREATE EXTENSION IF NOT EXISTS pg_search CASCADE;
+
+
+--
+-- Name: SCHEMA edu_ai; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA edu_ai IS 'edu_ai application schema — documents, chunks, Q&A packs, and the číselníky that drive behaviour without code changes (code_list, taxonomy_rules, prompt_registry, search_setting, system_message, qa_stopword/synonym/blocklist). Copyright 2026 Martin Šafránek, Jan Drozd. Apache License 2.0.';
+
+
+--
+-- Name: chunk_codes_valid(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.chunk_codes_valid() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE bad bigint;
+BEGIN
+    -- GRADES validate against the entity's WHOLE SUBTREE (entity + descendants),
+    -- not just its own resolved list: an ORGANISATION document may legitimately
+    -- carry a grade row that lives on a unit below it (ZŠ 1..9 / SŠ 10..13). The
+    -- enrichment LLM decides ZŠ vs SŠ from context; codes are non-overlapping.
+    SELECT g INTO bad FROM unnest(NEW.school_grade_ids) AS g
+     WHERE NOT EXISTS (
+         WITH RECURSIVE sub AS (
+             SELECT legal_entity_code FROM edu_ai.legal_entity
+              WHERE legal_entity_code = NEW.legal_entity_code AND is_active
+             UNION ALL
+             SELECT c.legal_entity_code FROM edu_ai.legal_entity c
+               JOIN sub ON c.parent_code = sub.legal_entity_code
+              WHERE c.is_active)
+         SELECT 1 FROM edu_ai.code_list cl
+          WHERE cl.list_code = 'school_grade' AND cl.is_active AND cl.id = g
+            AND cl.legal_entity_code IN (SELECT legal_entity_code FROM sub))
+     LIMIT 1;
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION 'school_grade_ids: % is not a row of the school_grade list in the subtree of %',
+                        bad, NEW.legal_entity_code;
+    END IF;
+    SELECT s INTO bad FROM unnest(NEW.school_subject_ids) AS s
+     WHERE NOT EXISTS (SELECT 1 FROM edu_ai.resolved_code_list(
+                           NEW.legal_entity_code, 'school_subject') r
+                       WHERE r.id = s)
+     LIMIT 1;
+    IF bad IS NOT NULL THEN
+        RAISE EXCEPTION 'school_subject_ids: % is not a row of the resolved school_subject list for %',
+                        bad, NEW.legal_entity_code;
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: codebook_owner_must_be_root(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.codebook_owner_must_be_root() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- The name is historical (init 107 allowed top-level owners only). Since
+    -- init 120 a codebook row may belong to ANY registered entity — a unit
+    -- owns a list exactly when its semantics differ from its organisation's
+    -- (SOŠ grades 1..4). NULL stays the founding template.
+    IF NEW.legal_entity_code IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM edu_ai.legal_entity
+        WHERE legal_entity_code = NEW.legal_entity_code) THEN
+        RAISE EXCEPTION 'codebook owner % is not in the register',
+                        NEW.legal_entity_code;
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: entity_grade_scope(text); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.entity_grade_scope(p_entity text) RETURNS TABLE(id bigint, code text)
+    LANGUAGE sql STABLE
+    AS $$
+  WITH RECURSIVE tree AS (
+      SELECT p_entity AS node
+      UNION ALL
+      SELECT e.legal_entity_code
+        FROM edu_ai.legal_entity e JOIN tree t ON e.parent_code = t.node
+       WHERE e.is_active
+  )
+  SELECT c.id, c.code
+    FROM tree t
+    JOIN edu_ai.code_list c ON c.legal_entity_code = t.node
+     AND c.list_code = 'school_grade' AND c.is_active
+  UNION
+  SELECT r.id, r.code
+    FROM edu_ai.resolved_code_list(p_entity, 'school_grade') r
+   WHERE r.is_active
+$$;
+
+
+--
+-- Name: FUNCTION entity_grade_scope(p_entity text); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.entity_grade_scope(p_entity text) IS 'Ročník rows an entity may reference: its SUBTREE (itself + units) UNION resolved_code_list (self/ancestors/global). The subtree half is required because the resolver walks UP only — an umbrella org resolves to {9999} alone although its ZŠ owns 1..9 and its SOŠ 10..13. Used by the QA build (before the pack row exists) and by qa_pack_drift().';
+
+
+--
+-- Name: grade_level(text, text); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.grade_level(p_entity text, p_code text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE
+  v_map jsonb;
+  v_level text;
+  v_n int;
+BEGIN
+  IF p_code IS NULL OR btrim(p_code) = '' THEN
+    RETURN NULL;
+  END IF;
+
+  -- nearest map walking UP the entity chain (unit -> its legal person -> …).
+  -- depth bound: parent_code has no cycle constraint, and a stack overflow
+  -- inside a search node would surface as "no level" at best.
+  WITH RECURSIVE chain AS (
+    SELECT legal_entity_code, parent_code, grade_levels, 0 AS depth
+      FROM edu_ai.legal_entity WHERE legal_entity_code = p_entity
+    UNION ALL
+    SELECT e.legal_entity_code, e.parent_code, e.grade_levels, c.depth + 1
+      FROM edu_ai.legal_entity e JOIN chain c ON e.legal_entity_code = c.parent_code
+     WHERE c.depth < 10
+  )
+  SELECT grade_levels INTO v_map
+    FROM chain WHERE grade_levels IS NOT NULL ORDER BY depth LIMIT 1;
+
+  IF v_map IS NOT NULL THEN
+    -- a map present is AUTHORITATIVE: a code it does not list has no level
+    -- (9999 "all grades" and UNKNOWN are exactly that, deliberately)
+    SELECT k INTO v_level
+      FROM jsonb_each(v_map) AS t(k, v)
+     WHERE v ? p_code
+     LIMIT 1;
+    RETURN v_level;
+  END IF;
+
+  -- No map anywhere: the SINGLE remaining copy of the old arithmetic. Kept so
+  -- a tenant that has not declared its system yet degrades to the Czech default
+  -- instead of losing grade/level preference altogether; grade_levels_drift()
+  -- reports who is running on it.
+  BEGIN
+    v_n := p_code::int;
+  EXCEPTION WHEN others THEN
+    RETURN NULL;
+  END;
+  IF v_n BETWEEN 1 AND 9 THEN
+    RETURN 'ZS';
+  ELSIF v_n BETWEEN 10 AND 13 THEN
+    RETURN 'SS';
+  END IF;
+  RETURN NULL;
+END $$;
+
+
+--
+-- Name: FUNCTION grade_level(p_entity text, p_code text); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.grade_level(p_entity text, p_code text) IS 'The school level of a ročník code for an entity: nearest grade_levels map walking up the entity chain, else the Czech 1..9/10..13 default. The only reader of legal_entity.grade_levels.';
+
+
+--
+-- Name: grade_levels_drift(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.grade_levels_drift() RETURNS TABLE(legal_entity_code text, problem text, detail text)
+    LANGUAGE sql STABLE
+    AS $_$
+  -- 1. map lists a code NOBODY in the entity's subtree has in its codebook.
+  -- The subtree, not the entity itself: an umbrella organisation's own codebook
+  -- holds just 9999 while the numeric grades live on the units
+  -- that inherit its map — checking only the entity would flag every one of them.
+  SELECT e.legal_entity_code, 'code not in codebook', string_agg(DISTINCT c.code, ',')
+    FROM edu_ai.legal_entity e
+    CROSS JOIN LATERAL jsonb_each(e.grade_levels) AS m(k, v)
+    CROSS JOIN LATERAL jsonb_array_elements_text(m.v) AS c(code)
+   WHERE e.grade_levels IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM edu_ai.legal_entity d
+         CROSS JOIN LATERAL edu_ai.resolved_code_list(d.legal_entity_code, 'school_grade') r
+        WHERE (d.legal_entity_code = e.legal_entity_code
+               OR d.parent_code = e.legal_entity_code)
+          AND r.code = c.code AND r.is_active)
+   GROUP BY 1
+  UNION ALL
+  -- 2. map key is not a level the model allows
+  SELECT e.legal_entity_code, 'unknown level key', string_agg(DISTINCT m.k, ',')
+    FROM edu_ai.legal_entity e CROSS JOIN LATERAL jsonb_each(e.grade_levels) AS m(k, v)
+   WHERE e.grade_levels IS NOT NULL AND m.k NOT IN ('MS', 'ZS', 'SS')
+   GROUP BY 1
+  UNION ALL
+  -- 3. active numeric ročník nobody classified — the entity runs on the default
+  SELECT e.legal_entity_code, 'grade not classified', string_agg(DISTINCT r.code, ',')
+    FROM edu_ai.legal_entity e
+    CROSS JOIN LATERAL edu_ai.resolved_code_list(e.legal_entity_code, 'school_grade') r
+   WHERE e.is_active AND r.is_active AND r.code ~ '^[0-9]{1,2}$'
+     AND edu_ai.grade_level(e.legal_entity_code, r.code) IS NULL
+   GROUP BY 1
+$_$;
+
+
+--
+-- Name: language_selection_must_exist(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.language_selection_must_exist() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.list_code = 'language' AND NEW.legal_entity_code IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM edu_ai.code_list
+                       WHERE list_code = 'language' AND code = NEW.code
+                         AND legal_entity_code IS NULL AND is_active) THEN
+        RAISE EXCEPTION 'language %L is not defined by the platform — a school '
+                        'selects from the platform languages, it cannot add one',
+                        NEW.code;
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: provision_school_code_lists(text); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.provision_school_code_lists(p_entity text) RETURNS integer
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE n integer;
+BEGIN
+    INSERT INTO edu_ai.code_list
+        (list_code, code, sort_order, is_active, created_by, is_ui_default,
+         is_processing_fallback, labels, notes, legal_entity_code)
+    SELECT c.list_code, c.code, c.sort_order, c.is_active, 'provisioning',
+           c.is_ui_default, false, c.labels,
+           'copied from the founding template', p_entity
+    FROM edu_ai.code_list c
+    WHERE c.legal_entity_code IS NULL
+      AND c.list_code IN ('school_subject', 'school_grade')
+      AND NOT (c.list_code = 'school_grade'
+               AND c.code !~ '^[1-9]$' AND c.code <> '9999')
+      AND NOT EXISTS (SELECT 1 FROM edu_ai.code_list x
+                      WHERE x.legal_entity_code = p_entity
+                        AND x.list_code = c.list_code AND x.code = c.code);
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RETURN n;
+END $_$;
+
+
+--
+-- Name: qa_duplicate_questions(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.qa_duplicate_questions() RETURNS TABLE(seen_by text, kind text, question text, entities text, packs text, answers integer)
+    LANGUAGE sql STABLE
+    AS $$
+  WITH RECURSIVE up AS (
+      -- every active entity, then walked UP towards its root legal person
+      SELECT legal_entity_code AS ent, legal_entity_code AS cur, parent_code
+        FROM edu_ai.legal_entity
+       WHERE is_active
+      UNION ALL
+      SELECT u.ent, p.legal_entity_code, p.parent_code
+        FROM up u
+        JOIN edu_ai.legal_entity p
+          ON p.legal_entity_code = u.parent_code AND p.is_active
+  ),
+  ent_root AS (
+      SELECT ent, cur AS root FROM up WHERE parent_code IS NULL
+  ),
+  visible AS (
+      -- an entry is always a candidate for its own entity
+      SELECT e.legal_entity_code AS seen_by, e.entry_id, e.pack_id,
+             e.canonical_q, e.legal_entity_code AS owner
+        FROM edu_ai.qa_entries e
+       WHERE e.is_active
+      -- UNION, not UNION ALL: an organisation-visible entry of the viewer's own
+      -- entity is produced by both branches and must count once, or every such
+      -- entry would look like a duplicate of itself.
+      UNION
+      SELECT viewer.ent, e.entry_id, e.pack_id, e.canonical_q, e.legal_entity_code
+        FROM edu_ai.qa_entries e
+        JOIN ent_root owner  ON owner.ent = e.legal_entity_code
+        JOIN ent_root viewer ON viewer.root = owner.root
+       WHERE e.is_active AND e.visibility = 'organization'
+  )
+  SELECT v.seen_by,
+         -- which gap decides this one: proximity already handles across_entities
+         -- in qa_exact, so a remaining one_entity row is the ročník axis
+         CASE WHEN count(DISTINCT v.owner) > 1 THEN 'across_entities'
+              ELSE 'one_entity' END,
+         min(v.canonical_q),
+         string_agg(DISTINCT v.owner,   ' + ' ORDER BY v.owner),
+         string_agg(DISTINCT v.pack_id, ' + ' ORDER BY v.pack_id),
+         count(*)::int
+    FROM visible v
+   GROUP BY v.seen_by, lower(unaccent(v.canonical_q))
+  HAVING count(*) > 1
+$$;
+
+
+--
+-- Name: FUNCTION qa_duplicate_questions(); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.qa_duplicate_questions() IS 'Questions with more than one active answer FOR ONE CALLER — their own entity''s entries plus everything visible to their organisation. qa_vector still selects LIMIT 1 without ordering, and two packs of one school tie on entry_id, so these are the answers still chosen by luck. Reports only; a curator swapping packs is briefly in this state on purpose.';
+
+
+--
+-- Name: qa_pack_drift(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.qa_pack_drift() RETURNS TABLE(pack_id text, legal_entity_code text, problem text, detail text)
+    LANGUAGE sql STABLE
+    AS $$
+  -- 1. ročník id the pack entity may not reference
+  SELECT m.pack_id, m.legal_entity_code, 'grade id not in entity codebook',
+         string_agg(DISTINCT g::text, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.school_grade_ids) AS g
+   WHERE m.is_active AND m.school_grade_ids IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM edu_ai.entity_grade_scope(m.legal_entity_code) a
+                      WHERE a.id = g)
+   GROUP BY 1, 2
+  UNION ALL
+  -- 2. domain id outside the entity's own taxonomy catalog
+  SELECT m.pack_id, m.legal_entity_code, 'domain id not in entity catalog',
+         string_agg(DISTINCT d::text, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.domain_ids) AS d
+   WHERE m.is_active AND m.domain_ids IS NOT NULL
+     AND NOT EXISTS (SELECT 1
+                       FROM edu_ai.resolved_taxonomy_rules(m.legal_entity_code, 'DOMAIN') t
+                      WHERE t.id = d AND t.is_active)
+   GROUP BY 1, 2
+  UNION ALL
+  -- 3. subject id outside the entity's own číselník
+  SELECT m.pack_id, m.legal_entity_code, 'subject id not in entity codebook',
+         string_agg(DISTINCT s::text, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.school_subject_ids) AS s
+   WHERE m.is_active AND m.school_subject_ids IS NOT NULL
+     AND NOT EXISTS (SELECT 1
+                       FROM edu_ai.resolved_code_list(m.legal_entity_code, 'school_subject') r
+                      WHERE r.id = s AND r.is_active)
+   GROUP BY 1, 2
+  UNION ALL
+  -- 4. role that is not a code_list('role') code
+  SELECT m.pack_id, m.legal_entity_code, 'unknown audience role',
+         string_agg(DISTINCT r, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.audience_roles) AS r
+   WHERE m.is_active AND m.audience_roles IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM edu_ai.code_list c
+                      WHERE c.list_code = 'role' AND c.code = r AND c.is_active)
+   GROUP BY 1, 2
+  UNION ALL
+  -- 5. declared school_level contradicts what the ročníky derive — the price of
+  -- storing the level explicitly instead of only deriving it
+  SELECT m.pack_id, m.legal_entity_code, 'declared level vs grades',
+         'declared=' || m.school_level || ' derived=' || string_agg(DISTINCT l.lv, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.school_grade_ids) AS g
+    CROSS JOIN LATERAL (
+      SELECT edu_ai.grade_level(m.legal_entity_code, a.code) AS lv
+        FROM edu_ai.entity_grade_scope(m.legal_entity_code) a
+       WHERE a.id = g
+       LIMIT 1) AS l
+   WHERE m.is_active AND m.school_level IS NOT NULL AND l.lv IS NOT NULL
+   GROUP BY 1, 2, m.school_level
+  HAVING bool_or(l.lv <> m.school_level)
+  UNION ALL
+  -- 6. ročníky spanning both levels — legal, but a pack that is "for ZŠ and SŠ
+  -- at once" cannot be filtered sensibly
+  SELECT m.pack_id, m.legal_entity_code, 'pack spans ZS and SS',
+         string_agg(DISTINCT l.lv, ',')
+    FROM edu_ai.qa_pack_manifest m
+    CROSS JOIN LATERAL unnest(m.school_grade_ids) AS g
+    CROSS JOIN LATERAL (
+      SELECT edu_ai.grade_level(m.legal_entity_code, a.code) AS lv
+        FROM edu_ai.entity_grade_scope(m.legal_entity_code) a
+       WHERE a.id = g
+       LIMIT 1) AS l
+   WHERE m.is_active AND l.lv IS NOT NULL
+   GROUP BY 1, 2
+  HAVING count(DISTINCT l.lv) > 1
+  UNION ALL
+  -- 7. a scan-surface copy that disagrees with its entry (the denormalisation
+  -- this migration introduces is only safe while the copies match)
+  SELECT e.pack_id, e.legal_entity_code, 'variant copy differs from entry',
+         string_agg(DISTINCT v.variant_id::text, ',')
+    FROM edu_ai.qa_variants v
+    JOIN edu_ai.qa_entries e ON e.entry_id = v.entry_id
+   WHERE e.is_active
+     AND (v.school_grade_ids IS DISTINCT FROM e.school_grade_ids
+          OR v.school_level  IS DISTINCT FROM e.school_level)
+   GROUP BY 1, 2
+  UNION ALL
+  SELECT e.pack_id, e.legal_entity_code, 'embedding copy differs from entry',
+         string_agg(DISTINCT q.variant_id::text, ',')
+    FROM edu_ai.qa_embedding q
+    JOIN edu_ai.qa_entries e ON e.entry_id = q.entry_id
+   WHERE e.is_active AND q.is_active
+     AND (q.school_grade_ids IS DISTINCT FROM e.school_grade_ids
+          OR q.school_level  IS DISTINCT FROM e.school_level)
+   GROUP BY 1, 2
+$$;
+
+
+--
+-- Name: FUNCTION qa_pack_drift(); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.qa_pack_drift() IS 'Reports QA packs whose array ids do not resolve in their entity (grades, domains, subjects, roles), whose declared school_level contradicts its ročníky, that mix ZŠ and SŠ, or whose denormalised scan copies disagree with the entry. Arrays cannot FK and copies cannot be constrained; this is the guard. Mirror of edu_ai.grade_levels_drift().';
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: code_list; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.code_list (
+    id bigint NOT NULL,
+    list_code text NOT NULL,
+    code text NOT NULL,
+    sort_order integer NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    is_ui_default boolean DEFAULT false NOT NULL,
+    labels jsonb NOT NULL,
+    is_processing_fallback boolean DEFAULT false NOT NULL,
+    legal_entity_code text
+);
+
+
+--
+-- Name: TABLE code_list; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.code_list IS 'Číselník: the single registry of languages, school subjects and grades. Adding a language STARTS here — insert with is_active = false, fill the other layers, activate last. is_ui_default = presentation only; is_processing_fallback = what the pipeline uses when detection cannot tell.';
+
+
+--
+-- Name: COLUMN code_list.is_ui_default; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.code_list.is_ui_default IS 'Presentation only: which option a form preselects. MUST NOT be read by the ingest or search path — see is_processing_fallback for that.';
+
+
+--
+-- Name: COLUMN code_list.is_processing_fallback; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.code_list.is_processing_fallback IS 'Pipeline fallback: used when the value cannot be determined from content (language detection returned nothing). Never a UI concern.';
+
+
+--
+-- Name: resolved_code_list(text, text); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.resolved_code_list(p_entity text, p_list text) RETURNS SETOF edu_ai.code_list
+    LANGUAGE sql STABLE
+    AS $$
+    WITH RECURSIVE up AS (
+        SELECT legal_entity_code, parent_code, 0 AS depth
+        FROM edu_ai.legal_entity WHERE legal_entity_code = p_entity
+        UNION ALL
+        SELECT l.legal_entity_code, l.parent_code, up.depth + 1
+        FROM edu_ai.legal_entity l JOIN up ON l.legal_entity_code = up.parent_code
+    ), owner AS (
+        SELECT u.legal_entity_code
+        FROM up u
+        WHERE EXISTS (SELECT 1 FROM edu_ai.code_list c
+                      WHERE c.is_active AND c.list_code = p_list
+                        AND c.legal_entity_code = u.legal_entity_code)
+        ORDER BY u.depth
+        LIMIT 1
+    )
+    SELECT c.* FROM edu_ai.code_list c
+    WHERE c.is_active AND c.list_code = p_list
+      AND c.legal_entity_code IS NOT DISTINCT FROM (
+          CASE
+              WHEN p_list = 'role' THEN NULL              -- platform registry
+              WHEN p_list = 'language' THEN
+                   (SELECT legal_entity_code FROM owner)  -- selection-with-default
+              ELSE
+                   COALESCE((SELECT legal_entity_code FROM owner), '(nobody)')
+          END)
+$$;
+
+
+--
+-- Name: FUNCTION resolved_code_list(p_entity text, p_list text); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.resolved_code_list(p_entity text, p_list text) IS 'The entity''s číselník set: the NEAREST owner up the tree (self, then parents) for school lists — a unit may own a list when its semantics differ (SOŠ grades 1..4), otherwise it inherits its organisation''s; never the NULL template. ''language'' is the nearest selection up the tree, else the platform set. Init 120.';
+
+
+--
+-- Name: taxonomy_rules; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.taxonomy_rules (
+    id bigint NOT NULL,
+    type_code text NOT NULL,
+    llm_instruction text NOT NULL,
+    sort_order integer NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    is_ui_default boolean DEFAULT false NOT NULL,
+    labels jsonb NOT NULL,
+    legal_entity_code text,
+    taxonomy_type_code text DEFAULT 'DOCUMENT_TYPE'::text NOT NULL,
+    domain_keywords text[],
+    search_role text DEFAULT 'normal'::text NOT NULL,
+    is_priority boolean GENERATED ALWAYS AS ((search_role = 'priority'::text)) STORED,
+    CONSTRAINT taxonomy_rules_search_role_chk CHECK ((search_role = ANY (ARRAY['priority'::text, 'normal'::text, 'excluded'::text]))),
+    CONSTRAINT taxonomy_rules_type_code_check CHECK ((taxonomy_type_code = ANY (ARRAY['DOCUMENT_TYPE'::text, 'DOMAIN'::text])))
+);
+
+
+--
+-- Name: TABLE taxonomy_rules; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.taxonomy_rules IS 'Číselník of document types plus the instruction given to the classification LLM. Central control of classification: adding a type is one row, not a code change.';
+
+
+--
+-- Name: COLUMN taxonomy_rules.is_ui_default; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.taxonomy_rules.is_ui_default IS 'Presentation only: which option a form preselects.';
+
+
+--
+-- Name: COLUMN taxonomy_rules.search_role; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.taxonomy_rules.search_role IS 'Role typu/domény ve vyhledávání: priority = autoritní stupeň nad ostatními, normal = běžný, excluded = do vyhledávání nevstupuje (rozcestníky). Kurátorská hodnota, nic ji neodvozuje.';
+
+
+--
+-- Name: resolved_taxonomy_rules(text, text); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.resolved_taxonomy_rules(p_entity text, p_type text) RETURNS SETOF edu_ai.taxonomy_rules
+    LANGUAGE sql STABLE
+    AS $$
+    WITH RECURSIVE up AS (
+        SELECT legal_entity_code, parent_code, 0 AS depth
+        FROM edu_ai.legal_entity WHERE legal_entity_code = p_entity
+        UNION ALL
+        SELECT l.legal_entity_code, l.parent_code, up.depth + 1
+        FROM edu_ai.legal_entity l JOIN up ON l.legal_entity_code = up.parent_code
+    ), owner AS (
+        SELECT u.legal_entity_code FROM up u
+        WHERE EXISTS (SELECT 1 FROM edu_ai.taxonomy_rules t
+                      WHERE t.is_active AND t.taxonomy_type_code = p_type
+                        AND t.legal_entity_code = u.legal_entity_code)
+        ORDER BY u.depth LIMIT 1
+    )
+    SELECT t.* FROM edu_ai.taxonomy_rules t
+    WHERE t.is_active AND t.taxonomy_type_code = p_type
+      AND t.legal_entity_code IS NOT DISTINCT FROM (SELECT legal_entity_code FROM owner)
+$$;
+
+
+--
+-- Name: FUNCTION resolved_taxonomy_rules(p_entity text, p_type text); Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON FUNCTION edu_ai.resolved_taxonomy_rules(p_entity text, p_type text) IS 'The entity''s taxonomy set (DOCUMENT_TYPE / DOMAIN): the NEAREST owner up the tree (self, then parents) that defines any rows of this type wins entirely; a school with its own domain catalog sees ONLY its own, otherwise it inherits the GLOBAL (NULL) set. Same nearest-owner-exclusive rule as resolved_code_list for the school lists.';
+
+
+--
+-- Name: settings_owner_must_be_root(); Type: FUNCTION; Schema: edu_ai; Owner: -
+--
+
+CREATE FUNCTION edu_ai.settings_owner_must_be_root() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.legal_entity_code IS NOT NULL AND EXISTS (
+        SELECT 1 FROM edu_ai.legal_entity
+        WHERE legal_entity_code = NEW.legal_entity_code
+          AND parent_code IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'settings.legal_entity_code must be a TOP-LEVEL entity '
+                        '(% has a parent); settings apply to the whole '
+                        'organisation, a unit cannot have its own',
+                        NEW.legal_entity_code;
+    END IF;
+    RETURN NEW;
+END $$;
+
+
+--
+-- Name: answer_exclusion_rule; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.answer_exclusion_rule (
+    id bigint NOT NULL,
+    rule_name text NOT NULL,
+    lang text DEFAULT 'cs'::text NOT NULL,
+    match_regex text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE answer_exclusion_rule; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.answer_exclusion_rule IS 'Regex fragments (composed with |) marking "document doesn''t answer" meta-sentences; an answer paragraph made ONLY of such sentences is dropped when substantive paragraphs remain. Mirror of chunk_exclusion_rule for the answer side (migration 133).';
+
+
+--
+-- Name: answer_exclusion_rule_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.answer_exclusion_rule ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.answer_exclusion_rule_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: app_user; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.app_user (
+    user_id text NOT NULL,
+    legal_entity_code text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone,
+    notes text
+);
+
+
+--
+-- Name: TABLE app_user; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.app_user IS 'A mobile installation of one legal entity, known by a technical id only. No name on purpose: the questions asked are a behavioural record, and a name would make it a personal one.';
+
+
+--
+-- Name: COLUMN app_user.is_active; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.app_user.is_active IS 'A deactivated user is refused, not silently downgraded — the check belongs in front of the search, not inside it.';
+
+
+--
+-- Name: chunk_exclusion_rule; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.chunk_exclusion_rule (
+    id bigint NOT NULL,
+    rule_order integer NOT NULL,
+    rule_name text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    source_type text,
+    txt_structure_type text,
+    match_regex text,
+    regex_target text DEFAULT 'chunk_text'::text,
+    match_mode text DEFAULT 'regex'::text,
+    negate boolean DEFAULT false NOT NULL,
+    min_chars integer,
+    max_chars integer,
+    min_content_tokens integer,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    legal_entity_code text,
+    CONSTRAINT chunk_exclusion_rule_match_mode_check CHECK ((match_mode = ANY (ARRAY['regex'::text, 'substring'::text, 'exact'::text]))),
+    CONSTRAINT chunk_exclusion_rule_regex_target_check CHECK ((regex_target = ANY (ARRAY['chunk_text'::text, 'chunk_norm_text'::text, 'chunk_lemma_text'::text, 'chunk_stem_text'::text])))
+);
+
+
+--
+-- Name: COLUMN chunk_exclusion_rule.legal_entity_code; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.chunk_exclusion_rule.legal_entity_code IS 'The entity whose ingests this rule fires for. NULL = every entity. A rule drops chunks before embedding, so a misapplied one loses content silently — see migration 85.';
+
+
+--
+-- Name: chunk_exclusion_rule_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.chunk_exclusion_rule ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.chunk_exclusion_rule_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: code_list_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.code_list ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.code_list_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: document_chunks; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.document_chunks (
+    audience_roles text[],
+    id bigint NOT NULL,
+    processing_uuid uuid NOT NULL,
+    file_uuid uuid NOT NULL,
+    file_item_uuid uuid NOT NULL,
+    source_type text,
+    file_name text,
+    output_row_number integer NOT NULL,
+    langdetect_result text,
+    langdetect_result_score double precision,
+    chunk_index integer NOT NULL,
+    chunk_text text NOT NULL,
+    chunk_norm_text text,
+    chunk_lemma_text text,
+    chunk_stem_text text,
+    ts_norm tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, COALESCE(chunk_norm_text, ''::text))) STORED,
+    ts_lemma tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, COALESCE(chunk_lemma_text, ''::text))) STORED,
+    ts_stem tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, COALESCE(chunk_stem_text, ''::text))) STORED,
+    embedding public.vector(1536) NOT NULL,
+    embedding_model text NOT NULL,
+    embedding_dimension integer,
+    embedding_provider text,
+    setting_id uuid,
+    ldts_local timestamp without time zone,
+    ldts_gmt timestamp without time zone,
+    section_heading text,
+    section_heading_norm text,
+    section_heading_lemma text,
+    section_heading_stem text,
+    subsection_heading text,
+    subsection_heading_norm text,
+    subsection_heading_lemma text,
+    subsection_heading_stem text,
+    heading_path text,
+    keywords text[],
+    ts_heading_norm tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, ((COALESCE(section_heading_norm, ''::text) || ' '::text) || COALESCE(subsection_heading_norm, ''::text)))) STORED,
+    ts_heading_lemma tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, ((COALESCE(section_heading_lemma, ''::text) || ' '::text) || COALESCE(subsection_heading_lemma, ''::text)))) STORED,
+    ts_heading_stem tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, ((COALESCE(section_heading_stem, ''::text) || ' '::text) || COALESCE(subsection_heading_stem, ''::text)))) STORED,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    school_grade_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
+    school_subject_ids bigint[] DEFAULT '{}'::bigint[] NOT NULL,
+    school_grade_document_ids bigint[],
+    school_subject_document bigint,
+    document_header text,
+    document_binding_id bigint,
+    document_domain_id bigint[],
+    school_level text,
+    owning_entity_code text,
+    bm25_text text GENERATED ALWAYS AS (((((((((COALESCE(chunk_norm_text, ''::text) || ' '::text) || COALESCE(chunk_lemma_text, ''::text)) || ' '::text) || COALESCE(chunk_stem_text, ''::text)) || ' '::text) || COALESCE(section_heading_lemma, ''::text)) || ' '::text) || COALESCE(subsection_heading_lemma, ''::text))) STORED,
+    valid_from date,
+    valid_to date,
+    CONSTRAINT document_chunks_school_level_chk CHECK (((school_level IS NULL) OR (school_level = ANY (ARRAY['ZS'::text, 'SS'::text])))),
+    CONSTRAINT document_chunks_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: COLUMN document_chunks.section_heading; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_chunks.section_heading IS 'Heading of the element this chunk belongs to (same file_item_uuid). Never copied into chunk_text — see migration 61.';
+
+
+--
+-- Name: COLUMN document_chunks.subsection_heading; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_chunks.subsection_heading IS 'Last inner heading at or before this chunk. A heading applies forward, so a heading ending a chunk belongs to the next one — see migration 61.';
+
+
+--
+-- Name: COLUMN document_chunks.visibility; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_chunks.visibility IS 'Copy of the document''s visibility, so retrieval filters during the scan instead of after the join — rag_vector ranks the whole table before any join would apply. Written by ingestion; the document row is authoritative.';
+
+
+--
+-- Name: COLUMN document_chunks.school_grade_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_chunks.school_grade_ids IS 'code_list row IDS (school''s own resolved set) the chunk speaks to. Empty = undetermined. Preference signal only, never a filter. Init 107.';
+
+
+--
+-- Name: COLUMN document_chunks.school_subject_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_chunks.school_subject_ids IS 'Same contract as school_grade_ids, list_code = school_subject.';
+
+
+--
+-- Name: document_elements; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.document_elements (
+    id bigint NOT NULL,
+    file_item_uuid uuid NOT NULL,
+    processing_uuid uuid NOT NULL,
+    file_uuid uuid NOT NULL,
+    page_number integer NOT NULL,
+    page_element_index integer NOT NULL,
+    output_row_number integer NOT NULL,
+    record_type text,
+    table_index integer,
+    table_metadata text,
+    header_detected text,
+    header_row_reference integer,
+    text text,
+    text_extracted text,
+    ldts_local timestamp without time zone,
+    ldts_gmt timestamp without time zone,
+    inserted_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    legal_entity_code text,
+    valid_from date,
+    valid_to date
+);
+
+
+--
+-- Name: document_metadata; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.document_metadata (
+    audience_roles text[],
+    file_uuid uuid NOT NULL,
+    processing_uuid uuid NOT NULL,
+    file_name text,
+    original_file_name text,
+    source_url text,
+    document_type_user text,
+    document_type_llm text,
+    document_language_user text,
+    document_language_llm text,
+    school_subject_user text,
+    school_subject_llm text,
+    school_grade_user bigint[],
+    school_grade_llm bigint,
+    binding_id bigint,
+    document_header text,
+    document_domain_user bigint[],
+    document_domain_llm bigint[],
+    user_name text,
+    ldts_gmt timestamp with time zone DEFAULT now() NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    valid_from date,
+    valid_to date,
+    CONSTRAINT document_metadata_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text]))),
+    CONSTRAINT metadata_private_has_owner CHECK (((visibility <> 'private'::text) OR (owner_user_id IS NOT NULL)))
+);
+
+
+--
+-- Name: COLUMN document_metadata.visibility; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_metadata.visibility IS 'private (the uploader only) | entity (exactly that entity) | organization (the whole tree of the legal person). Never crosses a legal person — shared material is ingested per organisation. See migration 91.';
+
+
+--
+-- Name: COLUMN document_metadata.owner_user_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.document_metadata.owner_user_id IS 'The staff user who ingested the document. Written on EVERY row: required for visibility = private, provenance for the rest.';
+
+
+--
+-- Name: document_tables; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.document_tables (
+    id bigint NOT NULL,
+    file_item_uuid uuid NOT NULL,
+    processing_uuid uuid NOT NULL,
+    file_uuid uuid NOT NULL,
+    file_name text,
+    page_number integer,
+    tbl_index integer,
+    record_type text,
+    output_row_number integer,
+    page_element_index integer,
+    tbl_metadata text,
+    tbl_metadata_score double precision,
+    header_detected text,
+    header_row_reference integer,
+    tbl_table_merged boolean,
+    tbl_merge_group_id text,
+    tbl_merge_size integer,
+    tbl_json_empty_ratio double precision,
+    tbl_json_null_ratio double precision,
+    tbl_json_numeric_ratio double precision,
+    tbl_json_quality_score double precision,
+    tbl_json_valid boolean,
+    tbl_json_rows integer,
+    tbl_json_columns integer,
+    tbl_json_column_profile jsonb,
+    tbl_json_row_profile jsonb,
+    ldts_local timestamp without time zone,
+    ldts_gmt timestamp without time zone,
+    langdetect_result text,
+    langdetect_result_score double precision,
+    enrichment_status text,
+    json_summary jsonb,
+    json_categorisation jsonb,
+    json_categorisation_reason text,
+    ai_model text,
+    enriched_at timestamp without time zone,
+    tbl_json jsonb,
+    inserted_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    user_name text,
+    document_type_orig text,
+    document_language_orig text,
+    school_subject_orig text,
+    school_subject_grade_orig text,
+    page_height double precision,
+    tbl_cluster_signature text,
+    tbl_size_bucket text,
+    tbl_shape_bucket text,
+    tbl_numeric_bucket text,
+    tbl_density_bucket text,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    valid_from date,
+    valid_to date,
+    CONSTRAINT document_tables_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: edu_ai_document_chunks_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.document_chunks ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.edu_ai_document_chunks_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: edu_ai_document_elements_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.document_elements ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.edu_ai_document_elements_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: edu_ai_document_tables_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+CREATE SEQUENCE edu_ai.edu_ai_document_tables_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: edu_ai_document_tables_id_seq; Type: SEQUENCE OWNED BY; Schema: edu_ai; Owner: -
+--
+
+ALTER SEQUENCE edu_ai.edu_ai_document_tables_id_seq OWNED BY edu_ai.document_tables.id;
+
+
+--
+-- Name: embedding_registry; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.embedding_registry (
+    generation integer NOT NULL,
+    embedding_model text NOT NULL,
+    dimension integer NOT NULL,
+    vector_type text DEFAULT 'vector'::text NOT NULL,
+    target_table text NOT NULL,
+    status text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    activated_at timestamp with time zone,
+    notes text,
+    CONSTRAINT embedding_registry_status_check CHECK ((status = ANY (ARRAY['building'::text, 'active'::text, 'retired'::text]))),
+    CONSTRAINT embedding_registry_vector_type_check CHECK ((vector_type = ANY (ARRAY['vector'::text, 'halfvec'::text])))
+);
+
+
+--
+-- Name: grade_term; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.grade_term (
+    id bigint NOT NULL,
+    lang text NOT NULL,
+    kind text NOT NULL,
+    term text NOT NULL,
+    match text DEFAULT 'prefix'::text NOT NULL,
+    grade integer,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    CONSTRAINT grade_term_anchor_no_grade CHECK (((kind = 'anchor'::text) = (grade IS NULL))),
+    CONSTRAINT grade_term_grade_check CHECK (((grade >= 1) AND (grade <= 9))),
+    CONSTRAINT grade_term_kind_check CHECK ((kind = ANY (ARRAY['anchor'::text, 'ordinal'::text, 'pupil'::text, 'year'::text]))),
+    CONSTRAINT grade_term_match_check CHECK ((match = ANY (ARRAY['prefix'::text, 'exact'::text])))
+);
+
+
+--
+-- Name: grade_term_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.grade_term ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.grade_term_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: idempotency_key; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.idempotency_key (
+    account text NOT NULL,
+    key text NOT NULL,
+    body_hash text NOT NULL,
+    response jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE idempotency_key; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.idempotency_key IS 'POST /search replay cache keyed by (account, Idempotency-Key). response NULL = claimed and still running; a claim older than 5 min is taken over. Retention 24 h, swept by the search service.';
+
+
+--
+-- Name: COLUMN idempotency_key.body_hash; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.idempotency_key.body_hash IS 'sha256 of the CANONICAL request body (sorted-key JSON of the parsed model). Same key + different hash = 409; two byte-different bodies that parse identically are deliberately treated as the same request.';
+
+
+--
+-- Name: ingestion_log; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.ingestion_log (
+    id bigint NOT NULL,
+    log_timestamp timestamp without time zone NOT NULL,
+    processing_uuid uuid,
+    file_uuid uuid,
+    file_name text,
+    log_level text NOT NULL,
+    component_name text NOT NULL,
+    log_message text,
+    inserted_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    flow_id uuid,
+    legal_entity_code text,
+    user_id text
+);
+
+
+--
+-- Name: COLUMN ingestion_log.flow_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.ingestion_log.flow_id IS 'Langflow flow id (self.flow_id) — which flow wrote this audit row.';
+
+
+--
+-- Name: COLUMN ingestion_log.user_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.ingestion_log.user_id IS 'The staff user who started this ingest. No FK: the log must not fail on an unknown user, and must survive the user being deleted.';
+
+
+--
+-- Name: ingestion_log_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+CREATE SEQUENCE edu_ai.ingestion_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ingestion_log_id_seq; Type: SEQUENCE OWNED BY; Schema: edu_ai; Owner: -
+--
+
+ALTER SEQUENCE edu_ai.ingestion_log_id_seq OWNED BY edu_ai.ingestion_log.id;
+
+
+--
+-- Name: legal_entity; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.legal_entity (
+    legal_entity_code text NOT NULL,
+    parent_code text,
+    display_name text NOT NULL,
+    ico text,
+    domains text[],
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    red_izo text,
+    units jsonb,
+    kind text DEFAULT 'legal_person'::text NOT NULL,
+    level text,
+    grade_levels jsonb,
+    CONSTRAINT legal_entity_kind_check CHECK ((kind = ANY (ARRAY['legal_person'::text, 'unit'::text]))),
+    CONSTRAINT legal_entity_level_check CHECK (((level IS NULL) OR (level = ANY (ARRAY['MS'::text, 'ZS'::text, 'SS'::text])))),
+    CONSTRAINT legal_entity_unit_has_parent CHECK (((kind = 'unit'::text) = (parent_code IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE legal_entity; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.legal_entity IS 'The school / company whose documents, QA and users these are. Referenced by every data table (migration 77).';
+
+
+--
+-- Name: COLUMN legal_entity.parent_code; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.parent_code IS 'Who this entity belongs under, for reporting and administration. Carries NO permission: search never reads it, and one entity never sees another''s documents through it.';
+
+
+--
+-- Name: COLUMN legal_entity.domains; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.domains IS 'Origins of the web chat that resolve to this entity, so the entity can be derived server-side instead of being asserted by the client.';
+
+
+--
+-- Name: COLUMN legal_entity.red_izo; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.red_izo IS 'RED-IZO — the school register''s id of the LEGAL PERSON. One per entity.';
+
+
+--
+-- Name: COLUMN legal_entity.units; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.units IS 'The registered units under this legal person, {unit: izo}. Data, not a table: nothing scopes a document to a unit yet and the first document we have spans two of them — see migration 87.';
+
+
+--
+-- Name: COLUMN legal_entity.kind; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.kind IS 'legal_person (has IČO + RED-IZO, is the contractual party) | unit (has IZO, is a registered school or facility of one). Only a legal_person may ever be granted the right to publish platform-wide.';
+
+
+--
+-- Name: COLUMN legal_entity.level; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.level IS 'MS | ZS | SS for units that have school years, NULL for those that do not (canteen, after-school club) and for legal persons spanning several. This is what lets the API accept a bare grade number and resolve it — see migration 89.';
+
+
+--
+-- Name: COLUMN legal_entity.grade_levels; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.legal_entity.grade_levels IS 'Which ročník codes belong to which school level, e.g. {"ZS":["1".."9"],"SS":["10".."13"]}. Read ONLY through edu_ai.grade_level(); resolves unit -> ancestors, NULL everywhere = the Czech default in that function. Keys must be legal_entity.level values (MS/ZS/SS), values must be code_list(school_grade) codes of this entity''s resolved codebook — jsonb cannot FK, so edu_ai.grade_levels_drift() is the guard.';
+
+
+--
+-- Name: prompt_registry; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.prompt_registry (
+    id bigint NOT NULL,
+    prompt_key text NOT NULL,
+    version integer NOT NULL,
+    prompt_text text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    component text,
+    description text,
+    placeholders text[],
+    model_hint text,
+    lang text DEFAULT 'cs'::text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text,
+    notes text
+);
+
+
+--
+-- Name: TABLE prompt_registry; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.prompt_registry IS 'Every LLM prompt in the solution, versioned. Read per request (UI > DB > code), so a change takes effect without a restart or a redeploy.';
+
+
+--
+-- Name: prompt_registry_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.prompt_registry ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.prompt_registry_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: qa_blocklist; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_blocklist (
+    id bigint NOT NULL,
+    term text NOT NULL,
+    term_norm text NOT NULL,
+    term_lemma text,
+    category text NOT NULL,
+    severity smallint DEFAULT 1 NOT NULL,
+    is_phrase boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    lang text DEFAULT 'cs'::text NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT qa_blocklist_category_check CHECK ((category = ANY (ARRAY['profanity'::text, 'hate'::text, 'sexual'::text, 'self_harm'::text, 'violence'::text, 'meta'::text])))
+);
+
+
+--
+-- Name: qa_blocklist_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+CREATE SEQUENCE edu_ai.qa_blocklist_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: qa_blocklist_id_seq; Type: SEQUENCE OWNED BY; Schema: edu_ai; Owner: -
+--
+
+ALTER SEQUENCE edu_ai.qa_blocklist_id_seq OWNED BY edu_ai.qa_blocklist.id;
+
+
+--
+-- Name: question_answer_log; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.question_answer_log (
+    id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    conversation_id uuid,
+    session_id text,
+    user_id text,
+    user_school_grade integer,
+    channel text,
+    raw_query text NOT NULL,
+    norm_query text,
+    lemma_query text,
+    stem_query text,
+    stage text,
+    answer_source text,
+    answer_source_text text,
+    strategies text[],
+    strategies_text text,
+    matched_entry_id uuid,
+    match_score real,
+    answer_md text,
+    sources jsonb,
+    answer_language text,
+    latency_ms integer,
+    setting_id uuid,
+    question_language text,
+    user_role text,
+    user_school text,
+    flow_trace jsonb,
+    legal_entity_code text,
+    turn_seq integer,
+    query_id text,
+    selected_answer_key text
+);
+
+
+--
+-- Name: COLUMN question_answer_log.flow_trace; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.question_answer_log.flow_trace IS 'Per-step cascade trace in pipeline order: which steps ran/were skipped, why, their timing and what ended the walk. Diagnostic; see migration 54.';
+
+
+--
+-- Name: COLUMN question_answer_log.turn_seq; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.question_answer_log.turn_seq IS 'Client-side position of this question within conversation_id (1..N). Advisory: the client owns it, the server only records it.';
+
+
+--
+-- Name: COLUMN question_answer_log.query_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.question_answer_log.query_id IS 'Client-side id of one question, for tracing a report from the app''s log to this row. Also the value a client is expected to send as Idempotency-Key, though the server treats that header as opaque and does not require the two to match.';
+
+
+--
+-- Name: COLUMN question_answer_log.selected_answer_key; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.question_answer_log.selected_answer_key IS 'The suggestion the user picked, as sent by the client. ACCEPTED AND STORED BUT NOT HONOURED — the cascade still re-matches on question text. Compare against matched_entry_id to see how often the two would disagree.';
+
+
+--
+-- Name: qa_conversation_v; Type: VIEW; Schema: edu_ai; Owner: -
+--
+
+CREATE VIEW edu_ai.qa_conversation_v AS
+ SELECT conversation_id,
+    min(created_at) AS started_at,
+    max(created_at) AS last_activity_at,
+    count(*) AS turn_count,
+    max(user_id) AS user_id,
+    max(user_school_grade) AS user_school_grade
+   FROM edu_ai.question_answer_log
+  WHERE (conversation_id IS NOT NULL)
+  GROUP BY conversation_id;
+
+
+--
+-- Name: qa_embedding; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_embedding (
+    variant_id bigint NOT NULL,
+    entry_id uuid NOT NULL,
+    processing_uuid uuid,
+    file_uuid uuid,
+    embedding public.vector(1536),
+    embedding_model text,
+    embedding_dimension integer,
+    embedding_provider text,
+    school_grade_ids bigint[],
+    school_level text,
+    school_subject_ids bigint[],
+    domain_ids bigint[],
+    binding_id bigint,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    audience_roles text[],
+    valid_from date,
+    valid_to date,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT qa_embedding_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: COLUMN qa_embedding.embedding_dimension; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_embedding.embedding_dimension IS 'Width of the stored vector, measured at insert time — never assumed from the registry, so a generation swap cannot leave the column lying about the data.';
+
+
+--
+-- Name: COLUMN qa_embedding.school_grade_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_embedding.school_grade_ids IS 'Copy of qa_entries.school_grade_ids. Denormalised because the nearest-neighbour scan orders by `embedding <=> query` and joins per candidate — the same reason legal_entity_code/visibility already live here.';
+
+
+--
+-- Name: COLUMN qa_embedding.binding_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_embedding.binding_id IS 'taxonomy_binding of the pack, denormalised — the ANN scan filters here, not on qa_entries (migration 144).';
+
+
+--
+-- Name: COLUMN qa_embedding.visibility; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_embedding.visibility IS 'Copy of the entry''s visibility. qa_vector walks the nearest-neighbour index and joins per candidate, so the filter has to be here to stop candidates at the index rather than after it.';
+
+
+--
+-- Name: qa_entries; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_entries (
+    entry_id uuid NOT NULL,
+    pack_id text NOT NULL,
+    processing_uuid uuid,
+    file_uuid uuid,
+    canonical_q text NOT NULL,
+    answer_md text NOT NULL,
+    tags jsonb,
+    asset_refs jsonb,
+    school_grade_ids bigint[],
+    school_level text,
+    school_subject_ids bigint[],
+    domain_ids bigint[],
+    binding_id bigint,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    audience_roles text[],
+    valid_from date,
+    valid_to date,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    entry_key text,
+    CONSTRAINT qa_entries_private_has_owner CHECK (((visibility <> 'private'::text) OR (owner_user_id IS NOT NULL))),
+    CONSTRAINT qa_entries_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: COLUMN qa_entries.tags; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.tags IS 'Curator metadata from the pack JSON. Holds `category` only — the `source` key was dropped in 146 as a second copy of what file_uuid already says. Read by the device-pack export.';
+
+
+--
+-- Name: COLUMN qa_entries.asset_refs; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.asset_refs IS 'Zdroje, které ke své odpovědi uvedl KURÁTOR: [{"title": …, "url": …}], ze sloupce `sources` balíčkového CSV (jeden na řádek, `Titulek | URL`). Při QA zásahu se vrací beze změny jako SearchResponse.sources a kopíruje se do offline balíčku pro mobil. NENÍ to provenience — tou je processing_uuid/file_uuid. Odkazy nic neověřuje: mrtvý zůstane mrtvý a odpověď se doručí tak jako tak.';
+
+
+--
+-- Name: COLUMN qa_entries.school_grade_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.school_grade_ids IS 'EFFECTIVE ročníky of this answer. Inherited from the pack at build time; a curator may override per entry. Same relationship as document_metadata.school_grade_user -> document_chunks.school_grade_ids (migration 138): the declaration fills in only what the row does not state itself.';
+
+
+--
+-- Name: COLUMN qa_entries.visibility; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.visibility IS 'private (the importer only — a pack under test) | entity | organization. Matches the CHECK.';
+
+
+--
+-- Name: COLUMN qa_entries.owner_user_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.owner_user_id IS 'The staff user who imported the entry. Written on EVERY row: required for visibility = private, provenance for the rest.';
+
+
+--
+-- Name: COLUMN qa_entries.entry_key; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_entries.entry_key IS 'Curator-controlled stable identity of the entry within its pack. Survives rephrasing the question, which entry_id cannot: entry_id is reassigned on every upload. Unique among ACTIVE rows per (legal_entity_code, pack_id); derived from a slug of canonical_q when a new CSV row leaves it empty.';
+
+
+--
+-- Name: qa_feedback; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_feedback (
+    id bigint NOT NULL,
+    log_id bigint,
+    feedback text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    legal_entity_code text
+);
+
+
+--
+-- Name: qa_feedback_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_feedback ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.qa_feedback_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: qa_pack_manifest; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_pack_manifest (
+    pack_id text NOT NULL,
+    lang text NOT NULL,
+    version integer NOT NULL,
+    schema_version integer NOT NULL,
+    processing_uuid uuid,
+    file_uuid uuid,
+    school_grade_ids bigint[],
+    school_level text,
+    school_subject_ids bigint[],
+    domain_ids bigint[],
+    binding_id bigint,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    audience_roles text[],
+    valid_from date,
+    valid_to date,
+    is_active boolean DEFAULT true NOT NULL,
+    t_answer real NOT NULL,
+    t_suggest real NOT NULL,
+    m_margin real NOT NULL,
+    entry_count integer NOT NULL,
+    built_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT qa_pack_manifest_school_level_check CHECK (((school_level IS NULL) OR (school_level = ANY (ARRAY['MS'::text, 'ZS'::text, 'SS'::text])))),
+    CONSTRAINT qa_pack_manifest_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: COLUMN qa_pack_manifest.processing_uuid; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.processing_uuid IS 'The ingest run that built THIS version of the pack (migration 148). One manifest version = one upload, so this is single-valued; it equals the processing_uuid on every entry whose created_at matches built_at.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.file_uuid; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.file_uuid IS 'The uploaded pack JSON this version was built from (migration 148).';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.school_grade_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.school_grade_ids IS 'The pack''s ročníky as code_list ids of the owning entity — THE single truth (the scalar `grade` was dropped in 145). NULL/empty = all ročníky.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.school_level; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.school_level IS 'MS | ZS | SS — the school level this pack speaks to. Taken from the institution the pack is uploaded under (migration 144); the umbrella organisation has none and keeps NULL. qa_pack_drift() reports a disagreement with what grade_level() derives from school_grade_ids.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.school_subject_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.school_subject_ids IS 'The pack''s předměty as code_list ids — THE single truth (the scalar `subject` was dropped in 145). NULL = not subject-specific.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.domain_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.domain_ids IS 'Declared taxonomy_rules DOMAIN ids, resolved against the entity''s own catalog (edu_ai.resolved_taxonomy_rules). Mirrors document_metadata.document_domain_user.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.binding_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.binding_id IS 'taxonomy_binding of the pack: domain x level x ročník set, derived exactly as a document''s binding is (migration 144). NULL when ambiguous or unmatched.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.visibility; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.visibility IS 'The reach the import gives the entries it creates. A pack under test is imported as private and promoted once its answers check out.';
+
+
+--
+-- Name: COLUMN qa_pack_manifest.audience_roles; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_pack_manifest.audience_roles IS 'code_list(role) codes the pack is addressed to. Same hard-filter semantics as everywhere else; NULL/empty = no restriction at pack level, per-entry roles still apply.';
+
+
+--
+-- Name: qa_stopword; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_stopword (
+    term text NOT NULL,
+    lang text DEFAULT 'cs'::text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    scope text DEFAULT 'index'::text NOT NULL
+);
+
+
+--
+-- Name: COLUMN qa_stopword.scope; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_stopword.scope IS 'index = dropped at tokenization; coverage = kept in the tsquery but not counted towards coverage. See migration 60.';
+
+
+--
+-- Name: qa_synonym; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_synonym (
+    id bigint NOT NULL,
+    group_id text NOT NULL,
+    kind text NOT NULL,
+    term text NOT NULL,
+    term_norm text NOT NULL,
+    term_lemma text NOT NULL,
+    is_key boolean DEFAULT true NOT NULL,
+    lang text DEFAULT 'cs'::text NOT NULL,
+    source text DEFAULT 'seed'::text,
+    is_active boolean DEFAULT true NOT NULL,
+    term_stem text DEFAULT ''::text NOT NULL,
+    setting_id uuid
+);
+
+
+--
+-- Name: qa_synonym_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_synonym ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.qa_synonym_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: qa_variants; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.qa_variants (
+    variant_id bigint NOT NULL,
+    entry_id uuid NOT NULL,
+    processing_uuid uuid,
+    file_uuid uuid,
+    phrasing text NOT NULL,
+    norm_text text NOT NULL,
+    lemma_text text DEFAULT ''::text NOT NULL,
+    stem_text text DEFAULT ''::text NOT NULL,
+    ts_norm tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, norm_text)) STORED,
+    ts_lemma tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, lemma_text)) STORED,
+    ts_stem tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, stem_text)) STORED,
+    school_grade_ids bigint[],
+    school_level text,
+    school_subject_ids bigint[],
+    domain_ids bigint[],
+    binding_id bigint,
+    legal_entity_code text,
+    visibility text DEFAULT 'entity'::text NOT NULL,
+    owner_user_id text,
+    audience_roles text[],
+    valid_from date,
+    valid_to date,
+    is_active boolean DEFAULT true NOT NULL,
+    setting_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT qa_variants_visibility_check CHECK ((visibility = ANY (ARRAY['private'::text, 'entity'::text, 'organization'::text])))
+);
+
+
+--
+-- Name: COLUMN qa_variants.school_grade_ids; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_variants.school_grade_ids IS 'Copy of qa_entries.school_grade_ids. Denormalised because qa_exact/qa_lexical SCAN this table — see scope.py: a predicate that lived only on the joined entry would be applied after ranking.';
+
+
+--
+-- Name: COLUMN qa_variants.binding_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_variants.binding_id IS 'taxonomy_binding of the pack, denormalised for parity with document_chunks (migration 144).';
+
+
+--
+-- Name: COLUMN qa_variants.is_active; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.qa_variants.is_active IS 'Cascaded from qa_entries (migration 149). Present so the ts_*/trgm indexes can be PARTIAL — a replaced pack version must not stay in the lexical scan surface, exactly as qa_embedding_hnsw_active keeps it out of the vector one. qa_exact/qa_lexical must therefore carry `v.is_active` in the WHERE, or the partial indexes go unused.';
+
+
+--
+-- Name: qa_variants_variant_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_variants ALTER COLUMN variant_id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.qa_variants_variant_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: question_answer_log_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.question_answer_log ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.question_answer_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: settings; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.settings (
+    setting_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    label text NOT NULL,
+    is_active boolean DEFAULT false NOT NULL,
+    config jsonb NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    legal_entity_code text
+);
+
+
+--
+-- Name: TABLE settings; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.settings IS 'Versioned retrieval configuration: cascade steps, thresholds, models and the per-language reducers (config->engines). One active row; chunks and qa_variants record which setting produced them via setting_id.';
+
+
+--
+-- Name: COLUMN settings.config; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.settings.config IS 'Pipeline jako data. Krok answer: rerank_mode = off | local | cloud | jina (local = bge v procesu, cloud = LLM listwise s permutací, jina = hostovaný cross-encoder s kalibrovaným skóre). rerank_score_min vetuje pasáž pod daným skóre a platí jen pro skórovací backendy; u cloud tuto roli hraje rerank_require_grade. Viz migrace 187.';
+
+
+--
+-- Name: COLUMN settings.legal_entity_code; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.settings.legal_entity_code IS 'NULL = the global default. Otherwise the TOP-LEVEL organisation this row belongs to (enforced by trigger); it applies to the whole tree under it.';
+
+
+--
+-- Name: staff_user; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.staff_user (
+    user_id text NOT NULL,
+    legal_entity_code text NOT NULL,
+    display_name text NOT NULL,
+    email text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_login_at timestamp with time zone,
+    notes text
+);
+
+
+--
+-- Name: TABLE staff_user; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.staff_user IS 'A named person of one legal entity who ingests documents or administers it. The name is required and lands on the documents they ingest.';
+
+
+--
+-- Name: COLUMN staff_user.user_id; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON COLUMN edu_ai.staff_user.user_id IS 'Identifier issued by the back office or the identity provider. Globally unique: it identifies one person everywhere, so a log line quoting it needs nothing beside it.';
+
+
+--
+-- Name: subject_term; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.subject_term (
+    id bigint NOT NULL,
+    lang text NOT NULL,
+    term text NOT NULL,
+    match text DEFAULT 'prefix'::text NOT NULL,
+    subject_code text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    CONSTRAINT subject_term_match_check CHECK ((match = ANY (ARRAY['prefix'::text, 'exact'::text])))
+);
+
+
+--
+-- Name: TABLE subject_term; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.subject_term IS 'Subject-detection vocabulary per language (colloquial and standard nouns missing from code_list labels). Maps to the founding-template subject code; ingest resolves the code to the school''s own číselník row.';
+
+
+--
+-- Name: subject_term_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.subject_term ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.subject_term_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: system_message; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.system_message (
+    id bigint NOT NULL,
+    message_key text NOT NULL,
+    lang text NOT NULL,
+    message text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text
+);
+
+
+--
+-- Name: system_message_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.system_message ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.system_message_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: taxonomy_binding; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.taxonomy_binding (
+    id bigint NOT NULL,
+    domain_code text NOT NULL,
+    school_level text,
+    grades text[] NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE taxonomy_binding; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.taxonomy_binding IS 'Semantic binding: domain × school level → grade set (e.g. SECONDARY_ADMISSIONS/ZS→{9}). Read live at ingest to identify document_metadata.binding_id and whitelist per-chunk grades; a strong search signal. The grade set is never materialised, so editing a row takes effect without re-ingest.';
+
+
+--
+-- Name: taxonomy_binding_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.taxonomy_binding ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.taxonomy_binding_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: taxonomy_rules_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.taxonomy_rules ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.taxonomy_rules_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ui_label; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.ui_label (
+    id bigint NOT NULL,
+    scope text NOT NULL,
+    label_key text NOT NULL,
+    lang text NOT NULL,
+    label_text text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text
+);
+
+
+--
+-- Name: TABLE ui_label; Type: COMMENT; Schema: edu_ai; Owner: -
+--
+
+COMMENT ON TABLE edu_ai.ui_label IS 'Interface copy per language and scope. A language is offered in a page''s switcher only when it has every key of that scope.';
+
+
+--
+-- Name: ui_label_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.ui_label ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.ui_label_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: user_v; Type: VIEW; Schema: edu_ai; Owner: -
+--
+
+CREATE VIEW edu_ai.user_v AS
+ SELECT staff_user.legal_entity_code,
+    staff_user.user_id,
+    'staff'::text AS user_kind,
+    staff_user.display_name,
+    staff_user.is_active,
+    staff_user.created_at,
+    staff_user.last_login_at AS last_active_at
+   FROM edu_ai.staff_user
+UNION ALL
+ SELECT app_user.legal_entity_code,
+    app_user.user_id,
+    'app'::text AS user_kind,
+    NULL::text AS display_name,
+    app_user.is_active,
+    app_user.created_at,
+    app_user.last_seen_at AS last_active_at
+   FROM edu_ai.app_user;
+
+
+--
+-- Name: validity_period; Type: TABLE; Schema: edu_ai; Owner: -
+--
+
+CREATE TABLE edu_ai.validity_period (
+    id bigint NOT NULL,
+    legal_entity_code text NOT NULL,
+    name text NOT NULL,
+    valid_from date,
+    valid_to date,
+    is_active boolean DEFAULT true NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: validity_period_id_seq; Type: SEQUENCE; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.validity_period ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME edu_ai.validity_period_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: document_tables id; Type: DEFAULT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_tables ALTER COLUMN id SET DEFAULT nextval('edu_ai.edu_ai_document_tables_id_seq'::regclass);
+
+
+--
+-- Name: ingestion_log id; Type: DEFAULT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.ingestion_log ALTER COLUMN id SET DEFAULT nextval('edu_ai.ingestion_log_id_seq'::regclass);
+
+
+--
+-- Name: qa_blocklist id; Type: DEFAULT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_blocklist ALTER COLUMN id SET DEFAULT nextval('edu_ai.qa_blocklist_id_seq'::regclass);
+
+
+--
+-- Name: answer_exclusion_rule answer_exclusion_rule_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.answer_exclusion_rule
+    ADD CONSTRAINT answer_exclusion_rule_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: answer_exclusion_rule answer_exclusion_rule_rule_name_key; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.answer_exclusion_rule
+    ADD CONSTRAINT answer_exclusion_rule_rule_name_key UNIQUE (rule_name);
+
+
+--
+-- Name: app_user app_user_legal_entity_code_user_id_key; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.app_user
+    ADD CONSTRAINT app_user_legal_entity_code_user_id_key UNIQUE (legal_entity_code, user_id);
+
+
+--
+-- Name: app_user app_user_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.app_user
+    ADD CONSTRAINT app_user_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: chunk_exclusion_rule chunk_exclusion_rule_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.chunk_exclusion_rule
+    ADD CONSTRAINT chunk_exclusion_rule_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: code_list code_list_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.code_list
+    ADD CONSTRAINT code_list_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: document_chunks document_chunks_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_chunks
+    ADD CONSTRAINT document_chunks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: document_elements document_elements_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_elements
+    ADD CONSTRAINT document_elements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: document_tables document_tables_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_tables
+    ADD CONSTRAINT document_tables_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: embedding_registry embedding_registry_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.embedding_registry
+    ADD CONSTRAINT embedding_registry_pkey PRIMARY KEY (generation);
+
+
+--
+-- Name: grade_term grade_term_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.grade_term
+    ADD CONSTRAINT grade_term_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: grade_term grade_term_unique; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.grade_term
+    ADD CONSTRAINT grade_term_unique UNIQUE (lang, kind, term);
+
+
+--
+-- Name: idempotency_key idempotency_key_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.idempotency_key
+    ADD CONSTRAINT idempotency_key_pkey PRIMARY KEY (account, key);
+
+
+--
+-- Name: ingestion_log ingestion_log_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.ingestion_log
+    ADD CONSTRAINT ingestion_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: legal_entity legal_entity_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.legal_entity
+    ADD CONSTRAINT legal_entity_pkey PRIMARY KEY (legal_entity_code);
+
+
+--
+-- Name: prompt_registry prompt_registry_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.prompt_registry
+    ADD CONSTRAINT prompt_registry_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: qa_blocklist qa_blocklist_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_blocklist
+    ADD CONSTRAINT qa_blocklist_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: qa_embedding qa_embedding_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_embedding
+    ADD CONSTRAINT qa_embedding_pkey PRIMARY KEY (variant_id);
+
+
+--
+-- Name: qa_entries qa_entries_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_entries
+    ADD CONSTRAINT qa_entries_pkey PRIMARY KEY (entry_id);
+
+
+--
+-- Name: qa_feedback qa_feedback_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_feedback
+    ADD CONSTRAINT qa_feedback_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: qa_stopword qa_stopword_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_stopword
+    ADD CONSTRAINT qa_stopword_pkey PRIMARY KEY (lang, term, scope);
+
+
+--
+-- Name: qa_synonym qa_synonym_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_synonym
+    ADD CONSTRAINT qa_synonym_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: qa_variants qa_variants_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_variants
+    ADD CONSTRAINT qa_variants_pkey PRIMARY KEY (variant_id);
+
+
+--
+-- Name: question_answer_log question_answer_log_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.question_answer_log
+    ADD CONSTRAINT question_answer_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: settings settings_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.settings
+    ADD CONSTRAINT settings_pkey PRIMARY KEY (setting_id);
+
+
+--
+-- Name: staff_user staff_user_legal_entity_code_user_id_key; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.staff_user
+    ADD CONSTRAINT staff_user_legal_entity_code_user_id_key UNIQUE (legal_entity_code, user_id);
+
+
+--
+-- Name: staff_user staff_user_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.staff_user
+    ADD CONSTRAINT staff_user_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: subject_term subject_term_lang_term_key; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.subject_term
+    ADD CONSTRAINT subject_term_lang_term_key UNIQUE (lang, term);
+
+
+--
+-- Name: subject_term subject_term_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.subject_term
+    ADD CONSTRAINT subject_term_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: system_message system_message_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.system_message
+    ADD CONSTRAINT system_message_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: taxonomy_binding taxonomy_binding_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.taxonomy_binding
+    ADD CONSTRAINT taxonomy_binding_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: taxonomy_rules taxonomy_rules_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.taxonomy_rules
+    ADD CONSTRAINT taxonomy_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ui_label ui_label_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.ui_label
+    ADD CONSTRAINT ui_label_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: validity_period validity_period_pkey; Type: CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.validity_period
+    ADD CONSTRAINT validity_period_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: app_user_entity_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX app_user_entity_active_idx ON edu_ai.app_user USING btree (legal_entity_code) WHERE is_active;
+
+
+--
+-- Name: chunk_exclusion_rule_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunk_exclusion_rule_active ON edu_ai.chunk_exclusion_rule USING btree (rule_order) WHERE is_active;
+
+
+--
+-- Name: chunk_exclusion_rule_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunk_exclusion_rule_entity_idx ON edu_ai.chunk_exclusion_rule USING btree (legal_entity_code) WHERE is_active;
+
+
+--
+-- Name: chunks_audience_roles_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_audience_roles_idx ON edu_ai.document_chunks USING gin (audience_roles);
+
+
+--
+-- Name: chunks_entity_visibility_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_entity_visibility_idx ON edu_ai.document_chunks USING btree (legal_entity_code, visibility);
+
+
+--
+-- Name: chunks_file_item_uuid_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_file_item_uuid_idx ON edu_ai.document_chunks USING btree (file_item_uuid);
+
+
+--
+-- Name: chunks_file_uuid_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_file_uuid_idx ON edu_ai.document_chunks USING btree (file_uuid);
+
+
+--
+-- Name: chunks_heading_norm_trgm; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_heading_norm_trgm ON edu_ai.document_chunks USING gin (section_heading_norm edu_ai.gin_trgm_ops);
+
+
+--
+-- Name: chunks_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_legal_entity_idx ON edu_ai.document_chunks USING btree (legal_entity_code);
+
+
+--
+-- Name: chunks_norm_trgm; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_norm_trgm ON edu_ai.document_chunks USING gin (chunk_norm_text edu_ai.gin_trgm_ops);
+
+
+--
+-- Name: chunks_owner_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_owner_idx ON edu_ai.document_chunks USING btree (legal_entity_code, owner_user_id) WHERE (visibility = 'private'::text);
+
+
+--
+-- Name: chunks_public_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_public_idx ON edu_ai.document_chunks USING btree (id) WHERE (visibility = 'public'::text);
+
+
+--
+-- Name: chunks_school_grade_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_school_grade_ids_gin ON edu_ai.document_chunks USING gin (school_grade_ids);
+
+
+--
+-- Name: chunks_school_subject_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_school_subject_ids_gin ON edu_ai.document_chunks USING gin (school_subject_ids);
+
+
+--
+-- Name: chunks_setting_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_setting_idx ON edu_ai.document_chunks USING btree (setting_id);
+
+
+--
+-- Name: chunks_ts_heading_lemma_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_ts_heading_lemma_gin ON edu_ai.document_chunks USING gin (ts_heading_lemma);
+
+
+--
+-- Name: chunks_ts_heading_stem_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_ts_heading_stem_gin ON edu_ai.document_chunks USING gin (ts_heading_stem);
+
+
+--
+-- Name: chunks_ts_lemma_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_ts_lemma_gin ON edu_ai.document_chunks USING gin (ts_lemma);
+
+
+--
+-- Name: chunks_ts_norm_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_ts_norm_gin ON edu_ai.document_chunks USING gin (ts_norm);
+
+
+--
+-- Name: chunks_ts_stem_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX chunks_ts_stem_gin ON edu_ai.document_chunks USING gin (ts_stem);
+
+
+--
+-- Name: code_list_active_code; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX code_list_active_code ON edu_ai.code_list USING btree (legal_entity_code, list_code, code) NULLS NOT DISTINCT WHERE is_active;
+
+
+--
+-- Name: code_list_one_processing_fallback; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX code_list_one_processing_fallback ON edu_ai.code_list USING btree (legal_entity_code, list_code) NULLS NOT DISTINCT WHERE (is_processing_fallback AND is_active);
+
+
+--
+-- Name: code_list_one_ui_default; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX code_list_one_ui_default ON edu_ai.code_list USING btree (legal_entity_code, list_code) NULLS NOT DISTINCT WHERE (is_ui_default AND is_active);
+
+
+--
+-- Name: elements_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX elements_legal_entity_idx ON edu_ai.document_elements USING btree (legal_entity_code);
+
+
+--
+-- Name: idempotency_key_created_at_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idempotency_key_created_at_idx ON edu_ai.idempotency_key USING btree (created_at);
+
+
+--
+-- Name: idx_document_chunks_bm25; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_document_chunks_bm25 ON edu_ai.document_chunks USING bm25 (id, bm25_text) WITH (key_field=id);
+
+
+--
+-- Name: idx_document_chunks_embedding_hnsw; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_document_chunks_embedding_hnsw ON edu_ai.document_chunks USING hnsw (embedding public.vector_cosine_ops) WITH (m='16', ef_construction='64');
+
+
+--
+-- Name: idx_document_metadata_is_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_document_metadata_is_active ON edu_ai.document_metadata USING btree (is_active) WHERE is_active;
+
+
+--
+-- Name: idx_document_metadata_join; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_document_metadata_join ON edu_ai.document_metadata USING btree (file_uuid, processing_uuid);
+
+
+--
+-- Name: idx_elements_file_item_uuid; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_elements_file_item_uuid ON edu_ai.document_elements USING btree (file_item_uuid);
+
+
+--
+-- Name: idx_elements_file_uuid; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_elements_file_uuid ON edu_ai.document_elements USING btree (file_uuid);
+
+
+--
+-- Name: idx_elements_page_number; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_elements_page_number ON edu_ai.document_elements USING btree (page_number);
+
+
+--
+-- Name: idx_elements_processing_uuid; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_elements_processing_uuid ON edu_ai.document_elements USING btree (processing_uuid);
+
+
+--
+-- Name: idx_elements_record_type; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_elements_record_type ON edu_ai.document_elements USING btree (record_type);
+
+
+--
+-- Name: idx_tables_cluster_only; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX idx_tables_cluster_only ON edu_ai.document_tables USING btree (tbl_cluster_signature) WHERE (record_type = 'table'::text);
+
+
+--
+-- Name: ingestion_log_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX ingestion_log_legal_entity_idx ON edu_ai.ingestion_log USING btree (legal_entity_code);
+
+
+--
+-- Name: ingestion_log_user_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX ingestion_log_user_idx ON edu_ai.ingestion_log USING btree (user_id);
+
+
+--
+-- Name: legal_entity_parent_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX legal_entity_parent_idx ON edu_ai.legal_entity USING btree (parent_code) WHERE (parent_code IS NOT NULL);
+
+
+--
+-- Name: metadata_audience_roles_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX metadata_audience_roles_idx ON edu_ai.document_metadata USING gin (audience_roles);
+
+
+--
+-- Name: metadata_entity_visibility_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX metadata_entity_visibility_idx ON edu_ai.document_metadata USING btree (legal_entity_code, visibility);
+
+
+--
+-- Name: metadata_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX metadata_legal_entity_idx ON edu_ai.document_metadata USING btree (legal_entity_code);
+
+
+--
+-- Name: prompt_registry_key_version; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX prompt_registry_key_version ON edu_ai.prompt_registry USING btree (prompt_key, version);
+
+
+--
+-- Name: prompt_registry_one_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX prompt_registry_one_active ON edu_ai.prompt_registry USING btree (prompt_key) WHERE is_active;
+
+
+--
+-- Name: qa_blocklist_lemma_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_blocklist_lemma_idx ON edu_ai.qa_blocklist USING btree (term_lemma) WHERE is_active;
+
+
+--
+-- Name: qa_blocklist_norm_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_blocklist_norm_idx ON edu_ai.qa_blocklist USING btree (term_norm) WHERE is_active;
+
+
+--
+-- Name: qa_embedding_audience_roles_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_audience_roles_idx ON edu_ai.qa_embedding USING gin (audience_roles);
+
+
+--
+-- Name: qa_embedding_domain_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_domain_ids_gin ON edu_ai.qa_embedding USING gin (domain_ids);
+
+
+--
+-- Name: qa_embedding_entity_visibility_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_entity_visibility_idx ON edu_ai.qa_embedding USING btree (legal_entity_code, visibility);
+
+
+--
+-- Name: qa_embedding_entry_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_entry_idx ON edu_ai.qa_embedding USING btree (entry_id);
+
+
+--
+-- Name: qa_embedding_hnsw_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_hnsw_active ON edu_ai.qa_embedding USING hnsw (embedding public.vector_cosine_ops) WHERE is_active;
+
+
+--
+-- Name: qa_embedding_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_legal_entity_idx ON edu_ai.qa_embedding USING btree (legal_entity_code);
+
+
+--
+-- Name: qa_embedding_school_subject_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_embedding_school_subject_ids_gin ON edu_ai.qa_embedding USING gin (school_subject_ids);
+
+
+--
+-- Name: qa_entries_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_entries_active_idx ON edu_ai.qa_entries USING btree (is_active);
+
+
+--
+-- Name: qa_entries_entity_visibility_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_entries_entity_visibility_idx ON edu_ai.qa_entries USING btree (legal_entity_code, visibility);
+
+
+--
+-- Name: qa_entries_file_uuid_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_entries_file_uuid_idx ON edu_ai.qa_entries USING btree (file_uuid);
+
+
+--
+-- Name: qa_entries_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_entries_legal_entity_idx ON edu_ai.qa_entries USING btree (legal_entity_code);
+
+
+--
+-- Name: qa_entries_one_active_per_key; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX qa_entries_one_active_per_key ON edu_ai.qa_entries USING btree (legal_entity_code, pack_id, entry_key) WHERE (is_active AND (entry_key IS NOT NULL));
+
+
+--
+-- Name: qa_entries_pack_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_entries_pack_idx ON edu_ai.qa_entries USING btree (pack_id);
+
+
+--
+-- Name: qa_feedback_log_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_feedback_log_idx ON edu_ai.qa_feedback USING btree (log_id);
+
+
+--
+-- Name: qa_pack_manifest_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_pack_manifest_active_idx ON edu_ai.qa_pack_manifest USING btree (is_active) WHERE is_active;
+
+
+--
+-- Name: qa_pack_manifest_one_active_per_pack; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX qa_pack_manifest_one_active_per_pack ON edu_ai.qa_pack_manifest USING btree (legal_entity_code, pack_id) NULLS NOT DISTINCT WHERE is_active;
+
+
+--
+-- Name: qa_stopword_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_stopword_active_idx ON edu_ai.qa_stopword USING btree (lang, is_active);
+
+
+--
+-- Name: qa_synonym_group_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_synonym_group_idx ON edu_ai.qa_synonym USING btree (group_id);
+
+
+--
+-- Name: qa_synonym_lemma_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_synonym_lemma_idx ON edu_ai.qa_synonym USING btree (term_lemma);
+
+
+--
+-- Name: qa_variants_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_active_idx ON edu_ai.qa_variants USING btree (is_active) WHERE is_active;
+
+
+--
+-- Name: qa_variants_audience_roles_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_audience_roles_idx ON edu_ai.qa_variants USING gin (audience_roles);
+
+
+--
+-- Name: qa_variants_domain_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_domain_ids_gin ON edu_ai.qa_variants USING gin (domain_ids);
+
+
+--
+-- Name: qa_variants_entity_visibility_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_entity_visibility_idx ON edu_ai.qa_variants USING btree (legal_entity_code, visibility);
+
+
+--
+-- Name: qa_variants_entry_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_entry_idx ON edu_ai.qa_variants USING btree (entry_id);
+
+
+--
+-- Name: qa_variants_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_legal_entity_idx ON edu_ai.qa_variants USING btree (legal_entity_code);
+
+
+--
+-- Name: qa_variants_norm_trgm; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_norm_trgm ON edu_ai.qa_variants USING gin (norm_text edu_ai.gin_trgm_ops) WHERE is_active;
+
+
+--
+-- Name: qa_variants_school_subject_ids_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_school_subject_ids_gin ON edu_ai.qa_variants USING gin (school_subject_ids);
+
+
+--
+-- Name: qa_variants_setting_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_setting_idx ON edu_ai.qa_variants USING btree (setting_id);
+
+
+--
+-- Name: qa_variants_ts_lemma_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_ts_lemma_gin ON edu_ai.qa_variants USING gin (ts_lemma) WHERE is_active;
+
+
+--
+-- Name: qa_variants_ts_norm_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_ts_norm_gin ON edu_ai.qa_variants USING gin (ts_norm) WHERE is_active;
+
+
+--
+-- Name: qa_variants_ts_stem_gin; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX qa_variants_ts_stem_gin ON edu_ai.qa_variants USING gin (ts_stem) WHERE is_active;
+
+
+--
+-- Name: question_answer_log_conv_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX question_answer_log_conv_idx ON edu_ai.question_answer_log USING btree (conversation_id, created_at);
+
+
+--
+-- Name: question_answer_log_created_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX question_answer_log_created_idx ON edu_ai.question_answer_log USING btree (created_at);
+
+
+--
+-- Name: question_answer_log_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX question_answer_log_legal_entity_idx ON edu_ai.question_answer_log USING btree (legal_entity_code, created_at DESC);
+
+
+--
+-- Name: question_answer_log_setting_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX question_answer_log_setting_idx ON edu_ai.question_answer_log USING btree (setting_id);
+
+
+--
+-- Name: question_answer_log_source_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX question_answer_log_source_idx ON edu_ai.question_answer_log USING btree (answer_source, stage);
+
+
+--
+-- Name: settings_one_active_per_scope; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX settings_one_active_per_scope ON edu_ai.settings USING btree (legal_entity_code) NULLS NOT DISTINCT WHERE is_active;
+
+
+--
+-- Name: staff_user_entity_active_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX staff_user_entity_active_idx ON edu_ai.staff_user USING btree (legal_entity_code) WHERE is_active;
+
+
+--
+-- Name: system_message_active_key_lang; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX system_message_active_key_lang ON edu_ai.system_message USING btree (message_key, lang) WHERE is_active;
+
+
+--
+-- Name: tables_legal_entity_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX tables_legal_entity_idx ON edu_ai.document_tables USING btree (legal_entity_code);
+
+
+--
+-- Name: taxonomy_rules_active_code; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX taxonomy_rules_active_code ON edu_ai.taxonomy_rules USING btree (legal_entity_code, type_code) NULLS NOT DISTINCT WHERE is_active;
+
+
+--
+-- Name: taxonomy_rules_one_ui_default; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX taxonomy_rules_one_ui_default ON edu_ai.taxonomy_rules USING btree ((true)) WHERE (is_ui_default AND is_active);
+
+
+--
+-- Name: ui_label_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX ui_label_active ON edu_ai.ui_label USING btree (scope, label_key, lang) WHERE is_active;
+
+
+--
+-- Name: ui_label_scope_idx; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE INDEX ui_label_scope_idx ON edu_ai.ui_label USING btree (scope) WHERE is_active;
+
+
+--
+-- Name: uq_embedding_registry_one_active; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_embedding_registry_one_active ON edu_ai.embedding_registry USING btree ((true)) WHERE (status = 'active'::text);
+
+
+--
+-- Name: validity_period_one_default; Type: INDEX; Schema: edu_ai; Owner: -
+--
+
+CREATE UNIQUE INDEX validity_period_one_default ON edu_ai.validity_period USING btree (legal_entity_code) WHERE (is_default AND is_active);
+
+
+--
+-- Name: document_chunks chunk_codes_valid; Type: TRIGGER; Schema: edu_ai; Owner: -
+--
+
+CREATE TRIGGER chunk_codes_valid BEFORE INSERT OR UPDATE OF school_grade_ids, school_subject_ids ON edu_ai.document_chunks FOR EACH ROW EXECUTE FUNCTION edu_ai.chunk_codes_valid();
+
+
+--
+-- Name: code_list code_list_owner_root; Type: TRIGGER; Schema: edu_ai; Owner: -
+--
+
+CREATE TRIGGER code_list_owner_root BEFORE INSERT OR UPDATE OF legal_entity_code ON edu_ai.code_list FOR EACH ROW EXECUTE FUNCTION edu_ai.codebook_owner_must_be_root();
+
+
+--
+-- Name: code_list language_selection_exists; Type: TRIGGER; Schema: edu_ai; Owner: -
+--
+
+CREATE TRIGGER language_selection_exists BEFORE INSERT OR UPDATE OF list_code, code, legal_entity_code ON edu_ai.code_list FOR EACH ROW EXECUTE FUNCTION edu_ai.language_selection_must_exist();
+
+
+--
+-- Name: settings settings_owner_root; Type: TRIGGER; Schema: edu_ai; Owner: -
+--
+
+CREATE TRIGGER settings_owner_root BEFORE INSERT OR UPDATE OF legal_entity_code ON edu_ai.settings FOR EACH ROW EXECUTE FUNCTION edu_ai.settings_owner_must_be_root();
+
+
+--
+-- Name: taxonomy_rules taxonomy_owner_root; Type: TRIGGER; Schema: edu_ai; Owner: -
+--
+
+CREATE TRIGGER taxonomy_owner_root BEFORE INSERT OR UPDATE OF legal_entity_code ON edu_ai.taxonomy_rules FOR EACH ROW EXECUTE FUNCTION edu_ai.codebook_owner_must_be_root();
+
+
+--
+-- Name: app_user app_user_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.app_user
+    ADD CONSTRAINT app_user_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: chunk_exclusion_rule chunk_exclusion_rule_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.chunk_exclusion_rule
+    ADD CONSTRAINT chunk_exclusion_rule_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: code_list code_list_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.code_list
+    ADD CONSTRAINT code_list_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_metadata document_metadata_binding_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_metadata
+    ADD CONSTRAINT document_metadata_binding_id_fkey FOREIGN KEY (binding_id) REFERENCES edu_ai.taxonomy_binding(id);
+
+
+--
+-- Name: document_chunks edu_ai_document_chunks_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_chunks
+    ADD CONSTRAINT edu_ai_document_chunks_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_chunks edu_ai_document_chunks_owning_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_chunks
+    ADD CONSTRAINT edu_ai_document_chunks_owning_entity_code_fkey FOREIGN KEY (owning_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_chunks edu_ai_document_chunks_setting_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_chunks
+    ADD CONSTRAINT edu_ai_document_chunks_setting_id_fkey FOREIGN KEY (setting_id) REFERENCES edu_ai.settings(setting_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: document_elements edu_ai_document_elements_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_elements
+    ADD CONSTRAINT edu_ai_document_elements_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_metadata edu_ai_document_metadata_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_metadata
+    ADD CONSTRAINT edu_ai_document_metadata_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_tables edu_ai_document_tables_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_tables
+    ADD CONSTRAINT edu_ai_document_tables_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: legal_entity legal_entity_parent_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.legal_entity
+    ADD CONSTRAINT legal_entity_parent_code_fkey FOREIGN KEY (parent_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: document_metadata metadata_owner_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.document_metadata
+    ADD CONSTRAINT metadata_owner_fkey FOREIGN KEY (legal_entity_code, owner_user_id) REFERENCES edu_ai.staff_user(legal_entity_code, user_id);
+
+
+--
+-- Name: qa_embedding qa_embedding_binding_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_embedding
+    ADD CONSTRAINT qa_embedding_binding_id_fkey FOREIGN KEY (binding_id) REFERENCES edu_ai.taxonomy_binding(id);
+
+
+--
+-- Name: qa_embedding qa_embedding_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_embedding
+    ADD CONSTRAINT qa_embedding_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: qa_embedding qa_embedding_variant_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_embedding
+    ADD CONSTRAINT qa_embedding_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES edu_ai.qa_variants(variant_id) ON DELETE CASCADE;
+
+
+--
+-- Name: qa_entries qa_entries_binding_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_entries
+    ADD CONSTRAINT qa_entries_binding_id_fkey FOREIGN KEY (binding_id) REFERENCES edu_ai.taxonomy_binding(id);
+
+
+--
+-- Name: qa_entries qa_entries_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_entries
+    ADD CONSTRAINT qa_entries_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: qa_entries qa_entries_owner_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_entries
+    ADD CONSTRAINT qa_entries_owner_fkey FOREIGN KEY (legal_entity_code, owner_user_id) REFERENCES edu_ai.staff_user(legal_entity_code, user_id);
+
+
+--
+-- Name: qa_feedback qa_feedback_log_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_feedback
+    ADD CONSTRAINT qa_feedback_log_id_fkey FOREIGN KEY (log_id) REFERENCES edu_ai.question_answer_log(id);
+
+
+--
+-- Name: qa_pack_manifest qa_pack_manifest_binding_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_pack_manifest
+    ADD CONSTRAINT qa_pack_manifest_binding_id_fkey FOREIGN KEY (binding_id) REFERENCES edu_ai.taxonomy_binding(id);
+
+
+--
+-- Name: qa_pack_manifest qa_pack_manifest_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_pack_manifest
+    ADD CONSTRAINT qa_pack_manifest_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: qa_synonym qa_synonym_setting_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_synonym
+    ADD CONSTRAINT qa_synonym_setting_id_fkey FOREIGN KEY (setting_id) REFERENCES edu_ai.settings(setting_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: qa_variants qa_variants_binding_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_variants
+    ADD CONSTRAINT qa_variants_binding_id_fkey FOREIGN KEY (binding_id) REFERENCES edu_ai.taxonomy_binding(id);
+
+
+--
+-- Name: qa_variants qa_variants_entry_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_variants
+    ADD CONSTRAINT qa_variants_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES edu_ai.qa_entries(entry_id) ON DELETE CASCADE;
+
+
+--
+-- Name: qa_variants qa_variants_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_variants
+    ADD CONSTRAINT qa_variants_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: qa_variants qa_variants_setting_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.qa_variants
+    ADD CONSTRAINT qa_variants_setting_id_fkey FOREIGN KEY (setting_id) REFERENCES edu_ai.settings(setting_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: question_answer_log question_answer_log_setting_id_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.question_answer_log
+    ADD CONSTRAINT question_answer_log_setting_id_fkey FOREIGN KEY (setting_id) REFERENCES edu_ai.settings(setting_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: settings settings_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.settings
+    ADD CONSTRAINT settings_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: staff_user staff_user_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.staff_user
+    ADD CONSTRAINT staff_user_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: taxonomy_rules taxonomy_rules_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.taxonomy_rules
+    ADD CONSTRAINT taxonomy_rules_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- Name: validity_period validity_period_legal_entity_code_fkey; Type: FK CONSTRAINT; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE ONLY edu_ai.validity_period
+    ADD CONSTRAINT validity_period_legal_entity_code_fkey FOREIGN KEY (legal_entity_code) REFERENCES edu_ai.legal_entity(legal_entity_code);
+
+
+--
+-- PostgreSQL database dump complete
+--
+

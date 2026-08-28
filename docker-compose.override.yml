@@ -1,0 +1,46 @@
+# ══════════════════════════════════════════════════════════════
+#  LOCAL DEV OVERRIDE  –  direct access to individual services
+#
+#  Docker Compose loads this file AUTOMATICALLY in development:
+#      docker compose up                  → base + this override
+#
+#  ── SECURITY ──────────────────────────────────────────────────
+#  All ports bind to 127.0.0.1 (loopback) ONLY, so the backend
+#  services are reachable from *this machine's* localhost but are
+#  NOT exposed to the LAN or the internet — even if this file is
+#  accidentally present on a server.
+#
+#  ── PRODUCTION / INTEGRATION SERVER ───────────────────────────
+#  Run WITHOUT this override so no backend port is published at all
+#  (only nginx 80, 8443 and 8444 are). One of:
+#      docker compose -f docker-compose.yml up -d
+#  or set in the server's .env:
+#      COMPOSE_FILE=docker-compose.yml
+#  Then reach services via nginx, `docker exec`, or an SSH tunnel.
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  edu_ai_api:
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  edu_ai:
+    ports:
+      - "127.0.0.1:7860:7860"
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  pgadmin:
+    ports:
+      - "127.0.0.1:5050:80"
+
+  edu_ai_search:
+    ports:
+      - "127.0.0.1:8090:8090"
+
+  edu_ai_web_chat:
+    ports:
+      - "127.0.0.1:8081:8081"

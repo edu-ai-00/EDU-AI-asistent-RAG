@@ -1,0 +1,204 @@
+# Eval set — from produktový vlastník's email "RAG EDU-AI - otázky ČJ/M" (13.7.2026, "Pro představu").
+# SUBJECT-MATTER questions (Czech language + Math): grammar, word analysis,
+# idioms, computations, geometry. These are exam CONTENT, not FAQ logistics —
+# entirely outside the 72-entry přijímačky FAQ. Domain-mismatch stress test
+# (expect ~all no_answer). Verbatim (incl. typos/keyword lines).
+# ===== ČJL =====
+Příbuzné slovo od dřevěný
+slovo příbuzné ke slovu "pata", které má 3 slabiky a skloňuje se podle vzoru hrad
+tříslabičné slovo příbuzné ke slovu PATA, skloňující se se slovem hrad
+dvojslabičné slovo příbuzné ke slovu Dřevo, skloňující se se slovem stavení
+význam lidového rčení: má jazyk z hadích ocásků
+Mit pod čepicí
+Znáte nějaké veršovánky týkající se měst?
+Jak napsat fejeton na téma: "Jak jsem se přesvědčil o pravdivosti přísloví"?
+Jak je to s přídavnými jmény v množném čísle?
+Jaký význam má přísloví Ranní ptáče dál doskáče?
+Antonyma ke slovu klidný
+Co znamená přísloví kam vitr tam plášť?
+Slovní druh
+Co je to noblesa
+slova příbuzná ke slovu vlas
+opomněl nebo opoměl
+Co je to prulomovka
+co je za slovní druh za šera
+slova příbuzná ke slovu vyrostou
+Co je holá věta
+Proč se víc říká také než taky, připadá mi to takové divné
+Možný původ a význam příjmení Wundrawitz
+Rým na slovo taky
+Dvě auta se srazily nebo srazila
+Po tmě nebo potmě
+Opak zmačkaný
+Rozbor věty, grafické znázornění
+Jaky je rozdil mezi obecně a všeobecně
+kořen slova žákyně
+Co je to předpona?
+Silny nebo silnej
+slova příbuzná
+Co je to pozice
+My jsme byly nebo byli?
+Kdy použít jsme a kdy sme?
+Opak ke slovu překvapení?
+Má Kainovo znamení
+ČJ Přívlastek
+Kámen - podle jakého vzoru se skloňuje
+Podřazená slova ke slovu strom
+Původ příjmení Routner
+kaligram-literatura
+Lže, jako když tiskne.
+Není nutné - je to věta?
+Co jsou to předložkové vazby?
+Co je to pád předložkový?
+vzory podstatných jmen
+Slova protikladná - hbité
+Jak se ptáme na zájmena?
+Kam vítr tam plášť
+opak slova pokora
+Přímá řeč
+Jak určíme příslovce
+Jak určíme přívlastek shodný a neshodný
+Slovo nadřazené ke slovu loď, vor
+Druhy zájmen - mne, si, mi, nám?
+Slova nadřazená a podřazená - sova
+Zeměplaz - co to je
+jaké i/y se píše ve slově vysvětlil
+Řekni mi, co čteš, a já ti povím, kdo jsi.
+Souřadné slovo ke slovu slepička
+Souvětí souřadné - je to správně?
+původ příjmení Sendler
+skloňování příjmení
+Veselé Velikonoce - pravopis
+Den Jozífkův
+vzor kopaná
+čárky ve větě
+zvyk je železná košile
+Hádanka - narcis
+metafora na slovo vlak
+synonymum pro slovo nepatřičně
+Metonymie ve Zlatém kolovratu
+Hra V 1. Pádě
+základové sloveso slova oběžný
+původ slova etapa
+Měl na nose hýl
+Co je to sarkastická nálada
+magistra malé či velké začáteční písmeno
+Kyčel vzor
+píše se čárka za několikanásobným větným členem?
+podstatná slova vzor kost
+Rčení na ,,starostlivý"?
+Vidový protějšek
+Český jazyk - přísudek
+Souznačné slovo k ráno
+čepýřit se
+Káně - jaký rod?
+u slovesa potkali jsme určete mluvnické kategorie
+Co znamená benevolentní?
+nosit dříví do lesa
+neplač nad rozlitým mlékem
+Byla v něm malá dušička
+Vlasy jako
+rozdíl mezi bidonem a lahví
+Přesný význam slova vypočítavý
+Protikladné slovo ke slovu neviset
+Co znamená příležitostně?
+nárůst - nárust
+Slovotvorný rozbor
+# ===== MATEMATIKA =====
+Kolik má os souměrnosti kosodelník a kosočtverec?
+jak poznáme že objekt není osově souměrný?
+Matematika 50 000 000 mm + 50 000 cm + 5 000 dm. Výsledek zapsaný v km
+5xy na druhou, x=0,3 a y=-5
+Rovnoměrně zrychlený přímočarý pohyb, řešení příkladů
+Proč je integrál opakem derivace?
+Jednotky casu
+Diferenciální rovnice - variace konstanty
+Výpočet obsahu a výšky v kosodélníku
+P(x) : P(x+2) = 1 : 42, x = ?
+funkce sinus
+Jaká je plocha ?
+Průměrná rychlost, výpočet
+Rovnice elipsy a vrcholy
+Souřadnice průsečíků hyperboly
+Tětiva kružnice
+Opačný zlomek
+Objem rotačního tělesa
+Ovál, elipsa - jaký je mezi nimi rozdíl?
+Matematika mnohočleny
+Přímá a nepřímá úměra - vztahy
+matika-trojclenka
+Obsah obdélníku
+Matika vektory
+Podmínky řešitelnosti zlomku
+Finanční matematika - posloupnost
+nulové body
+Měřítko mapy - výpočet
+Jaké jsou matematické dovednosti.
+Matika - pravděpodobnost
+kolik má 1MWh - kWh
+nejmenší společný nasobek
+Povrch trojbokého hranolu
+Kolik % je 3 z 15
+Algebraické úpravy
+pythagorova věta
+Derivace složené funkce, HODNOTA PÍ
+Jak převést desetinné číslo na stupně?
+Iracionální rovnice
+Zápis řadových číslovek v matematice
+Logaritmické a exponenciální nerovnice
+jak prosím vyřešit rovnici s parametrem m-24x+2mx^2+3+2x^2=0
+Kombinatorika
+Soustavy rovnic o 3 neznámých s vektory
+Jak zapsat množinu jako interval?
+Jaký je výsledek dělení se zbytkem: 9 679 děleno 12?
+Co je číslo, číslice a cifra
+Jak vypočítám výšku kosočtverce, když znám pouze stranu a úhlopříčku?
+-2², má mínus před číslem přednost před mocněním nebo naopak?
+Potřebuji pomoct přesně vypočítat procenta
+Jak najdu průsečík přímky BH s rovinou EDG?
+Jak se zadává se CoTg na kalkulačce, kalkulačka má funkci jenom sin, cos, tang
+kolik je 1m3 prken m2
+Jak vypočítat úhel přes tangens na kalkulačce?
+Taylorova řada tg(x)
+nejmensi nasobek 22 33
+jak převést zlomek z km na m
+Lichoběžník, výpočet úhlu
+Ohniska elipsy
+Jak vypočítám průměr kruhu, když znám jen jeho obsah?
+určit třetí rozměr kvádru o objemu 100cm3 a=8cm,b=5cm
+Jak napíšu římskými číslicemi 10000?
+Objem a povrch kvádru
+Kolik má metrů čtverečných jeden ar, jedna měřice a jeden hektar?
+Jak vypočítat objem
+Co je to výška trojúhelníku ?
+Jak narýsovat úhel 15 stupňů bez použití úhloměru?
+2000 metrů čtverečných, kolik je to arů?
+Matematika - normály a tečny
+Výsledek dělení dvou čísel se nazývá?
+Určení typu kuželosečky
+Odmocnina na kalkulačce
+Matika - Eukleidovy věty
+Jak usměrnit usměrnit zlomek 5/2√5
+Jak na závorky
+Je bod nularozměrný prostor?
+Kružnice vepsaná trojúhelníku, postup
+Je 01 jednociferné nebo dvouciferné číslo?
+Jaký je rozdíl mezi posloupností a řadou v matematice?
+Je nejaky vztah mezi kg a m3?-prevod
+Délka hrany krychle vepsaná do polokoule
+Jaký úhel svírají hodinové ručičky v 8:30 hodin?
+Jak sestrojit úsečku ∜21?
+Výsledek odmocniny vždy kladný??
+Aritmetická posloupnost
+úloha potřebuji pomoct i s postupem
+Násobení lomených výrazu
+Důkaz algebraických čísel
+Absolutní hodnota
+Jak převedu 3 mm/min na metry krychlový/s * km2?
+úprava (x+1)/(x-1)
+Potřebuji vymyslet zápornou pyramidu o základu 5
+definiční obor
+Existují nějaká "složitější" čísla než komplexní?
+4004 je menší nebo větší 4003,5
+Thaletova kružnice - využití
+Nerovnice s neznámou ve jmenovateli

@@ -1,0 +1,10 @@
+# Fault-injection override for R4 (LLM/OpenAI unavailable), used by the
+# resilience harness. `environment:` wins over `env_file:`, so this replaces the
+# real key on edu_ai_search with an invalid one → every OpenAI call (query
+# embedding, RAG answer LLM) fails, while the deterministic QA tiers keep working.
+# The harness applies it with `-f docker-compose.yml -f tests/llmfault.override.yml`
+# and removes it (force-recreate without this file) in teardown.
+services:
+  edu_ai_search:
+    environment:
+      - OPENAI_API_KEY=sk-invalid-resilience-test-key

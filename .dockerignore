@@ -1,0 +1,20 @@
+# Keep the root build context (edu_ai / Langflow image) lean — exclude data,
+# caches, and VCS. Source dirs (api/, search/, langflow_flows/, postgres/, …) are
+# NOT excluded. The Dockerfile only COPYs requirements-langflow.txt +
+# search/eduai_normalize, so nothing here is needed by the build.
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+postgres_data/
+langflow_data/
+langflow_data_1_8/
+langgraph_data/
+pgadmin_exports/
+uploads/
+sqllite_export/
+db_export/
+Ingestion testing documents/
+Podklady pro testy/
+*.dump

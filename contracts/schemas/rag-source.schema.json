@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edu-ai/contracts/schemas/rag-source.schema.json",
+  "title": "RagSource",
+  "description": "One element of the SearchResponse.sources array. On the RAG path, built per DOCUMENT (deduped) in search/app/nodes/answer.py. On the QA path (2026-08-24) it is the curator's citation from qa_entries.asset_refs and carries ONLY rank + title + url — there is no document behind it, so file_uuid and the file-name keys are absent. EXTENSIBLE like its parent (2026-08-13): a client ignores keys it does not know, and must treat everything below rank/title as optional.",
+  "type": "object",
+  "required": ["rank", "title"],
+  "properties": {
+    "rank": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1-based document order in the context (top SOURCES_TOP_N documents, default 3)."
+    },
+    "title": {
+      "type": "string",
+      "description": "User-friendly link text: the URL for a web page, else a cleaned original file name (UUID prefix + extension stripped, underscores→spaces)."
+    },
+    "url": {
+      "type": ["string", "null"],
+      "description": "Clickable link (source_url) or null for an uploaded file with no source URL."
+    },
+    "file_uuid": { "type": "string", "description": "document_chunks.file_uuid." },
+    "file_item_uuid": { "type": ["string", "null"], "description": "Highest-scored chunk of the document." },
+    "file_name": { "type": "string", "description": "Stored file name (may carry a UUID prefix)." },
+    "original_file_name": { "type": ["string", "null"], "description": "Original name as uploaded/downloaded." },
+    "source_url": { "type": ["string", "null"], "description": "Origin URL when ingested from the web." }
+  }
+}

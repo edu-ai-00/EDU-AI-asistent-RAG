@@ -1,0 +1,8 @@
+frontend/node_modules
+frontend/dist
+frontend/*.tsbuildinfo
+static
+tests
+__pycache__
+.pytest_cache
+.venv

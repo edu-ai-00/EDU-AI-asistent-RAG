@@ -1,0 +1,479 @@
+# ══════════════════════════════════════════════════════════════
+#  edu_ai  –  Production-hardened Docker Compose
+#
+#  Networks (3-tier + gateway egress):
+#    edge           – public ingress (nginx) + internet egress for apps
+#    app            – east-west app-to-app traffic   (internal, no internet)
+#    data           – database tier                   (internal, no internet)
+#    bifrost_egress – LLM gateway → providers. Its own network, NOT edge:
+#                     nginx lives on edge and has no business reaching Bifrost.
+#
+#  Only Nginx ports (80, 8443, 8444) are published to the host.
+#  nginx is on `edge` ONLY → it cannot reach Postgres directly.
+#  Postgres is on `data` ONLY → no internet, unreachable from the edge.
+#  All secrets come from  .env  (never hardcoded).
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  # ─────────────────────────────────────────────
+  # Nginx reverse proxy  (single entry point)
+  # ─────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: edu_ai_nginx
+    ports:
+      - "80:80"         # Public API (plain HTTP — TLS terminates in front of nginx)
+      - "8443:8443"     # Admin: pgAdmin (VPN-only via the AWS security group)
+      - "8444:8444"     # Admin: Langflow UI at root (VPN-only via the AWS security group)
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/search_api.conf:/etc/nginx/search_api.conf:ro # /search/ surface, shared by ports 80 and 81 (in git)
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro          # Basic auth for /api/ (not in git)
+      - ./nginx/auth_keys.conf:/etc/nginx/auth_keys.conf:ro # API-key map for /search/ (not in git)
+    # Preflight before nginx starts. Both paths above are gitignored, so on a
+    # fresh clone they do not exist — and Docker silently creates a bind-mount
+    # source that is missing as an empty DIRECTORY. nginx then dies with
+    # `pread() "/etc/nginx/auth_keys.conf" failed (21: Is a directory)`, which
+    # reads like a config bug rather than a missing file. This turns that into
+    # one actionable line. Inline (not a mounted script) so the check itself
+    # cannot become the very footgun it guards against.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        for f in /etc/nginx/.htpasswd /etc/nginx/auth_keys.conf; do
+          [ -f "$$f" ] || {
+            echo "FATAL: $$f is missing (Docker created an empty directory in its place)."
+            echo "  Fix on the host, from the repo root:"
+            echo "    python3 scripts/bootstrap.py"
+            echo "    docker compose up -d --force-recreate nginx"
+            echo "  --force-recreate is required: a plain restart keeps the old mount."
+            exit 1
+          }
+        done
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    networks:
+      - edge            # edge ONLY — cannot reach the data tier
+    # service_started, NOT service_healthy: nginx resolves upstream names at
+    # startup and hard-fails if they do not resolve — that is why depends_on is
+    # here at all. Waiting for `healthy` would mean an unhealthy backend keeps
+    # nginx down entirely, taking the edge /health with it — exactly when
+    # monitoring needs to reach it.
+    depends_on:
+      edu_ai_api:      { condition: service_started }
+      edu_ai:          { condition: service_started }
+      pgadmin:         { condition: service_started }
+      edu_ai_web_chat: { condition: service_started }
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Public ingestion / search API  (FastAPI)
+  # ─────────────────────────────────────────────
+  edu_ai_api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: edu_ai_api:1.0
+    container_name: edu_ai_api
+    expose:
+      - "8080"                       # internal only — Nginx proxies
+    depends_on:
+      edu_ai:
+        condition: service_healthy
+    # No env_file: this service reaches Langflow over HTTP and never touches the
+    # database, so handing it the whole .env would give it POSTGRES_PASSWORD, the
+    # Langflow superuser password and the pgAdmin credentials for nothing. Listed
+    # below is every variable api/app/main.py actually reads.
+    environment:
+      - LANGFLOW_URL=http://edu_ai:7860
+      - LANGFLOW_API_KEY=${LANGFLOW_API_KEY}
+      # Flow endpoint aliases — constants from langflow_flows/*.json
+      # (endpoint_name), NOT per-instance UUIDs. Change only if the alias is
+      # renamed in the flow itself.
+      - LANGFLOW_FLOW_ID_PDF=edu-ai-load-pdf
+      - LANGFLOW_FLOW_ID_OFFICE=edu-ai-load-office
+      - LANGFLOW_FLOW_ID_WEB=edu-ai-load-web
+      - LANGFLOW_FLOW_ID_QA=edu-ai-load-qa
+      # Per-flow APIPipelineInput node ids the tweak is addressed to. The
+      # MARKDOWN one is deliberately absent — it is read by component code
+      # inside the flows, so it belongs to the edu_ai service, not here.
+      - LANGFLOW_PIPELINE_INPUT_NODE_WEB=${LANGFLOW_PIPELINE_INPUT_NODE_WEB}
+      - LANGFLOW_PIPELINE_INPUT_NODE_PDF=${LANGFLOW_PIPELINE_INPUT_NODE_PDF}
+      - LANGFLOW_PIPELINE_INPUT_NODE_OFFICE=${LANGFLOW_PIPELINE_INPUT_NODE_OFFICE}
+      - LANGFLOW_PIPELINE_INPUT_NODE_QA=${LANGFLOW_PIPELINE_INPUT_NODE_QA}
+      # Browser origins allowed to call this API cross-origin. Empty = closed,
+      # which is what production wants. Matters more here than on search: nginx
+      # fronts /api/ with Basic auth, the kind of credential a browser sends by
+      # itself.
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    volumes:
+      - ./uploads:/data/uploads
+    networks:
+      - edge                         # reachable by nginx + internet egress
+      - app                          # east-west: calls Langflow flows
+      # (no `data` — FastAPI has no direct DB access)
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # LangFlow 1.7  (internal engine)
+  # ─────────────────────────────────────────────
+  edu_ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edu_ai:1.1.0            # langflow 1.10.1 (edu_ai:1.0.13 = 1.7.1 rollback)
+    platform: linux/amd64
+    container_name: edu_ai
+    expose:
+      - "7860"                       # internal only
+    # The one service that keeps env_file, deliberately. It needs nearly the whole
+    # file: the five POSTGRES_* keys the flows resolve via os.getenv, both secrets,
+    # the superuser pair, and LANGFLOW_PIPELINE_INPUT_NODE_MARKDOWN /
+    # LANGFLOW_MARKDOWN_LOGGER_NODES, which component code inside the flows reads.
+    # Above all LANGFLOW_SECRET_KEY, which must NOT be spelled out here — see the
+    # note at the end of this environment block. Only the pgAdmin credentials are
+    # surplus; listing ~12 variables to withhold two is not worth the footgun.
+    env_file:
+      - .env
+    environment:
+      # Internal Langflow state DB — Postgres per official docs ("recommended
+      # for production"); replaces SQLite (langflow.db), which hit
+      # "database is locked" under 1.10's concurrent writes. The old sqlite
+      # file stays in ./langflow_data as an instant rollback (switch the URL
+      # back). Config dir mount is unchanged, so the secret_key (which
+      # encrypts Global Variables) is the same — migrated rows decrypt fine.
+      # User/host/port come from .env (the same keys the flows resolve), so this
+      # URL cannot drift from the rest of the stack. Only the database name is a
+      # constant: `langflow` is Langflow's own state DB, separate from edu_ai.
+      - LANGFLOW_DATABASE_URL=postgresql://${POSTGRES_DB_USER:-edu_ai}:${POSTGRES_PASSWORD}@${POSTGRES_DB_SERVER:-edu_ai_postgres}:${POSTGRES_SERVER_PORT:-5432}/langflow
+      # Real auth switch (LANGFLOW_AUTH_ENABLED is not a Langflow variable):
+      # AUTO_LOGIN=false enforces login + API keys and creates the superuser
+      # below on first start.
+      - LANGFLOW_AUTO_LOGIN=false
+      - LANGFLOW_SUPERUSER=${LANGFLOW_SUPERUSER:-admin}
+      - LANGFLOW_SUPERUSER_PASSWORD=${LANGFLOW_SUPERUSER_PASSWORD}
+      # Auto-create Global Variables from these env vars (values come from
+      # env_file) — flows reference them by name via load_from_db, so a fresh
+      # instance needs no manual variable setup. Existing variables win.
+      - LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT=OPENAI_API_KEY,POSTGRES_PASSWORD
+      - LANGFLOW_CACHE_EXPIRE=1
+      - LANGFLOW_LANGCHAIN_CACHE=false
+      # Langflow 1.10 added SSRF protection to the API Request component, which
+      # blocks loopback by default. The document ingestion flows chain by having
+      # Langflow call its OWN /api/v1/run/<subflow> on localhost:7860 — a trusted
+      # self-call, not user-controlled — so loopback is explicitly allowlisted.
+      - LANGFLOW_SSRF_ALLOWED_HOSTS=localhost,127.0.0.1
+      # Base URL the ingestion flows use for Langflow's loopback self-call to the
+      # markdown sub-flow (PdfIngestionApiUrl component). Internal only — NOT the
+      # public/edge URL. Set per-environment; flows leave base_url empty and read
+      # this. 127.0.0.1 (not localhost) — APIRequest's validators.url needs a TLD/IP.
+      - LANGFLOW_INGEST_BASE_URL=http://127.0.0.1:7860
+      # Target of the loopback self-call from the extraction flows into the
+      # markdown sub-flow — constant alias, not a per-instance UUID.
+      - LANGFLOW_FLOW_ID=edu-ai-load-markdown
+      # Route OpenAI traffic through the Bifrost gateway. Read both by
+      # LanguageModelComponent (lfx get_llm) and by the openai SDK inside the
+      # custom embedding components. Deliberately env, NOT a Global Variable — a
+      # Global Variable would also swap the model dropdown catalog in the UI.
+      # OPENAI_API_KEY still travels from .env: Bifrost holds its own provider
+      # key and ignores the inbound one, but the SDK refuses to build without it.
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://bifrost:8080/openai/v1}
+      # LANGFLOW_SECRET_KEY is deliberately NOT listed here — it arrives via the
+      # env_file above. Spelling it out as ${LANGFLOW_SECRET_KEY} would pass an
+      # empty string on any .env that predates the variable, and an empty
+      # secret_key makes Langflow unable to decrypt its existing Global
+      # Variables. Absent from env_file → Langflow keeps its own key from
+      # langflow_data/, which is the safe fallback. bootstrap.py fills it in.
+    volumes:
+      - ./langflow_data:/home/appuser/.cache/langflow
+      - ./uploads:/data/uploads
+      - ./sqllite_export:/data/sqllite_export   # QA pack builder output
+    # No curl in this image (the Dockerfile adds only libpq5 + poppler-utils),
+    # so the check uses the venv python that is certainly there.
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7860/health',timeout=5).status==200 else 1)"]
+      interval: 15s
+      timeout: 10s
+      retries: 20          # first start runs Alembic migrations — can take minutes
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bifrost:
+        # service_started, NOT service_healthy: Bifrost refuses to boot while it
+        # cannot fetch its pricing data, so gating on health would take the whole
+        # Langflow UI down with a provider outage. LLM calls fail either way.
+        condition: service_started
+    networks:
+      - edge                         # internet egress (LLM, web crawl) + nginx UI
+      - app                          # east-west (FastAPI → flows)
+      - data                         # Postgres access
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Bifrost  –  LLM gateway (OpenAI-compatible)
+  # ─────────────────────────────────────────────
+  # Folded in from the standalone /opt/bifrost stack. Callers reach it at
+  # http://bifrost:8080 on `app`; provider keys live in bifrost_data/config.db,
+  # managed through the UI — never in this file and never in git.
+  bifrost:
+    image: maximhq/bifrost:v1.6.7    # pinned: `latest` moves under you
+    container_name: bifrost
+    ports:
+      # Bifrost ships NO authentication — not on the UI, not on the admin API.
+      # Whoever reaches this port owns every provider key in it. Loopback by
+      # default; BIFROST_BIND=<server> hands it to every WireGuard peer, which
+      # is a deliberate choice to make per host. Never 0.0.0.0 — that is public.
+      # 8099, not 8090: docker-compose.override.yml already publishes 8090 for
+      # edu_ai_search on loopback, and that override loads automatically in dev.
+      - "${BIFROST_BIND:-127.0.0.1}:${BIFROST_PORT:-8099}:8080"
+    environment:
+      APP_HOST: 0.0.0.0              # container-internal; the bind above limits reach
+      APP_PORT: 8080
+      LOG_LEVEL: ${BIFROST_LOG_LEVEL:-info}
+      LOG_STYLE: json
+    volumes:
+      - ./bifrost_data:/app/data     # config.db (provider keys), logs.db
+    networks:
+      - app                          # east-west: langflow / api / search call it
+      - bifrost_egress               # north-south: outbound to the providers
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Cloudflare tunnel → Bifrost UI
+  # ─────────────────────────────────────────────
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.1   # pinned for the same reason bifrost is
+    container_name: cloudflared
+    command: tunnel --no-autoupdate run
+    environment:
+      # Full control of the tunnel — .env only, never inline here.
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      # `app` is how it reaches the gateway: the tunnel's public hostname points
+      # at http://bifrost:8080, the container name, NOT a host port. Bifrost's
+      # published <server>:8090 is a separate door for WireGuard peers and this
+      # service does not use it.
+      - app
+      # `app` is internal:true and has no route out, so without `edge` cloudflared
+      # cannot reach Cloudflare at all and the tunnel never registers.
+      - edge
+    # BIFROST HAS NO AUTHENTICATION — see its ports comment above. A tunnel only
+    # publishes; it authenticates nothing. The hostname is therefore protected by
+    # a Cloudflare Access policy, configured in the Zero Trust dashboard, and that
+    # policy is the ONLY thing between the internet and every provider key in the
+    # gateway. Turning it off is the whole security boundary, not a setting.
+    depends_on:
+      - bifrost
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─────────────────────────────────────────────
+  # Postgres + pgvector  (data tier only)
+  # ─────────────────────────────────────────────
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    image: edu_ai_postgres:cs
+    container_name: edu_ai_postgres
+    # pg_search spawns a background worker → its library must be preloaded at
+    # server start (a plain CREATE EXTENSION is not enough without this).
+    command: ["postgres", "-c", "shared_preload_libraries=pg_search"]
+    expose:
+      - "5432"                       # internal only
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-edu_ai}
+      # POSTGRES_DB_USER, not POSTGRES_USER: .env carries one canonical DB user
+      # and the flows already resolve that name. The value here only takes effect
+      # on a first start with an empty data volume.
+      POSTGRES_USER: ${POSTGRES_DB_USER:-edu_ai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Schema bootstrap: runs ONLY on first start with an empty data volume.
+      # init_clean is the consolidated baseline (schema + config in 3 files);
+      # postgres/init keeps the numbered migration history, which is applied by
+      # hand to databases that already have data and is no longer executed here.
+      - ./postgres/init_clean:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_DB_USER:-edu_ai} -d ${POSTGRES_DB:-edu_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12          # ~2 min for the first-start schema init
+      start_period: 30s
+    networks:
+      - data                         # data ONLY — no internet, not on edge
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # pgAdmin  (admin UI → DB)
+  # ─────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:9.11.0
+    container_name: edu_ai_pgadmin
+    expose:
+      - "80"                         # internal only — Nginx proxies
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    volumes:
+      # Named on purpose. The image declares /var/lib/pgadmin as an anonymous
+      # VOLUME, which gets a fresh random name whenever the container is
+      # recreated with -v — losing the accounts and saved server definitions.
+      # The bind mount below is nested inside it and holds only exports.
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin_exports:/var/lib/pgadmin/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edge                         # reachable by nginx (/pgadmin/)
+      - data                         # Postgres access
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Search Service  (LangGraph pipeline)
+  # ─────────────────────────────────────────────
+  edu_ai_search:
+    build:
+      context: ./search
+      dockerfile: Dockerfile
+    image: edu_ai_search:1.0
+    container_name: edu_ai_search
+    expose:
+      - "8090"                       # internal only — Nginx / FastAPI proxies
+    # No env_file: of everything in .env this service needs exactly one value
+    # (OPENAI_API_KEY) plus its own PG_* mapping below. Handing it the whole file
+    # would add the Langflow superuser password and the pgAdmin credentials to a
+    # container that has no use for either. Every other variable
+    # search/app/config.py reads (EMBEDDING_MODEL, *_TOP_K, QA_T_*, …) is a tuning
+    # knob with a default in the code and is not set in .env — add it here, not
+    # there, if it ever needs overriding.
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Only when the reranker runs in `jina` mode; empty is fine otherwise and
+      # rerank.py then keeps the fusion order instead of failing the search.
+      - JINA_API_KEY=${JINA_API_KEY:-}
+      # Same gateway as Langflow. Verified against the pinned langchain-openai
+      # 1.4.1 / openai 2.50.0: ChatOpenAI, OpenAIEmbeddings and rerank.py's bare
+      # OpenAI() all resolve base_url from this — llm.py passes only api_key, so
+      # no code change is needed. An explicit base_url= kwarg would override it.
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-http://bifrost:8080/openai/v1}
+      # Derived from the same .env keys the Langflow flows resolve, so search and
+      # ingestion can never disagree about where the data is. PG_SCHEMA in
+      # particular: search/app/config.py defaults it to "edu_ai", which used to
+      # match POSTGRES_DB_SCHEMA only by coincidence — changing the schema in
+      # .env moved the flows and left search reading the old one, silently
+      # (its /health does not touch the DB).
+      - PG_HOST=${POSTGRES_DB_SERVER:-edu_ai_postgres}
+      - PG_PORT=${POSTGRES_SERVER_PORT:-5432}
+      - PG_USER=${POSTGRES_DB_USER:-edu_ai}
+      - PG_PASSWORD=${POSTGRES_PASSWORD}
+      - PG_DATABASE=${POSTGRES_DB:-edu_ai}
+      - PG_SCHEMA=${POSTGRES_DB_SCHEMA:-edu_ai}
+      # ── GLOBAL retrieval switches (platform-wide defaults) ──
+      # BM25 lexical re-rank: true|false
+      - RAG_BM25_LEXICAL=true
+      # cross-encoder rerank: off | local (bge, CPU ~12-16s) | cloud (OpenAI ~3-5s)
+      - RAG_RERANK_MODE=off
+      # which OpenAI-family model the cloud reranker uses
+      - RERANK_OPENAI_MODEL=gpt-4o-mini
+      # Browser origins allowed to call this API. Empty = closed, which is what
+      # production wants: nothing here is called cross-origin from a browser.
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    volumes:
+      # persist the reranker model download (HF_HOME=/models) across rebuilds
+      - reranker_models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - edge                         # internet egress (LLM + first-run model pull) + reachable by nginx
+      - app                          # east-west
+      - data                         # Postgres access
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # VPN-only web chat  (assistant-ui + FastAPI BFF)
+  # ─────────────────────────────────────────────
+  edu_ai_web_chat:
+    build:
+      context: ./web_chat
+      dockerfile: Dockerfile
+    image: edu_ai_web_chat:0.1
+    container_name: edu_ai_web_chat
+    expose:
+      - "8081"
+    environment:
+      - SEARCH_BASE_URL=http://edu_ai_search:8090
+      - CHAT_REQUEST_TIMEOUT_SECONDS=125
+      # WHOSE documents this chat searches. /search has always required an entity
+      # and the chat never sent one — that was the 422 behind every "Vyhledávání
+      # není dostupné". No default in code: a wrong entity silently searches the
+      # wrong school, so it has to be stated per deployment.
+      - CHAT_LEGAL_ENTITY=${CHAT_LEGAL_ENTITY:-}
+      # TEST ONLY — lets the browser pick the organisation per request. With it on,
+      # anyone who can reach the chat reads any organisation whose code they can
+      # name. Keep it off anywhere the chat is not VPN-only.
+      - CHAT_ENTITY_PICKER=${CHAT_ENTITY_PICKER:-false}
+      # Follows the edge, so it cannot be hardcoded: a Secure cookie is dropped
+      # by the browser over plain HTTP, which silently costs session continuity.
+      # Set it true in .env once TLS terminates in front of nginx.
+      - CHAT_COOKIE_SECURE=${CHAT_COOKIE_SECURE:-false}
+    healthcheck:            # /chat/health — web_chat/web_chat.py:165
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8081/chat/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      edu_ai_search:
+        condition: service_healthy
+    networks:
+      - edge                         # reachable by nginx
+      - app                          # internal call to edu_ai_search
+    restart: unless-stopped
+
+# ══════════════════════════════════════════════════════════════
+#  Networks
+# ══════════════════════════════════════════════════════════════
+networks:
+  edge:
+    driver: bridge                   # public ingress + internet egress
+  app:
+    driver: bridge
+    internal: true                   # east-west only — no internet
+  data:
+    driver: bridge
+    internal: true                   # DB tier — no internet / no edge
+  bifrost_egress:
+    driver: bridge                   # gateway → LLM providers; `app` alone is
+                                     # internal, and Bifrost dies at startup if
+                                     # it cannot fetch its pricing data.
+
+# ══════════════════════════════════════════════════════════════
+#  Volumes
+# ══════════════════════════════════════════════════════════════
+volumes:
+  postgres_data:
+  pgadmin_data:
+  reranker_models:      # HF model cache for the in-process cross-encoder reranker

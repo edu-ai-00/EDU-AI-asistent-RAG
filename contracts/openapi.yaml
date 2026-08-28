@@ -1,0 +1,393 @@
+openapi: 3.1.0
+# Track: contract. Canonical owner of HTTP operations for the RAG module.
+#
+# THE DIVISION OF LABOUR, so this file does not drift again. It sat at version 1
+# describing POST /search and POST /explain for months after 2026-08-13, when the
+# whole surface moved under /v1 — a hand-written duplicate of something the
+# framework already generates.
+#
+#   * FastAPI SERVES a complete, always-current spec at GET /openapi.json
+#     (16 paths, derived from the code, cannot drift). That is the authority on
+#     the exact body of every reference and admin endpoint.
+#   * THIS FILE owns what a generator cannot know: the PUBLIC surface through
+#     nginx — the /search/ prefix, the API-key scheme, and the statuses the edge
+#     raises before the app is ever reached (401, 413, 429, 502/503/504).
+#     It also names every operation, so a reader sees the whole surface at once.
+#   * ./schemas/*.json own the request and response shapes. Referenced, never
+#     re-inlined.
+#   * ./errors.yaml owns error codes and their retryable semantics.
+info:
+  title: edu_ai Search Service
+  version: "2.0.0"
+  description: >
+    Deterministic QA→RAG search cascade (LangGraph state, config-driven
+    executor). Consumed by the web chat BFF and the mobile app. The client
+      contract published to app developers was a hand-written document; where it
+      and this service disagreed, the divergence is recorded on the operation or
+      schema concerned. This file is canonical. Error codes: ./errors.yaml.
+
+servers:
+  - url: http://edu_ai_search:8090
+    description: >
+      In-cluster origin (east-west). No authentication at this level — the web
+      chat BFF calls it directly and the network is the boundary.
+  - url: https://{host}/search
+    description: >
+      Via the nginx edge, which is where the API key is checked. nginx strips the
+      /search/ prefix, so the paths below are unchanged: the public question is
+      POST /search/v1/ask. Rate limited to 10 req/s per IP, burst 20.
+      proxy_read_timeout is 120 s.
+    variables:
+      host:
+        default: example.invalid
+
+# ── Authentication ───────────────────────────────────────────────────────────
+# A BARE key. `Authorization: <key>` with NO "Bearer " prefix — the nginx map is
+# matched byte for byte, and the prefix was wrongly documented for months while
+# the deployed map never had one.
+components:
+  securitySchemes:
+    searchApiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: >
+        The bare key, with no scheme prefix. Enforced by nginx on /search/ only;
+        the in-cluster origin has no auth. NOTE: this single key reaches every
+        operation below, the admin-flavoured ones included (/v1/query-log,
+        /v1/staff-users, /v1/ingest-principal) — no handler applies a narrower
+        check of its own.
+
+  parameters:
+    legalEntityRequired:
+      name: legal_entity
+      in: query
+      required: true
+      schema: { type: string }
+      description: Entity code, from GET /v1/entities.
+    legalEntityOptional:
+      name: legal_entity
+      in: query
+      required: false
+      schema: { type: string }
+      description: >
+        When given, the set is resolved for that entity (nearest owner up);
+        omitted, the GLOBAL set is returned.
+
+  headers:
+    IdempotencyReplayed:
+      description: >
+        "true" when the body is a stored replay of an earlier identical request,
+        "false" when it was computed now. Absent when the request carried no
+        Idempotency-Key.
+      schema: { type: string, enum: ["true", "false"] }
+
+  responses:
+    Envelope400:
+      description: 'Bad request — see errors.yaml (BAD_REQUEST).'
+    Envelope401:
+      description: 'Missing or invalid API key. Raised by nginx (UNAUTHORIZED).'
+    Envelope403:
+      description: >
+        The caller could not be established (FORBIDDEN). Not documented in
+        the hand-written client contract; clients must expect it.
+    Envelope404:
+      description: 'No such endpoint or resource (NOT_FOUND).'
+    Envelope422:
+      description: >
+        The body failed validation (VALIDATION_ERROR). Carries `fields`. The
+        request schema is CLOSED, so an unknown field lands here rather than
+        being ignored.
+    Envelope429:
+      description: 'Rate limited by nginx (RATE_LIMITED, retryable).'
+    Envelope500:
+      description: >
+        Failure outside a pipeline step (INTERNAL_ERROR, retryable). Steps catch
+        their own errors and fall through.
+
+security:
+  - searchApiKey: []
+
+paths:
+  # ── The one operation a client really has ─────────────────────────────────
+  /health:
+    get:
+      operationId: health
+      summary: Liveness probe. The ONLY unversioned path.
+      responses:
+        "200":
+          description: Service is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:  { type: string, example: ok }
+                  service: { type: string, example: edu_ai_search }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/ask:
+    post:
+      operationId: ask
+      summary: Run the full QA→RAG cascade for one question.
+      description: >
+        One question, one answer. A 200 does NOT imply an answer was found —
+        `outcome` says what kind of result this is, and role_required /
+        llm_unavailable are 200s the client renders like any other answer.
+        `trace` is empty unless the request set debug:true (it measured 72% of
+        the response). Cache-Control: no-store, because answers are personalised
+        by school, role and ročník.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string }
+          description: >
+            OPTIONAL, unlike the original spec which required it — making it
+            mandatory would break every client that exists. Any opaque string,
+            recommended the caller's query_id. A retry after a timeout replays
+            the stored answer instead of paying for the cascade twice. Records
+            live 24 hours; a claim with no response goes stale after 5 minutes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/search-request.schema.json"
+      responses:
+        "200":
+          description: The cascade completed. See `outcome` for what it produced.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "./schemas/search-response.schema.json"
+        "400": { $ref: "#/components/responses/Envelope400" }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "403": { $ref: "#/components/responses/Envelope403" }
+        "409":
+          description: >
+            Idempotency key reused with a different body
+            (IDEMPOTENCY_CONFLICT), or the same request is still running
+            (IDEMPOTENCY_IN_PROGRESS, retryable).
+        "422": { $ref: "#/components/responses/Envelope422" }
+        "429": { $ref: "#/components/responses/Envelope429" }
+        "500": { $ref: "#/components/responses/Envelope500" }
+
+  /v1/ask/stream:
+    post:
+      operationId: askStream
+      summary: The same cascade and the same answer, streamed as SSE.
+      description: >
+        Events: `meta` (document path only, before generation), `delta`
+        ({"t": "<token>"}), `done` (the complete SearchResponse — always last,
+        and the ONLY event for a QA hit, guard, suggest or no_answer, which
+        resolve in milliseconds), `error` (terminal, carrying the same envelope
+        as an HTTP error because the response has already begun). No
+        Idempotency-Key support: a partial stream is not a body worth replaying.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/search-request.schema.json"
+      responses:
+        "200":
+          description: SSE stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Envelope400" }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "403": { $ref: "#/components/responses/Envelope403" }
+        "422": { $ref: "#/components/responses/Envelope422" }
+        "429": { $ref: "#/components/responses/Envelope429" }
+
+  # ── Reference data (číselníky). Public, cacheable, read per request. ───────
+  /v1/entities:
+    get:
+      operationId: entities
+      summary: Active legal entities — the valid values of `legal_entity`.
+      responses:
+        "200": { description: 'Entities, each with may_publish_organization and search_requires_user.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/code-lists:
+    get:
+      operationId: codeLists
+      summary: Generic code lists — roles, ročníky, languages, subjects.
+      parameters:
+        - $ref: "#/components/parameters/legalEntityOptional"
+      responses:
+        "200": { description: 'Lists grouped by list_code, each entry code + labels{lang}.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/ui-labels:
+    get:
+      operationId: uiLabels
+      summary: Interface copy for one scope, plus which languages are complete.
+      parameters:
+        - name: scope
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: 'scope, default, available[], labels{lang:{key:text}}, incomplete{lang:[key]}.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/document-types:
+    get:
+      operationId: documentTypes
+      summary: Active document-type taxonomy.
+      responses:
+        "200": { description: 'type_code, is_ui_default, labels{lang}.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/domains:
+    get:
+      operationId: domains
+      summary: Active DOMAIN taxonomy — school-system situations.
+      parameters:
+        - $ref: "#/components/parameters/legalEntityOptional"
+      responses:
+        "200": { description: 'code, labels{lang}.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/validity-periods:
+    get:
+      operationId: validityPeriods
+      summary: Validity periods (school years) for the entity, else global.
+      parameters:
+        - $ref: "#/components/parameters/legalEntityOptional"
+      responses:
+        "200": { description: 'Periods as resolved for that entity.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  # ── Ingest support. Called by the gateway, which holds no DB credentials. ──
+  /v1/staff-users:
+    get:
+      operationId: staffUsers
+      summary: Active staff users of EXACTLY this entity (never its ancestors).
+      parameters:
+        - $ref: "#/components/parameters/legalEntityRequired"
+      responses:
+        "200": { description: 'user_id, display_name, legal_entity_code.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "422": { $ref: "#/components/responses/Envelope422" }
+
+  /v1/ingest-principal:
+    get:
+      operationId: ingestPrincipal
+      summary: Validate who is ingesting, for which entity, and how far it reaches.
+      description: >
+        A HARD dependency for the gateway, not a best-effort lookup: an entity
+        that cannot be verified must not be accepted, because that is the whole
+        isolation boundary. Returns the register's own display names, so the
+        gateway stops trusting the client for them.
+      parameters:
+        - $ref: "#/components/parameters/legalEntityRequired"
+        - name: user_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: visibility
+          in: query
+          required: false
+          schema: { type: string, enum: [private, entity, organization], default: entity }
+      responses:
+        "200": { description: 'The verified entity, user and visibility.' }
+        "400": { description: 'Unknown visibility, or a unit publishing to the organisation while that is disabled.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "404": { description: 'No such active entity, or the user does not belong to it.' }
+
+  /v1/ingest-status:
+    get:
+      operationId: ingestStatus
+      summary: Progress of an ingest run.
+      parameters:
+        - name: processing_uuid
+          in: query
+          required: false
+          schema: { type: string }
+        - name: since_seconds
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200": { description: 'Status rows.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  # ── Curated QA packs ──────────────────────────────────────────────────────
+  /v1/qa-packs:
+    get:
+      operationId: qaPacks
+      summary: Active QA packs of one entity, with entry_count counted live.
+      parameters:
+        - $ref: "#/components/parameters/legalEntityRequired"
+      responses:
+        "200": { description: 'pack_id, version, lang, built_at, entry_count.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "422": { $ref: "#/components/responses/Envelope422" }
+
+  /v1/qa-export:
+    get:
+      operationId: qaExport
+      summary: One active pack as the CSV the ingest reader takes straight back.
+      description: >
+        Composed here rather than in the gateway so the reader's contract —
+        columns, delimiter, BOM — has exactly one owner and an export cannot
+        drift from what the import accepts. 404 rather than an empty file: a
+        0-row CSV for a typo would read as "the pack is empty".
+      parameters:
+        - $ref: "#/components/parameters/legalEntityRequired"
+        - name: pack_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The pack as CSV.
+          content:
+            text/csv:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "404": { description: 'No active pack of that name for that entity.' }
+
+  # ── Diagnostics. Not for production clients. ──────────────────────────────
+  /v1/query-log:
+    get:
+      operationId: queryLog
+      summary: Recent question/answer rows.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 10 }
+        - name: session_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200": { description: 'Log rows.' }
+        "401": { $ref: "#/components/responses/Envelope401" }
+
+  /v1/explain:
+    post:
+      operationId: explain
+      summary: >
+        Debug only. Runs the deterministic prefix (prepare → route → qa_exact →
+        qa_lexical) with no LLM and returns the raw state, rag_chunks stripped.
+        No response-shape stability guarantee; do not build a client on it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/search-request.schema.json"
+      responses:
+        "200": { description: 'Raw partial cascade state (debug shape, unversioned).' }
+        "400": { $ref: "#/components/responses/Envelope400" }
+        "401": { $ref: "#/components/responses/Envelope401" }
+        "422": { $ref: "#/components/responses/Envelope422" }

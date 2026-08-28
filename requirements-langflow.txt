@@ -1,0 +1,27 @@
+# Extra deps installed ON TOP of the official langflowai/langflow image.
+# Unpinned on purpose: the image runs Python 3.14, and the old 3.11-era pins
+# (cryptography==43, snowflake==3.14.0, tiktoken==0.9, ...) have no cp314
+# wheels. The Dockerfile installs these with a constraints file generated
+# from `pip freeze` of the base image, so NOTHING Langflow ships can be
+# upgraded/downgraded by this step — our additions must fit or the build
+# fails visibly.
+
+# ── used by edu_ai flows/components ───────────────
+pdfplumber
+markitdown[docx,pptx,xlsx]
+chardet
+jsonschema
+psycopg2-binary
+langdetect
+trafilatura
+validators
+simplemma          # Czech lemmatization at ingest (chunk_lemma_text, §4.5)
+
+# ── legacy (Lakebridge-era leftovers, kept for parity) ──
+sqlglot
+anytree
+omegaconf
+databricks-sdk
+snowflake-connector-python
+snowflake-sqlalchemy
+snowballstemmer>=2.2   # EN stem engine for eduai_normalize (installed --no-deps)

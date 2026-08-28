@@ -1,0 +1,48 @@
+EDU-AI asistent RAG module
+Copyright 2026 EDU-AI, o.p.s., IČO 01674846
+
+This product includes software developed by
+
+  Martin Šafránek — retrieval pipeline, ingestion flows, search API, data model
+                    https://www.linkedin.com/in/martinsafranekbi/
+
+  Jan Drozd       — infrastructure, deployment, gateway architecture, web chat
+                    https://www.linkedin.com/in/jan-drozd-62a32b298/
+
+EDU-AI asistent RAG module is the retrieval-augmented search platform
+developed for
+EDU-AI, o.p.s. (IČO 01674846), which commissioned this work.
+
+Third-party software used by the platform is listed, with licences and
+authors, in THIRD_PARTY_NOTICES.md at the repository root.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License in the LICENSE file at the root of this
+repository, or at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+--------------------------------------------------------------------------------
+
+Attribution note for redistributors
+-----------------------------------
+
+Section 4 of the License requires this NOTICE file to be carried along with any
+distribution of this work or of derivative works based on it.
+
+A large part of this project is Langflow component code that lives INSIDE the
+flow definitions in langflow_flows/*.json (field data.node.template.code.value),
+not in .py files. Exporting a single flow, or copying one component's code into
+another project, therefore separates that code from this file. Every component
+AUTHORED for this project (91 of 106) carries a one-line header naming who last
+changed its code and when — that is attribution, not a licence grant, so the
+licence for such code is the one stated here. Six components derived from
+Langflow's built-ins carry Langflow's MIT notice above that line; the nine used
+unmodified carry Langflow's MIT notice alone, as their code is Langflow's
+(see THIRD_PARTY_NOTICES.md). Please keep all of these headers.

@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────
+# Dockerfile.langgraph
+#
+# Builds the LangGraph Academy dev-server container.
+#
+# Base image : Python 3.12-slim (satisfies the 3.11–3.13 requirement)
+# Clones     : https://github.com/langchain-ai/langchain-academy
+# Installs   : requirements.txt + langgraph-cli + jupyter
+# Entrypoint : langgraph_entrypoint.sh
+#              – on first run: git clone + write .env files
+#              – on every run: langgraph dev --host 0.0.0.0 --port 2024
+#                inside the selected module's /studio directory
+# ─────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+# ── System packages ───────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Working directory ─────────────────────────────────────────
+WORKDIR /app
+
+# ── Install langgraph CLI and jupyter globally first so they
+#    are available before requirements.txt is processed        ──
+RUN pip install --no-cache-dir \
+        "langgraph-cli[inmem]>=0.1.55" \
+        "jupyter>=1.1.1"
+
+# ── Copy entrypoint ───────────────────────────────────────────
+COPY langgraph_entrypoint.sh /app/langgraph_entrypoint.sh
+RUN chmod +x /app/langgraph_entrypoint.sh
+
+# ── Non-root user ─────────────────────────────────────────────
+RUN useradd -m appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
+# ── Expose LangGraph dev server port ─────────────────────────
+EXPOSE 2024
+
+# ── Default env (overridden by docker-compose environment:) ──
+ENV LANGGRAPH_MODULE=1
+
+ENTRYPOINT ["/app/langgraph_entrypoint.sh"]

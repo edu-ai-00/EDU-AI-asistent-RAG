@@ -1,0 +1,4212 @@
+-- last change in code by Martin Safranek (2026-08-28).
+-- 02_seed_config.sql — configuration and registry seed for a clean install,
+-- dumped from the verified live database.
+--
+-- WHAT TRAVELS (configuration and registries only; no documents, chunks, QA
+-- entries or logs):
+--   code_list, taxonomy_rules, taxonomy_binding, embedding_registry,
+--   prompt_registry, system_message, ui_label, qa_stopword, qa_synonym,
+--   qa_blocklist, chunk_exclusion_rule, answer_exclusion_rule, grade_term,
+--   subject_term, validity_period, settings, legal_entity, staff_user.
+--
+-- The legal entities, people, domains and identifiers in this file are
+-- FICTITIOUS. They give a working example of a single school and of an
+-- organisation with a primary and a secondary unit inside it — see
+-- docs/DATA_MODEL_AND_SETUP.md, which walks through both shapes.
+--
+-- Generated with pg_dump --data-only --column-inserts --disable-triggers;
+-- --disable-triggers handles the legal_entity self-reference cycle, so the
+-- loader must run as the database owner. Transactional; run AFTER 01_schema.sql.
+
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 16.3 (Debian 16.3-1.pgdg120+1)
+-- Dumped by pg_dump version 16.3 (Debian 16.3-1.pgdg120+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Data for Name: answer_exclusion_rule; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+SET SESSION AUTHORIZATION DEFAULT;
+
+ALTER TABLE edu_ai.answer_exclusion_rule DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'netyka', 'cs', 'netýk', true, 'dokument se otázky netýká / netýkají', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 'neuvadi', 'cs', 'neuvád', true, 'dokument neuvádí / neuvádějí', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'neobsahuje', 'cs', 'neobsahuj', true, 'dokument neobsahuje / neobsahují', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (4, 'nezminuje', 'cs', 'nezmiňuj', true, 'dokument nezmiňuje / nezmiňují', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (5, 'nenalezeno', 'cs', 'nenalez', true, 'informace nenalezena / nenalezeny', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (6, 'nevyplyva', 'cs', 'nevyplýv', true, 'z dokumentu nevyplývá', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (7, 'neposkytuje', 'cs', 'neposkytuj', true, 'dokument neposkytuje informace', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (8, 'nikoli_informace', 'cs', 'nikoli\s+informac', true, '„…, nikoli informace o X" deflexe', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (9, 'neni_uvedeno', 'cs', 'nen[ií]\s+(?:zde\s+)?uveden|nejsou\s+(?:zde\s+)?uveden|uveden[oay]?\s+(?:zde\s+)?nen[ií]|uvedeny\s+(?:zde\s+)?nejsou', true, 'není (zde) uvedeno / uvedeno není, všechny rody a čísla', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (10, 'nestanovi', 'cs', 'nestanov', true, 'dokument postup/pravidlo nestanoví', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (11, 'resi_nikoli', 'cs', '(?:řeš[ií]|uvád[ií]|popisuj|zabýv)[^.!?]*\bnikoli\b', true, '„část řeší Y, nikoli Z" deflexe', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (12, 'nevztahuje', 'cs', 'nevztahuj', true, 'dokument se na otázku nevztahuje', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (13, 'neupravuje', 'cs', 'neupravuj', true, 'dokument postup neupravuje', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (14, 'nezabyva', 'cs', 'nezabýv', true, 'dokument se tématem nezabývá', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (15, 'neresi', 'cs', 'neřeš', true, 'dokument téma neřeší', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (16, 'nepopisuje', 'cs', 'nepopisuj', true, 'dokument postup nepopisuje', '2026-08-11 19:18:33.200439+00');
+INSERT INTO edu_ai.answer_exclusion_rule (id, rule_name, lang, match_regex, is_active, description, created_at) OVERRIDING SYSTEM VALUE VALUES (17, 'tento_dokument_nikoli', 'cs', '(?:tento|tato|toto)\s+(?:dokument|postup|část|sekce|kapitola|text|úryvek|oddíl)[^.!?]*\bnikoli\b', true, 'tento dokument/postup/cast ... nikoli X - podmet je dokument sam, ne obsah', '2026-08-11 19:18:33.200439+00');
+
+
+ALTER TABLE edu_ai.answer_exclusion_rule ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: legal_entity; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.legal_entity DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.legal_entity (legal_entity_code, parent_code, display_name, ico, domains, is_active, created_at, notes, red_izo, units, kind, level, grade_levels) VALUES ('SKOLA_NOVA_VES_ZS', 'SKOLA_NOVA_VES', 'Škola Nová Ves — základní škola', NULL, NULL, true, '2026-08-02 12:30:45.104906+00', 'IZO 1234', NULL, NULL, 'unit', 'ZS', NULL);
+INSERT INTO edu_ai.legal_entity (legal_entity_code, parent_code, display_name, ico, domains, is_active, created_at, notes, red_izo, units, kind, level, grade_levels) VALUES ('SKOLA_NOVA_VES_SOS', 'SKOLA_NOVA_VES', 'Škola Nová Ves — střední odborná škola', NULL, NULL, true, '2026-08-02 12:30:45.104906+00', 'IZO 1234', NULL, NULL, 'unit', 'SS', NULL);
+INSERT INTO edu_ai.legal_entity (legal_entity_code, parent_code, display_name, ico, domains, is_active, created_at, notes, red_izo, units, kind, level, grade_levels) VALUES ('SKOLA_NOVA_VES', NULL, 'Škola Nová Ves - celá organizace', NULL, '{www.skola-nova-ves.example,skola-nova-ves.example}', true, '2026-08-02 08:56:33.000706+00', 'Jedna právnická osoba (RED-IZO 1234) se šesti zapsanými jednotkami: ZŠ, SOŠ, MŠ, školní družina, školní jídelna. IČO zatím nedoplněno. Provozovny: ŠKOLA 1003863477, MŠ 10038634771.', '1234', '{"MS": "1234", "SD": "1234", "SJ": "1234", "ZS": "1234", "SOS": "1234"}', 'legal_person', NULL, '{"SS": ["10", "11", "12", "13"], "ZS": ["1", "2", "3", "4", "5", "6", "7", "8", "9"]}');
+INSERT INTO edu_ai.legal_entity (legal_entity_code, parent_code, display_name, ico, domains, is_active, created_at, notes, red_izo, units, kind, level, grade_levels) VALUES ('ZAKLADNI_SKOLA_BOROVA', NULL, 'Základní škola Borová', '1234', '{skola-borova.example,www.skola-borova.example}', true, '2026-08-04 14:07:02.252597+00', 'Příspěvková organizace. Školní 1234, 123 45 Borová. Tel. +420 123 456 789, kancelar@skola-borova.example, DS: abcd1234. Založeno 2026-08-04.', NULL, NULL, 'legal_person', 'ZS', '{"ZS": ["1", "2", "3", "4", "5", "6", "7", "8", "9"]}');
+INSERT INTO edu_ai.legal_entity (legal_entity_code, parent_code, display_name, ico, domains, is_active, created_at, notes, red_izo, units, kind, level, grade_levels) VALUES ('ZAKLADNI_SKOLA_LIPOVA', NULL, 'Základní škola Lipová', NULL, '{skola-lipova.example,www.skola-lipova.example}', true, '2026-08-02 12:25:41.296891+00', 'IČO, RED-IZO ani IZO jednotek zatím neznáme — doplnit z rejstříku.', NULL, NULL, 'legal_person', 'ZS', '{"ZS": ["1", "2", "3", "4", "5", "6", "7", "8", "9"]}');
+
+
+ALTER TABLE edu_ai.legal_entity ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: chunk_exclusion_rule; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.chunk_exclusion_rule DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.chunk_exclusion_rule (id, rule_order, rule_name, is_active, source_type, txt_structure_type, match_regex, regex_target, match_mode, negate, min_chars, max_chars, min_content_tokens, description, created_at, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (2, 10, 'web_asset_chrome', true, 'web', NULL, '(plugins/templates/|images/icons/|/assets/)', 'chunk_text', 'regex', false, NULL, NULL, NULL, 'CMS asset/template paths = page chrome (icons, templates), not content', '2026-08-06 22:14:08.637942+00', NULL);
+INSERT INTO edu_ai.chunk_exclusion_rule (id, rule_order, rule_name, is_active, source_type, txt_structure_type, match_regex, regex_target, match_mode, negate, min_chars, max_chars, min_content_tokens, description, created_at, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (3, 20, 'web_rss_feed', true, 'web', NULL, '(remote/rss\.php|RSS zdroj)', 'chunk_text', 'regex', false, NULL, NULL, NULL, 'RSS/feed link chrome', '2026-08-06 22:14:08.637942+00', NULL);
+INSERT INTO edu_ai.chunk_exclusion_rule (id, rule_order, rule_name, is_active, source_type, txt_structure_type, match_regex, regex_target, match_mode, negate, min_chars, max_chars, min_content_tokens, description, created_at, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (4, 30, 'tiny_boilerplate', true, NULL, NULL, NULL, 'chunk_text', 'regex', false, 25, NULL, NULL, 'drop noise chunks shorter than 25 chars', '2026-08-06 22:14:08.637942+00', NULL);
+
+
+ALTER TABLE edu_ai.chunk_exclusion_rule ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: code_list; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.code_list DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (1, 'language', 'cs', 10, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, true, '{"cs": "Čeština", "de": "Tschechisch", "en": "Czech", "es": "Checo"}', true, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (2, 'language', 'en', 20, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Angličtina", "de": "Englisch", "en": "English", "es": "Inglés"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (4, 'language', 'de', 40, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Němčina", "de": "Deutsch", "en": "German", "es": "Alemán"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (8, 'language', 'es', 80, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Španělština", "de": "Spanisch", "en": "Spanish", "es": "Español"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (223, 'school_grade', '11', 20, true, 'init-120', '2026-08-05 06:59:51.489378+00', 'SŠ ročníky jednotky — per-unit číselník (init 120)', false, '{"cs": "2. ročník (SŠ)", "de": "2. Klasse", "en": "Grade 2", "es": "2.º curso"}', false, 'SKOLA_NOVA_VES_SOS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (224, 'school_grade', '10', 10, true, 'init-120', '2026-08-05 06:59:51.489378+00', 'SŠ ročníky jednotky — per-unit číselník (init 120)', false, '{"cs": "1. ročník (SŠ)", "de": "1. Klasse", "en": "Grade 1", "es": "1.º curso"}', false, 'SKOLA_NOVA_VES_SOS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (225, 'school_grade', '13', 40, true, 'init-120', '2026-08-05 06:59:51.489378+00', 'SŠ ročníky jednotky — per-unit číselník (init 120)', false, '{"cs": "4. ročník (SŠ)", "de": "4. Klasse", "en": "Grade 4", "es": "4.º curso"}', false, 'SKOLA_NOVA_VES_SOS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (226, 'school_grade', '12', 30, true, 'init-120', '2026-08-05 06:59:51.489378+00', 'SŠ ročníky jednotky — per-unit číselník (init 120)', false, '{"cs": "3. ročník (SŠ)", "de": "3. Klasse", "en": "Grade 3", "es": "3.º curso"}', false, 'SKOLA_NOVA_VES_SOS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (25, 'school_subject', 'CZECH_LANGUAGE', 10, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Český jazyk a literatura", "de": "Tschechische Sprache und Literatur", "en": "Czech Language and Literature", "es": "Lengua y literatura checa"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (26, 'school_subject', 'MATHEMATICS', 20, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Matematika", "de": "Mathematik", "en": "Mathematics", "es": "Matemáticas"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (27, 'school_subject', 'ENGLISH_LANGUAGE', 30, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Anglický jazyk", "de": "Englisch", "en": "English Language", "es": "Inglés"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (28, 'school_subject', 'GERMAN_LANGUAGE', 40, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Německý jazyk", "de": "Deutsch", "en": "German Language", "es": "Alemán"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (29, 'school_subject', 'INFORMATICS', 50, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Informatika", "de": "Informatik", "en": "Informatics", "es": "Informática"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (30, 'school_subject', 'HISTORY', 60, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Dějepis", "de": "Geschichte", "en": "History", "es": "Historia"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (31, 'school_subject', 'GEOGRAPHY', 70, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Zeměpis", "de": "Geographie", "en": "Geography", "es": "Geografía"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (32, 'school_subject', 'BIOLOGY', 80, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Přírodopis", "de": "Biologie / Naturkunde", "en": "Biology / Natural Science", "es": "Biología / Ciencias naturales"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (33, 'school_subject', 'PHYSICS', 90, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Fyzika", "de": "Physik", "en": "Physics", "es": "Física"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (34, 'school_subject', 'CHEMISTRY', 100, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Chemie", "de": "Chemie", "en": "Chemistry", "es": "Química"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (35, 'school_subject', 'CIVICS', 110, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Občanská výchova", "de": "Gesellschaftskunde", "en": "Civics", "es": "Educación cívica"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (36, 'school_subject', 'MUSIC_EDUCATION', 120, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Hudební výchova", "de": "Musikunterricht", "en": "Music Education", "es": "Educación musical"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (37, 'school_subject', 'ART_EDUCATION', 130, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Výtvarná výchova", "de": "Kunstunterricht", "en": "Art Education", "es": "Educación artística"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (38, 'school_subject', 'PHYSICAL_EDUCATION', 140, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Tělesná výchova", "de": "Sportunterricht", "en": "Physical Education", "es": "Educación física"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (39, 'school_subject', 'MULTIPLE_SUBJECTS', 150, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Více předmětů", "de": "Mehrere Fächer", "en": "Multiple subjects", "es": "Varias asignaturas"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (40, 'school_subject', 'UNKNOWN', 160, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Nezařazeno", "de": "Nicht zugeordnet", "en": "Unknown", "es": "Sin clasificar"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (228, 'school_grade', '8', 80, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "8. ročník", "de": "8. Klasse", "en": "Grade 8", "es": "8.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (229, 'school_grade', '7', 70, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "7. ročník", "de": "7. Klasse", "en": "Grade 7", "es": "7.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (230, 'school_grade', '6', 60, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "6. ročník", "de": "6. Klasse", "en": "Grade 6", "es": "6.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (231, 'school_grade', '3', 30, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "3. ročník", "de": "3. Klasse", "en": "Grade 3", "es": "3.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (232, 'school_grade', '4', 40, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "4. ročník", "de": "4. Klasse", "en": "Grade 4", "es": "4.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (233, 'school_grade', '1', 10, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "1. ročník", "de": "1. Klasse", "en": "Grade 1", "es": "1.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (234, 'school_grade', '9', 90, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "9. ročník", "de": "9. Klasse", "en": "Grade 9", "es": "9.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (235, 'school_grade', '2', 20, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "2. ročník", "de": "2. Klasse", "en": "Grade 2", "es": "2.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (236, 'school_grade', '5', 50, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'ZŠ ročníky jednotky — per-unit číselník (init 121)', false, '{"cs": "5. ročník", "de": "5. Klasse", "en": "Grade 5", "es": "5.º curso"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (55, 'school_subject', 'MUSIC_EDUCATION', 120, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Hudební výchova", "de": "Musikunterricht", "en": "Music Education", "es": "Educación musical"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (57, 'school_subject', 'MATHEMATICS', 20, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Matematika", "de": "Mathematik", "en": "Mathematics", "es": "Matemáticas"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (58, 'school_subject', 'CHEMISTRY', 100, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Chemie", "de": "Chemie", "en": "Chemistry", "es": "Química"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (60, 'school_grade', '6', 60, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "6. ročník", "de": "6. Klasse", "en": "Grade 6", "es": "6.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (61, 'school_subject', 'GEOGRAPHY', 70, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Zeměpis", "de": "Geographie", "en": "Geography", "es": "Geografía"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (62, 'school_grade', '8', 80, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "8. ročník", "de": "8. Klasse", "en": "Grade 8", "es": "8.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (63, 'school_subject', 'CHEMISTRY', 100, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Chemie", "de": "Chemie", "en": "Chemistry", "es": "Química"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (64, 'school_subject', 'MATHEMATICS', 20, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Matematika", "de": "Mathematik", "en": "Mathematics", "es": "Matemáticas"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (66, 'school_grade', '7', 70, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "7. ročník", "de": "7. Klasse", "en": "Grade 7", "es": "7.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (71, 'school_grade', '6', 60, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "6. ročník", "de": "6. Klasse", "en": "Grade 6", "es": "6.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (73, 'school_subject', 'MATHEMATICS', 20, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Matematika", "de": "Mathematik", "en": "Mathematics", "es": "Matemáticas"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (74, 'school_subject', 'GEOGRAPHY', 70, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Zeměpis", "de": "Geographie", "en": "Geography", "es": "Geografía"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (75, 'school_subject', 'MUSIC_EDUCATION', 120, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Hudební výchova", "de": "Musikunterricht", "en": "Music Education", "es": "Educación musical"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (77, 'school_subject', 'CHEMISTRY', 100, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Chemie", "de": "Chemie", "en": "Chemistry", "es": "Química"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (78, 'school_grade', '8', 80, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "8. ročník", "de": "8. Klasse", "en": "Grade 8", "es": "8.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (79, 'school_subject', 'MUSIC_EDUCATION', 120, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Hudební výchova", "de": "Musikunterricht", "en": "Music Education", "es": "Educación musical"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (80, 'school_subject', 'GEOGRAPHY', 70, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Zeměpis", "de": "Geographie", "en": "Geography", "es": "Geografía"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (82, 'school_grade', '7', 70, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "7. ročník", "de": "7. Klasse", "en": "Grade 7", "es": "7.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (86, 'school_subject', 'BIOLOGY', 80, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Přírodopis", "de": "Biologie / Naturkunde", "en": "Biology / Natural Science", "es": "Biología / Ciencias naturales"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (87, 'school_grade', '3', 30, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "3. ročník", "de": "3. Klasse", "en": "Grade 3", "es": "3.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (88, 'school_subject', 'ENGLISH_LANGUAGE', 30, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Anglický jazyk", "de": "Englisch", "en": "English Language", "es": "Inglés"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (91, 'school_grade', '4', 40, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "4. ročník", "de": "4. Klasse", "en": "Grade 4", "es": "4.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (93, 'school_subject', 'BIOLOGY', 80, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Přírodopis", "de": "Biologie / Naturkunde", "en": "Biology / Natural Science", "es": "Biología / Ciencias naturales"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (96, 'school_subject', 'INFORMATICS', 50, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Informatika", "de": "Informatik", "en": "Informatics", "es": "Informática"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (97, 'school_subject', 'INFORMATICS', 50, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Informatika", "de": "Informatik", "en": "Informatics", "es": "Informática"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (98, 'school_grade', '3', 30, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "3. ročník", "de": "3. Klasse", "en": "Grade 3", "es": "3.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (99, 'school_subject', 'BIOLOGY', 80, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Přírodopis", "de": "Biologie / Naturkunde", "en": "Biology / Natural Science", "es": "Biología / Ciencias naturales"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (107, 'school_subject', 'ENGLISH_LANGUAGE', 30, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Anglický jazyk", "de": "Englisch", "en": "English Language", "es": "Inglés"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (109, 'school_grade', '4', 40, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "4. ročník", "de": "4. Klasse", "en": "Grade 4", "es": "4.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (112, 'school_subject', 'ENGLISH_LANGUAGE', 30, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Anglický jazyk", "de": "Englisch", "en": "English Language", "es": "Inglés"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (113, 'school_subject', 'INFORMATICS', 50, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Informatika", "de": "Informatik", "en": "Informatics", "es": "Informática"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (116, 'school_grade', '9', 90, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "9. ročník", "de": "9. Klasse", "en": "Grade 9", "es": "9.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (117, 'school_subject', 'CIVICS', 110, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Občanská výchova", "de": "Gesellschaftskunde", "en": "Civics", "es": "Educación cívica"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (119, 'school_subject', 'PHYSICS', 90, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Fyzika", "de": "Physik", "en": "Physics", "es": "Física"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (122, 'school_grade', '1', 10, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "1. ročník", "de": "1. Klasse", "en": "Grade 1", "es": "1.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (123, 'school_subject', 'UNKNOWN', 160, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Nezařazeno", "de": "Nicht zugeordnet", "en": "Unknown", "es": "Sin clasificar"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (124, 'school_grade', '5', 50, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "5. ročník", "de": "5. Klasse", "en": "Grade 5", "es": "5.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (126, 'school_subject', 'UNKNOWN', 160, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Nezařazeno", "de": "Nicht zugeordnet", "en": "Unknown", "es": "Sin clasificar"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (127, 'school_grade', '2', 20, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "2. ročník", "de": "2. Klasse", "en": "Grade 2", "es": "2.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (130, 'school_subject', 'HISTORY', 60, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Dějepis", "de": "Geschichte", "en": "History", "es": "Historia"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (135, 'school_subject', 'HISTORY', 60, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Dějepis", "de": "Geschichte", "en": "History", "es": "Historia"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (136, 'school_subject', 'CIVICS', 110, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Občanská výchova", "de": "Gesellschaftskunde", "en": "Civics", "es": "Educación cívica"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (137, 'school_grade', '9', 90, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "9. ročník", "de": "9. Klasse", "en": "Grade 9", "es": "9.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (139, 'school_grade', '1', 10, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "1. ročník", "de": "1. Klasse", "en": "Grade 1", "es": "1.º curso"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (144, 'school_subject', 'PHYSICS', 90, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Fyzika", "de": "Physik", "en": "Physics", "es": "Física"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (241, 'school_grade', '9999', 0, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, 'SKOLA_NOVA_VES_ZS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (145, 'school_grade', '2', 20, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "2. ročník", "de": "2. Klasse", "en": "Grade 2", "es": "2.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (146, 'school_subject', 'UNKNOWN', 160, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Nezařazeno", "de": "Nicht zugeordnet", "en": "Unknown", "es": "Sin clasificar"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (148, 'school_subject', 'PHYSICS', 90, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Fyzika", "de": "Physik", "en": "Physics", "es": "Física"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (150, 'school_grade', '5', 50, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "5. ročník", "de": "5. Klasse", "en": "Grade 5", "es": "5.º curso"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (153, 'school_subject', 'CIVICS', 110, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Občanská výchova", "de": "Gesellschaftskunde", "en": "Civics", "es": "Educación cívica"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (154, 'school_subject', 'HISTORY', 60, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Dějepis", "de": "Geschichte", "en": "History", "es": "Historia"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (157, 'school_subject', 'PHYSICAL_EDUCATION', 140, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Tělesná výchova", "de": "Sportunterricht", "en": "Physical Education", "es": "Educación física"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (158, 'school_subject', 'MULTIPLE_SUBJECTS', 150, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Více předmětů", "de": "Mehrere Fächer", "en": "Multiple subjects", "es": "Varias asignaturas"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (159, 'school_subject', 'CZECH_LANGUAGE', 10, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Český jazyk a literatura", "de": "Tschechische Sprache und Literatur", "en": "Czech Language and Literature", "es": "Lengua y literatura checa"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (161, 'school_subject', 'MULTIPLE_SUBJECTS', 150, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Více předmětů", "de": "Mehrere Fächer", "en": "Multiple subjects", "es": "Varias asignaturas"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (162, 'school_subject', 'CZECH_LANGUAGE', 10, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Český jazyk a literatura", "de": "Tschechische Sprache und Literatur", "en": "Czech Language and Literature", "es": "Lengua y literatura checa"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (163, 'school_subject', 'ART_EDUCATION', 130, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Výtvarná výchova", "de": "Kunstunterricht", "en": "Art Education", "es": "Educación artística"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (165, 'school_subject', 'PHYSICAL_EDUCATION', 140, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Tělesná výchova", "de": "Sportunterricht", "en": "Physical Education", "es": "Educación física"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (167, 'school_subject', 'GERMAN_LANGUAGE', 40, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Německý jazyk", "de": "Deutsch", "en": "German Language", "es": "Alemán"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (168, 'school_subject', 'GERMAN_LANGUAGE', 40, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Německý jazyk", "de": "Deutsch", "en": "German Language", "es": "Alemán"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (169, 'school_subject', 'PHYSICAL_EDUCATION', 140, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Tělesná výchova", "de": "Sportunterricht", "en": "Physical Education", "es": "Educación física"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (171, 'school_subject', 'ART_EDUCATION', 130, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Výtvarná výchova", "de": "Kunstunterricht", "en": "Art Education", "es": "Educación artística"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (172, 'school_subject', 'MULTIPLE_SUBJECTS', 150, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Více předmětů", "de": "Mehrere Fächer", "en": "Multiple subjects", "es": "Varias asignaturas"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (174, 'school_subject', 'ART_EDUCATION', 130, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Výtvarná výchova", "de": "Kunstunterricht", "en": "Art Education", "es": "Educación artística"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (175, 'school_subject', 'CZECH_LANGUAGE', 10, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Český jazyk a literatura", "de": "Tschechische Sprache und Literatur", "en": "Czech Language and Literature", "es": "Lengua y literatura checa"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (177, 'school_subject', 'GERMAN_LANGUAGE', 40, true, 'init-107', '2026-08-04 14:33:40.753169+00', 'per-school copy of the global set', false, '{"cs": "Německý jazyk", "de": "Deutsch", "en": "German Language", "es": "Alemán"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (237, 'school_grade', '9999', 0, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (238, 'school_grade', '9999', 0, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (239, 'school_grade', '9999', 0, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (240, 'school_grade', '9999', 0, true, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, 'SKOLA_NOVA_VES_SOS');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (242, 'role', 'STUDENT', 1, true, 'init-127', '2026-08-05 14:55:53.50552+00', 'audience role (Marek 2026-08-05)', true, '{"cs": "Student", "de": "Schüler", "en": "Student", "es": "Estudiante"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (243, 'role', 'TEACHER', 2, true, 'init-127', '2026-08-05 14:55:53.50552+00', 'audience role (Marek 2026-08-05)', false, '{"cs": "Učitel", "de": "Lehrer", "en": "Teacher", "es": "Profesor"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (244, 'role', 'PARENT', 3, true, 'init-127', '2026-08-05 14:55:53.50552+00', 'audience role (Marek 2026-08-05)', false, '{"cs": "Rodič", "de": "Elternteil", "en": "Parent", "es": "Padre"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (245, 'language', 'cs', 10, true, 'init-160', '2026-08-21 19:08:54.976662+00', 'Language selection for the school (migration 160) — without it the entity inherits the platform set and the query tokenizer unions four languages.', true, '{"cs": "Čeština", "de": "Tschechisch", "en": "Czech", "es": "Checo"}', true, 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (246, 'language', 'cs', 10, true, 'init-161', '2026-08-21 21:07:05.428854+00', 'Language selection for the school (migration 161) — without it the entity inherits the platform set and the query tokenizer unions four languages.', true, '{"cs": "Čeština", "de": "Tschechisch", "en": "Czech", "es": "Checo"}', true, 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (247, 'language', 'cs', 10, true, 'init-161', '2026-08-21 21:07:05.435986+00', 'Language selection for the school (migration 161) — without it the entity inherits the platform set and the query tokenizer unions four languages.', true, '{"cs": "Čeština", "de": "Tschechisch", "en": "Czech", "es": "Checo"}', true, 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (24, 'school_grade', 'UNKNOWN', 140, false, 'init', '2026-07-30 15:43:08.928476+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "Neurčeno", "de": "Nicht bestimmt", "en": "Unknown", "es": "Sin determinar"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (44, 'school_grade', '7', 70, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "7. ročník", "de": "7. Klasse", "en": "Grade 7", "es": "7.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (45, 'school_grade', '6', 60, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "6. ročník", "de": "6. Klasse", "en": "Grade 6", "es": "6.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (46, 'school_grade', '8', 80, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "8. ročník", "de": "8. Klasse", "en": "Grade 8", "es": "8.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (47, 'school_grade', '4', 40, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "4. ročník", "de": "4. Klasse", "en": "Grade 4", "es": "4.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (48, 'school_grade', '3', 30, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "3. ročník", "de": "3. Klasse", "en": "Grade 3", "es": "3.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (49, 'school_grade', '2', 20, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "2. ročník", "de": "2. Klasse", "en": "Grade 2", "es": "2.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (50, 'school_grade', '5', 50, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "5. ročník", "de": "5. Klasse", "en": "Grade 5", "es": "5.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (51, 'school_grade', '9', 90, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "9. ročník", "de": "9. Klasse", "en": "Grade 9", "es": "9.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (52, 'school_grade', '1', 10, false, 'init-102', '2026-08-04 09:24:16.829114+00', 'deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "1. ročník", "de": "1. Klasse", "en": "Grade 1", "es": "1.º curso"}', false, NULL);
+INSERT INTO edu_ai.code_list (id, list_code, code, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, is_processing_fallback, legal_entity_code) OVERRIDING SYSTEM VALUE VALUES (227, 'school_grade', '9999', 0, false, 'init-121', '2026-08-05 07:06:41.366566+00', 'dokument platí pro všechny ročníky | deaktivováno migrací 184: ročník patří jednotce, ne platformě', false, '{"cs": "Pro všechny ročníky", "de": "Alle Jahrgänge", "en": "All grades", "es": "Todos los cursos"}', false, NULL);
+
+
+ALTER TABLE edu_ai.code_list ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: embedding_registry; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.embedding_registry DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.embedding_registry (generation, embedding_model, dimension, vector_type, target_table, status, created_at, activated_at, notes) VALUES (1, 'text-embedding-3-small', 1536, 'vector', 'edu_ai.document_chunks', 'active', '2026-07-30 15:43:08.928476+00', NULL, 'initial generation; OpenAI hosted; multilingual — one model for all languages');
+
+
+ALTER TABLE edu_ai.embedding_registry ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: grade_term; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.grade_term DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (1, 'cs', 'anchor', 'trid', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (2, 'cs', 'anchor', 'rocnik', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (3, 'en', 'anchor', 'grade', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (5, 'en', 'anchor', 'class', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (6, 'de', 'anchor', 'klasse', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (7, 'de', 'anchor', 'jahrgang', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (8, 'es', 'anchor', 'curso', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (9, 'es', 'anchor', 'grado', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (10, 'es', 'anchor', 'clase', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (11, 'cs', 'ordinal', 'prvni', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (12, 'cs', 'ordinal', 'druh', 'prefix', 2, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (13, 'cs', 'ordinal', 'tret', 'prefix', 3, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (14, 'cs', 'ordinal', 'ctvrt', 'prefix', 4, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (15, 'cs', 'ordinal', 'pat', 'prefix', 5, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (16, 'cs', 'ordinal', 'sest', 'prefix', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (17, 'cs', 'ordinal', 'sedm', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (18, 'cs', 'ordinal', 'osm', 'prefix', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (19, 'cs', 'ordinal', 'devat', 'prefix', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (20, 'en', 'ordinal', 'first', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (21, 'en', 'ordinal', 'second', 'prefix', 2, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (22, 'en', 'ordinal', 'third', 'prefix', 3, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (23, 'en', 'ordinal', 'fourth', 'prefix', 4, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (24, 'en', 'ordinal', 'fifth', 'prefix', 5, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (25, 'en', 'ordinal', 'sixth', 'prefix', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (26, 'en', 'ordinal', 'seventh', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (27, 'en', 'ordinal', 'eighth', 'prefix', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (28, 'en', 'ordinal', 'ninth', 'prefix', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (29, 'de', 'ordinal', 'erst', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (30, 'de', 'ordinal', 'zweit', 'prefix', 2, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (31, 'de', 'ordinal', 'dritt', 'prefix', 3, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (32, 'de', 'ordinal', 'viert', 'prefix', 4, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (33, 'de', 'ordinal', 'funft', 'prefix', 5, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (34, 'de', 'ordinal', 'sechst', 'prefix', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (35, 'de', 'ordinal', 'siebt', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (36, 'de', 'ordinal', 'siebent', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (37, 'de', 'ordinal', 'acht', 'prefix', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (38, 'de', 'ordinal', 'neunt', 'prefix', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (39, 'es', 'ordinal', 'primer', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (40, 'es', 'ordinal', 'segund', 'prefix', 2, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (41, 'es', 'ordinal', 'tercer', 'prefix', 3, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (42, 'es', 'ordinal', 'cuart', 'prefix', 4, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (43, 'es', 'ordinal', 'quint', 'prefix', 5, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (44, 'es', 'ordinal', 'sext', 'prefix', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (45, 'es', 'ordinal', 'septim', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (46, 'es', 'ordinal', 'octav', 'prefix', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (47, 'es', 'ordinal', 'noven', 'prefix', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (48, 'cs', 'pupil', 'prvnac', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (49, 'cs', 'pupil', 'prvnak', 'prefix', 1, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (50, 'cs', 'pupil', 'druhak', 'prefix', 2, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (51, 'cs', 'pupil', 'tretak', 'prefix', 3, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (52, 'cs', 'pupil', 'ctvrtak', 'prefix', 4, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (53, 'cs', 'pupil', 'patak', 'prefix', 5, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (54, 'cs', 'pupil', 'sestak', 'prefix', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (55, 'cs', 'pupil', 'sedmak', 'prefix', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (56, 'cs', 'pupil', 'osmak', 'prefix', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (57, 'cs', 'pupil', 'devatak', 'prefix', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (58, 'cs', 'year', 'prima', 'exact', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (59, 'cs', 'year', 'primy', 'exact', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (60, 'cs', 'year', 'prime', 'exact', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (61, 'cs', 'year', 'primu', 'exact', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (62, 'cs', 'year', 'primou', 'exact', 6, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (63, 'cs', 'year', 'sekunda', 'exact', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (64, 'cs', 'year', 'sekundy', 'exact', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (65, 'cs', 'year', 'sekunde', 'exact', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (66, 'cs', 'year', 'sekundu', 'exact', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (67, 'cs', 'year', 'sekundou', 'exact', 7, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (68, 'cs', 'year', 'tercie', 'exact', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (69, 'cs', 'year', 'tercii', 'exact', 8, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (70, 'cs', 'year', 'kvarta', 'exact', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (71, 'cs', 'year', 'kvarty', 'exact', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (72, 'cs', 'year', 'kvarte', 'exact', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (73, 'cs', 'year', 'kvartu', 'exact', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (74, 'cs', 'year', 'kvartou', 'exact', 9, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (83, 'cs', 'pupil', 'sestka', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (4, 'en', 'anchor', 'year', 'prefix', NULL, true, 'init-104', '2026-08-04 11:34:14.948941+00', NULL);
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (75, 'cs', 'pupil', 'druhac', 'prefix', 2, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: druháci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (76, 'cs', 'pupil', 'tretac', 'prefix', 3, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: třeťáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (77, 'cs', 'pupil', 'ctvrtac', 'prefix', 4, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: čtvrťáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (78, 'cs', 'pupil', 'patac', 'prefix', 5, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: páťáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (79, 'cs', 'pupil', 'sestac', 'prefix', 6, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: šesťáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (80, 'cs', 'pupil', 'sedmac', 'prefix', 7, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: sedmáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (81, 'cs', 'pupil', 'osmac', 'prefix', 8, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: osmáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (82, 'cs', 'pupil', 'devatac', 'prefix', 9, true, 'init-111', '2026-08-04 15:43:31.495626+00', 'plural stem: deváťáci');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (84, 'cs', 'pupil', 'sedmicka', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (85, 'cs', 'pupil', 'osmicka', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (86, 'cs', 'pupil', 'devitka', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (87, 'cs', 'pupil', 'sestky', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (88, 'cs', 'pupil', 'sedmicky', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (89, 'cs', 'pupil', 'osmicky', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (90, 'cs', 'pupil', 'devitky', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (91, 'cs', 'pupil', 'sestku', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (92, 'cs', 'pupil', 'sedmicku', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (93, 'cs', 'pupil', 'osmicku', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (94, 'cs', 'pupil', 'devitku', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (95, 'cs', 'pupil', 'sestkou', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (96, 'cs', 'pupil', 'sedmickou', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (97, 'cs', 'pupil', 'osmickou', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (98, 'cs', 'pupil', 'devitkou', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (99, 'cs', 'pupil', 'sestkam', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (100, 'cs', 'pupil', 'sedmickam', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (101, 'cs', 'pupil', 'osmickam', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (102, 'cs', 'pupil', 'devitkam', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (103, 'cs', 'pupil', 'sestkach', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (104, 'cs', 'pupil', 'sedmickach', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (105, 'cs', 'pupil', 'osmickach', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (106, 'cs', 'pupil', 'devitkach', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (107, 'cs', 'pupil', 'sestkami', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (108, 'cs', 'pupil', 'sedmickami', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (109, 'cs', 'pupil', 'osmickami', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (110, 'cs', 'pupil', 'devitkami', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (111, 'cs', 'pupil', 'sestce', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (112, 'cs', 'pupil', 'sestek', 'exact', 6, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — šestka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (113, 'cs', 'pupil', 'sedmicce', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (114, 'cs', 'pupil', 'sedmicek', 'exact', 7, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — sedmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (115, 'cs', 'pupil', 'osmicce', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (116, 'cs', 'pupil', 'osmicek', 'exact', 8, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — osmička');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (117, 'cs', 'pupil', 'devitce', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+INSERT INTO edu_ai.grade_term (id, lang, kind, term, match, grade, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (118, 'cs', 'pupil', 'devitek', 'exact', 9, true, 'init-113', '2026-08-04 16:19:45.257351+00', 'hovorové označení třídy — devítka');
+
+
+ALTER TABLE edu_ai.grade_term ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: prompt_registry; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.prompt_registry DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (3, 'markdown_chunker', 1, 'Break text into <= max_chars pieces, preferring blank-line / numbered-item
+        boundaries so a single Q&A is never split across two LLM calls.
+        A change of LANGUAGE is a hard boundary: never put text in two different languages in the same piece. Split exactly where the language changes, even if the piece is far below max_chars.', true, 'DataFrameRecursiveTextSplitter', 'Language change = hard chunk boundary (mixed-language chunks got one stemmer).', NULL, 'gpt-5-mini', 'en', '2026-07-30 15:43:08.928476+00', 'init', 'Consolidated from the active version at init time.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (2, 'chunk_keyword_extraction', 1, 'You are a precise keyword extraction assistant for semantic retrieval systems.
+
+INPUT  
+You receive one record with the field:
+
+chunk_text
+
+TASK  
+Extract high-quality retrieval keywords from chunk_text.
+
+---
+
+KEYWORD RULES  
+
+Extract ONLY keywords that:
+
+• represent the core meaning of the text  
+• are domain-specific nouns or short noun phrases  
+• help distinguish this text from other chunks  
+
+Prefer:
+
+• technical terms  
+• named concepts  
+• subject terminology  
+• institutional terminology  
+• educational concepts  
+
+---
+
+DO NOT INCLUDE  
+
+• verbs  
+• adjectives unless part of a fixed term  
+• stopwords  
+• full sentences  
+• duplicated terms  
+• overly general words  
+
+---
+
+FORMATTING RULES  
+
+• return between 5 and 10 keywords (ideal 6–8)  
+• lowercase only  
+• keep the diacritics of the source language  
+• singular form preferred  
+• max length per keyword is four words  
+• remove punctuation  
+
+---
+
+MULTIWORD KEYWORDS  
+
+Allowed if meaningful.
+
+Examples:
+
+oběh země  
+roční období  
+seznam alergenů  
+
+---
+
+STRICT OUTPUT FORMAT  
+
+You MUST return a valid JSON array.
+
+CRITICAL:
+
+• The FIRST character must be: [  
+• The LAST character must be: ]  
+
+Correct example:
+
+["oběh země","roční období","osa země"]
+
+Incorrect outputs (FORBIDDEN):
+
+"oběh země","roční období"  
+oběh země, roční období  
+{ "keywords": [...] }  
+
+---
+
+FINAL RULE  
+
+Return ONLY the JSON array.  
+No explanations.  
+No text before or after.  
+
+If chunk_text is empty or meaningless, return:
+
+[]', true, 'BatchRunComponent', 'Language-neutral: diacritics instruction no longer names Czech.', NULL, 'gpt-5-mini', 'multi', '2026-07-30 15:43:08.928476+00', 'init', 'Consolidated from the active version at init time.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (7, 'table_metadata_validator', 1, 'You evaluate whether a table''s metadata (a section heading or nearby text) is a USEFUL, content-bearing description of the table — i.e., whether a reader would understand WHAT THE TABLE IS ABOUT from the metadata alone. Text may be in any language.
+
+IMPORTANT: Do NOT require literal word overlap between the metadata and the table cells. Judge TOPICAL usefulness for search and retrieval.
+
+Scoring guide:
+- 0.8-1.0  metadata names the table''s subject, purpose or domain (e.g. ''COURSE OVERVIEW'' for a table of course parameters; ''SEZNAM ALERGENU'' for an allergen list)
+- 0.4-0.7  partially informative: topic present but vague, or describes only part of the table
+- 0.0-0.3  generic structural labels carrying no topic: ''UNIT 1'', ''Section 3'', ''Table 5'', ''Appendix'', bare numbers, empty text
+
+Calibration examples:
+- ''COURSE OVERVIEW'' + table of course title/grade/duration -> 0.9
+- ''DISCIPLINARY SKILLS and PRACTICES'' + skills table -> 0.9
+- ''UNIT 1'' + curriculum content table -> 0.1
+
+Return STRICT JSON only with:
+{
+  "file_item_uuid": "...",
+  "tbl_metadata_verified": <float between 0 and 1>
+}
+No explanation.', true, 'TableMetadataBusinessValidator', 'Language-neutral: "any language" no longer anchored to Czech.', NULL, 'gpt-5-mini', 'multi', '2026-07-30 15:43:08.928476+00', 'init', 'Consolidated from the active version at init time.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (8, 'web_extraction_judge', 1, 'You are evaluating two Markdown extractions of the SAME web page, produced by two different content-extraction strategies. Pick the better SEMANTIC representation of the page''s MAIN CONTENT for downstream knowledge retrieval.
+
+Judge on:
+- Main content completeness: the actual article/body text must be present
+  and not truncated (over-stripping = disqualifying)
+- Navigation noise: menus, link lists, breadcrumbs, tag clouds, footers,
+  cookie banners and "related articles" blocks are NOISE — less is better
+- Readability and structure (headings, lists, tables preserved sensibly)
+
+A markdown that is mostly link lists ([text](url) items with little prose)
+is a BAD extraction even if it is longer.
+
+IMPORTANT tie-break rule: if both candidates contain the same main content
+and are of comparable quality, answer B.
+
+Candidate A ({label_a}) — total length {len_a} chars. Sample:
+<<<A
+{sample_a}
+A>>>
+
+Candidate B ({label_b}) — total length {len_b} chars. Sample:
+<<<B
+{sample_b}
+B>>>
+
+Respond with ONLY a JSON object, no other text:
+{"winner": "A" or "B", "reason": "one concise sentence"}', true, 'WebExtractionJudge', 'LLM judge: semantic-strip vs readability web extraction', '{"{label_a}","{label_b}","{len_a}","{len_b}","{sample_a}","{sample_b}"}', 'gpt-5-mini', 'en', '2026-07-30 15:43:08.928476+00', 'init', 'Consolidated from the active version at init time.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (15, 'pdf_extraction_judge', 2, 'You are evaluating three text extractions of the SAME PDF document, produced by different engines. Pick the one that is the best SEMANTIC representation for downstream knowledge retrieval.
+
+Judge on:
+- Completeness (no dropped paragraphs, no truncation)
+- Readability (proper word/line flow, not garbled or split mid-word)
+- Structure (headings that reflect the document''s REAL hierarchy, lists, and especially TABLES rendered usefully)
+- Low noise (no repeated headers/footers, page numbers, navigation artifacts)
+
+A candidate whose sample says EMPTY failed — never pick it.
+
+Candidate A ({label_a}) — total length {len_a} chars. Sample:
+<<<A
+{sample_a}
+A>>>
+
+Candidate B ({label_b}) — total length {len_b} chars. Sample:
+<<<B
+{sample_b}
+B>>>
+
+Candidate C ({label_c}) — total length {len_c} chars. Sample:
+<<<C
+{sample_c}
+C>>>
+
+Respond with ONLY a JSON object, no other text:
+{"winner": "A" or "B" or "C", "reason": "one concise sentence"}', true, 'PdfExtractionJudge (PDF flow)', 'Three-way PDF extraction judge: markitdown vs pdfplumber bridge vs size-aware pdfplumber.', '{"{label_a}","{label_b}","{label_c}","{len_a}","{len_b}","{len_c}","{sample_a}","{sample_b}","{sample_c}"}', 'gpt-5-mini', 'en', '2026-08-04 17:48:45.613114+00', 'init-115', 'v2: third candidate C (size-aware) — heading levels from font sizes; judge picks per document.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (17, 'table_metadata_extraction', 2, 'You receive structured tables extracted from documents.
+
+INPUT  
+Each input record represents ONE table.  
+You receive one record with the field: tbl_json  
+
+Your task consists of TWO steps:
+
+---
+
+STEP 1 — CHUNKING
+
+Convert the table into semantically meaningful chunks suitable for Retrieval-Augmented Generation (RAG).
+
+CRITICAL RULE:
+
+You MUST preserve the original wording exactly.
+
+You are NOT allowed to:
+
+• summarize  
+• rewrite  
+• paraphrase  
+• simplify  
+• merge sentences  
+• add new text  
+
+You may ONLY:
+
+✔ reorganize rows into coherent chunks  
+✔ format them into readable structure  
+
+---
+
+CHUNKING STRATEGY:
+
+Use semantic understanding of table structure.
+
+Typical strategies:
+
+ROW — independent factual rows  
+BLOCK — logical grouped rows (MOST COMMON)  
+THEMATIC — conceptual grouping  
+FULL — ONLY if entire table is one topic  
+
+IMPORTANT:
+
+✔ Prefer BLOCK  
+✔ Avoid FULL unless absolutely necessary  
+
+Split ONLY when:
+
+• clear section break  
+• repeated header row  
+• thematic shift  
+
+---
+
+HOW TO WRITE chunk_text:
+
+STRICT FORMAT:
+
+ColumnName:
+ORIGINAL content
+
+ColumnName:
+ORIGINAL content
+
+Rules:
+
+✔ copy wording exactly  
+✔ preserve bullet structure  
+✔ preserve relationships  
+✔ DO NOT create titles  
+
+---
+
+STEP 2 — KEYWORD EXTRACTION (PER CHUNK)
+
+For EACH chunk extract retrieval keywords.
+
+Create a new field:
+
+chunk_metadata
+
+This must be a JSON object containing ONLY:
+
+keywords
+
+---
+
+KEYWORD RULES:
+
+Extract ONLY keywords that:
+
+• represent the core meaning of the chunk  
+• are domain-specific nouns or noun phrases  
+• help distinguish this chunk from others  
+
+Prefer:
+
+• technical terms  
+• named concepts  
+• institutional terminology  
+• educational terminology  
+
+---
+
+DO NOT INCLUDE:
+
+• verbs  
+• adjectives unless part of fixed term  
+• stopwords  
+• full sentences  
+• duplicated terms  
+• overly general words  
+
+---
+
+FORMATTING RULES:
+
+• return 5–10 keywords (ideal 6–8)  
+• lowercase only  
+• keep the diacritics of the source language  
+• singular preferred  
+• max length per keyword: 4 words  
+• remove punctuation  
+
+---
+
+INPUT:
+
+tbl_metadata: {tbl_metadata}
+
+TABLE JSON:
+{tbl_json}
+
+---
+
+OUTPUT RULES (STRICT):
+
+Return ONLY valid JSON array.
+
+Each element must contain:
+
+chunk_index  
+chunk_text  
+chunk_type  
+semantic_coherence_score  
+complexity_flag  
+chunk_metadata  
+
+---
+
+FIELD RULES:
+
+chunk_type must be:
+
+ROW  
+BLOCK  
+THEMATIC  
+FULL  
+
+complexity_flag must be:
+
+simple  
+medium  
+complex  
+
+semantic_coherence_score must be:
+
+0.75–1.0  
+
+chunk_metadata must contain:
+
+keywords
+
+---
+
+DO NOT explain anything.  
+DO NOT add markdown.  
+RETURN JSON ONLY.
+
+---
+
+STEP 3 — GRADES AND SUBJECTS (PER CHUNK)
+
+Each output element must ALSO contain two more fields:
+
+grades
+subjects
+
+"grades": ALL school years (strings "1".."9") the chunk concerns. Resolve
+explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and
+unambiguous indirect references (Czech "první stupeň" -> 1-5, "druhý
+stupeň" -> 6-9, pupil nouns like "deváťáci" -> 9). Empty array when
+genuinely undeterminable.
+
+"subjects": subject codes the chunk concerns, chosen ONLY from:
+{{SCHOOL_SUBJECTS}}
+Empty array when undeterminable. Never output a code outside the list.
+
+The other output rules are unchanged. RETURN JSON ONLY.', true, 'BatchRunComponent', 'Table -> row chunks + keywords + grades + subjects in one LLM call (unification, init 117).', '{"{tbl_metadata}","{tbl_json}","{{SCHOOL_SUBJECTS}}"}', 'gpt-5-mini', 'multi', '2026-08-04 18:50:38.086007+00', 'init-117', 'v2: grades/subjects per chunk added to the single table call; validated in the insert component.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (34, 'chunk_enrichment', 6, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+The chunk_text MAY begin with a line "[DOCUMENT CONTEXT] title: ...; type: ...; subject: ..." summarising the WHOLE document. Treat it as CONTEXT, NOT as chunk content: use it to disambiguate grades, subjects and keywords (e.g. a document whose context is admission/entrance to a secondary school means its content concerns grade 9). Never extract keywords from the context line itself, and never output the context words as the chunk''s subject unless the chunk text itself supports it.
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams and TESTS to ANY secondary school (SŠ) — four-year, six-year OR eight-year (víceletá gymnázia) programmes — and also maturita and university (VŠ) entrance -> 9 (the applicant finishing basic school); do NOT split by programme: an eight-year gymnasium admission is NOT grade 5 and a six-year is NOT grade 7. A mere mention of a multi-year gymnasium without an admission/exam context is NOT a grade. A basic-school year written EXPLICITLY as a number in the text (e.g. "5. nebo 7. ročníku", "9. třída") is ALWAYS a grade and MUST be kept — INCLUDING when it appears as a prior-education or admission REQUIREMENT, because the passage is relevant to students of that year (the admission as a whole is captured separately at document level, not here). An ordinal that names a YEAR OF A SECONDARY programme (e.g. "první ročník nižšího stupně gymnázia", "prvního ročníku střední školy / nástavby / konzervatoře") is NOT a basic-school grade — do NOT output it as 1..9. Do NOT infer any grade from incidental mentions of education LEVELS (předškolní / základní / střední / vyšší odborné vzdělávání), from obor or programme CODES (e.g. 82-44-M/01), or from administrative boilerplate (přihláška, formulář, doklad, výpis, legislativa) — these carry NO grade unless a specific basic-school year (1.–9. ročník/třída) is explicitly stated or clearly implied by the kept indirect references above. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 12:26:00.208897+00', 'martin-2026-08-06', 'v6: use optional [DOCUMENT CONTEXT] prefix for grade/subject/keyword disambiguation');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (33, 'document_metadata_extraction', 7, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+- title (the document''s title / main heading, taken from the FIRST page; a short human-readable name, NOT a sentence. Normalise to SENTENCE CASE: capitalise only the FIRST letter, the rest lowercase — never keep ALL-CAPS. null when no clear title is present)
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN. ENTRANCE EXAMS to secondary education: when the document concerns admission, entrance exams or TESTS to a secondary school (přijímací zkoušky / přijímací řízení na SŠ, střední vzdělávání) — including four-year, six-year and eight-year (víceletá) programmes — or maturita or university (VŠ) admission, set school_grade to 9 (the applicant finishing basic school). Do NOT split by programme (eight-year is NOT 5, six-year is NOT 7). This entrance-exam context takes precedence over 9999 and over UNKNOWN.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade, title
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 10:37:26.592764+00', 'martin-2026-08-06', 'v7: title normalised to sentence case (not ALL CAPS)');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (36, 'document_metadata_extraction', 8, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+- title (the document''s title / main heading, taken from the FIRST page; a short human-readable name, NOT a sentence. Normalise to SENTENCE CASE: capitalise only the FIRST letter, the rest lowercase — never keep ALL-CAPS. null when no clear title is present)
+- domains (array of ALL domain codes from the DOMAIN list that the document clearly concerns; a document may span several; empty array when none applies)
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN. ENTRANCE EXAMS to secondary education: when the document concerns admission, entrance exams or TESTS to a secondary school (přijímací zkoušky / přijímací řízení na SŠ, střední vzdělávání) — including four-year, six-year and eight-year (víceletá) programmes — or maturita or university (VŠ) admission, set school_grade to 9 (the applicant finishing basic school). Do NOT split by programme (eight-year is NOT 5, six-year is NOT 7). This entrance-exam context takes precedence over 9999 and over UNKNOWN.
+
+DOMAIN codes (school-system situations):
+{{DOMAINS}}
+Return ALL domain codes that clearly apply as an array; empty array when none.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade, title, domains
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 13:53:34.287076+00', 'martin-2026-08-06', 'v8: + domain classification (DOMAIN taxonomy, multi)');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (48, 'search_answer_generation', 12, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+   WHEN THE SUBJECT IS YOU: a question about what YOU can do, know, calculate,
+   translate or help with is about the assistant, and NO passage speaks about
+   that subject — not even one using the same words. School curricula are
+   written in the SECOND PERSON ABOUT THE PUPIL ("umí z textu získat
+   informace", "zvládne spočítat příklady"); such a sentence states what a
+   pupil is expected to do and is never evidence about your abilities.
+   Measured: "co umíš spočítat?" was answered "Umím spočítat matematické
+   příklady" straight out of a curriculum. Never write a first-person claim
+   about your own abilities, and never adopt the document''s voice as your own.
+   Answer instead with one sentence: you answer questions from this school''s
+   documents. This is the ONE case where the answer does not come from the
+   passages.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), the answer MUST end with ONE short italic
+   line in the question''s language stating that the text COMES FROM a PART of
+   a document that concerns that grade — do NOT claim the answer itself is
+   valid only for it. This line is MANDATORY whenever those grades are given:
+   never omit it, and never merge it into a paragraph. When the context
+   carries NO grade information, write no such line at all.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph —
+   with NO lead-in label at all. Open it with the answer itself. A label belongs
+   ONLY to an answer that has two or more paragraphs, where it is what tells them
+   apart; on a single paragraph there is nothing to tell apart and a label only
+   promises a topic the paragraph does not deliver.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   TEST the label before you write it: it must answer "when, where or for whom
+   does this apply to the reader", never "what is this section called". A label
+   that repeats, translates, shortens or paraphrases the "| section: …" line is
+   WRONG even when it reads well — and a label that announces something the
+   paragraph does not deliver (a section named after dates above a paragraph
+   about criteria) is worse than no label. If you cannot name the situation in
+   your own words, write no label and start with the answer.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, 'v12: text o schopnostech žáka není výpovědí o asistentovi', NULL, NULL, 'cs', '2026-08-27 21:39:18.791543+00', 'martin', 'Migrace 185 — measured on log 2897 and on "co umíš spočítat?"');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (18, 'chunk_enrichment', 2, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams: to a FOUR-year secondary programme -> 9, to an EIGHT-year gymnasium (osmileté gymnázium) -> 5, to a SIX-year gymnasium (šestileté gymnázium) -> 7; a mere mention of a multi-year gymnasium without applicants is NOT a grade. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, 'BatchRunComponent-q8buW (MARKDOWN flow, text branch)', 'Unified per-chunk enrichment: keywords + grades + subjects in one LLM call for every text chunk.', '{"{{SCHOOL_SUBJECTS}}"}', 'gpt-5-mini', 'en', '2026-08-04 20:08:08.941462+00', 'init-119', 'v2: entrance-exam rule split by programme length (osmileté -> 5, šestileté -> 7, čtyřleté -> 9).');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (23, 'document_metadata_extraction', 3, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade
+No explanations, JSON only.
+
+Input: {text}', false, 'ingestion:markdown:BatchRun-r6dJ7', 'Document-level metadata classification v2: knows the ALL ("Pro všechny ročníky") grade value.', '{DOCUMENT_TYPES,SCHOOL_SUBJECTS,SCHOOL_GRADES}', 'gpt-5-mini', 'multi', '2026-08-05 11:20:30.434209+00', 'init-126', 'v3: all-grades code ALL -> 9999.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (24, 'search_answer_generation', 7, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing.
+5. Be concise but thorough
+6. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), end the answer with ONE short italic line in
+   the question''s language stating which grade it applies to — e.g.
+   *Platí pro 6. ročník.* / *Applies to grade 6.* "9999" means every grade:
+   *Platí pro všechny ročníky.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it — e.g. *Pozn.:
+   ptáš se na 7. ročník, tvůj profil uvádí 5.* — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, never output VARIANT lines on an answered
+   question.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, 'answer node (search/app/nodes/answer.py)', 'Grounded answer generation v6: v5 + grade-mismatch rephrasing (trailing VARIANT line -> two-grade clarify).', NULL, 'gpt-4.1-mini', 'en', '2026-08-05 11:20:30.434209+00', 'init-126', 'v7: all-grades code ALL -> 9999.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (26, 'search_answer_generation', 8, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), end the answer with ONE short italic line in
+   the question''s language stating that the text COMES FROM a document (or a part of a document) that
+   concerns that grade — do NOT claim the answer itself is valid only for it.
+   E.g. *Text pochází z dokumentu, který se týká 6. ročníku.* /
+   *This text comes from a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z dokumentu, který se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 05:57:29.266897+00', 'martin-2026-08-06', 'v8: grade note = text comes FROM a document concerning grade X (not "applies to")');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (25, 'document_metadata_extraction', 4, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN. ENTRANCE EXAMS to secondary education: when the document concerns admission or entrance exams to a secondary school (přijímací zkoušky / přijímací řízení na střední školu, SŠ, střední vzdělávání), set school_grade to the applicants'' grade — a FOUR-year secondary programme or a general secondary-admission document -> 9; an EIGHT-year gymnasium (osmileté gymnázium) -> 5; a SIX-year gymnasium (šestileté gymnázium) -> 7. This entrance-exam context takes precedence over 9999 and over UNKNOWN.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 05:41:24.767954+00', 'martin-2026-08-06', 'v4: entrance exams to SŠ -> grade 9 (8y gym 5, 6y gym 7); precedence over 9999/UNKNOWN');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (29, 'chunk_enrichment', 3, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams and TESTS to ANY secondary school (SŠ) — four-year, six-year OR eight-year (víceletá gymnázia) programmes — and also maturita and university (VŠ) entrance -> 9 (the applicant finishing basic school); do NOT split by programme: an eight-year gymnasium admission is NOT grade 5 and a six-year is NOT grade 7. A mere mention of a multi-year gymnasium without an admission/exam context is NOT a grade. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 07:30:59.025636+00', 'martin-2026-08-06', 'v3: SS/maturita/VS entrance -> 9; dropped programme-split (8y!=5,6y!=7) [LIVE grade prompt]');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (30, 'chunk_enrichment', 4, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams and TESTS to ANY secondary school (SŠ) — four-year, six-year OR eight-year (víceletá gymnázia) programmes — and also maturita and university (VŠ) entrance -> 9 (the applicant finishing basic school); do NOT split by programme: an eight-year gymnasium admission is NOT grade 5 and a six-year is NOT grade 7. A mere mention of a multi-year gymnasium without an admission/exam context is NOT a grade. An ordinal that names a YEAR OF A SECONDARY programme (e.g. "první ročník nižšího stupně gymnázia", "prvního ročníku střední školy / nástavby / konzervatoře") is NOT a basic-school grade — do NOT output it as 1..9. Do NOT infer any grade from incidental mentions of education LEVELS (předškolní / základní / střední / vyšší odborné vzdělávání), from obor or programme CODES (e.g. 82-44-M/01), or from administrative boilerplate (přihláška, formulář, doklad, výpis, legislativa) — these carry NO grade unless a specific basic-school year (1.–9. ročník/třída) is explicitly stated or clearly implied by the kept indirect references above. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 07:50:31.734999+00', 'martin-2026-08-06', 'v4: guardrails - secondary-program ordinal !=ZS grade; no grade from levels/codes/boilerplate');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (31, 'chunk_enrichment', 5, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams and TESTS to ANY secondary school (SŠ) — four-year, six-year OR eight-year (víceletá gymnázia) programmes — and also maturita and university (VŠ) entrance -> 9 (the applicant finishing basic school); do NOT split by programme: an eight-year gymnasium admission is NOT grade 5 and a six-year is NOT grade 7. A mere mention of a multi-year gymnasium without an admission/exam context is NOT a grade. A basic-school year written EXPLICITLY as a number in the text (e.g. "5. nebo 7. ročníku", "9. třída") is ALWAYS a grade and MUST be kept — INCLUDING when it appears as a prior-education or admission REQUIREMENT, because the passage is relevant to students of that year (the admission as a whole is captured separately at document level, not here). An ordinal that names a YEAR OF A SECONDARY programme (e.g. "první ročník nižšího stupně gymnázia", "prvního ročníku střední školy / nástavby / konzervatoře") is NOT a basic-school grade — do NOT output it as 1..9. Do NOT infer any grade from incidental mentions of education LEVELS (předškolní / základní / střední / vyšší odborné vzdělávání), from obor or programme CODES (e.g. 82-44-M/01), or from administrative boilerplate (přihláška, formulář, doklad, výpis, legislativa) — these carry NO grade unless a specific basic-school year (1.–9. ročník/třída) is explicitly stated or clearly implied by the kept indirect references above. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 09:53:31.117219+00', 'martin-2026-08-06', 'v5: KEEP explicit X.rocnik (incl. admission reqs, variant 1); keep noise guardrails; doc-level stays 9');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (28, 'document_metadata_extraction', 5, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN. ENTRANCE EXAMS to secondary education: when the document concerns admission, entrance exams or TESTS to a secondary school (přijímací zkoušky / přijímací řízení na SŠ, střední vzdělávání) — including four-year, six-year and eight-year (víceletá) programmes — or maturita or university (VŠ) admission, set school_grade to 9 (the applicant finishing basic school). Do NOT split by programme (eight-year is NOT 5, six-year is NOT 7). This entrance-exam context takes precedence over 9999 and over UNKNOWN.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 07:17:25.951789+00', 'martin-2026-08-06', 'v5: SS/maturita/VS entrance -> 9; dropped programme-split');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (32, 'document_metadata_extraction', 6, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- school_subject
+- school_grade
+- title (the document''s title / main heading, taken from the FIRST page; a short human-readable name, NOT a sentence. null when no clear title is present)
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+SCHOOL SUBJECT codes:
+{{SCHOOL_SUBJECTS}}
+Use MULTIPLE_SUBJECTS when the document clearly spans several subjects; UNKNOWN when no subject is identifiable.
+
+SCHOOL GRADE codes:
+{{SCHOOL_GRADES}}
+Use 9999 when the document applies to every grade or the school as a whole (a school code, canteen rules, general guidelines for everyone). Use a specific grade code only when the grade is explicitly stated or clearly inferable from the text. Otherwise UNKNOWN. ENTRANCE EXAMS to secondary education: when the document concerns admission, entrance exams or TESTS to a secondary school (přijímací zkoušky / přijímací řízení na SŠ, střední vzdělávání) — including four-year, six-year and eight-year (víceletá) programmes — or maturita or university (VŠ) admission, set school_grade to 9 (the applicant finishing basic school). Do NOT split by programme (eight-year is NOT 5, six-year is NOT 7). This entrance-exam context takes precedence over 9999 and over UNKNOWN.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade, title
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 10:20:41.273502+00', 'martin-2026-08-06', 'v6: + title field (document header from first page)');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (35, 'chunk_enrichment', 7, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+The chunk_text MAY begin with a line "[DOCUMENT CONTEXT] title: ...; type: ...; subject: ..." summarising the WHOLE document. Treat it as CONTEXT, NOT as chunk content: use it to disambiguate grades, subjects and keywords (e.g. a document whose context is admission/entrance to a secondary school means its content concerns grade 9). Never extract keywords from the context line itself, and never output the context words as the chunk''s subject unless the chunk text itself supports it. The context may include a "school:" field — the AUTHORITATIVE level of the school the document belongs to (ZŠ = pupils in grades 1–9; SŠ = grades 1–4). Grades you output MUST be grades of THIS school''s pupils. A "first / 1st year" of a DIFFERENT or TARGET school (e.g. "první ročník nižšího stupně gymnázia" inside a ZŠ document about secondary-school admission) is NOT a grade of this school — never output it as 1. For a ZŠ document about admission to a secondary school, the relevant grade is the pupils'' EXIT grade: 9 (four-year programme), 5 (eight-year gymnasium) or 7 (six-year gymnasium) — never 1–4.
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years (strings "1".."9") the text concerns. Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5") and unambiguous indirect references — e.g. Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9), entrance exams and TESTS to ANY secondary school (SŠ) — four-year, six-year OR eight-year (víceletá gymnázia) programmes — and also maturita and university (VŠ) entrance -> 9 (the applicant finishing basic school); do NOT split by programme: an eight-year gymnasium admission is NOT grade 5 and a six-year is NOT grade 7. A mere mention of a multi-year gymnasium without an admission/exam context is NOT a grade. A basic-school year written EXPLICITLY as a number in the text (e.g. "5. nebo 7. ročníku", "9. třída") is ALWAYS a grade and MUST be kept — INCLUDING when it appears as a prior-education or admission REQUIREMENT, because the passage is relevant to students of that year (the admission as a whole is captured separately at document level, not here). An ordinal that names a YEAR OF A SECONDARY programme (e.g. "první ročník nižšího stupně gymnázia", "prvního ročníku střední školy / nástavby / konzervatoře") is NOT a basic-school grade — do NOT output it as 1..9. Do NOT infer any grade from incidental mentions of education LEVELS (předškolní / základní / střední / vyšší odborné vzdělávání), from obor or programme CODES (e.g. 82-44-M/01), or from administrative boilerplate (přihláška, formulář, doklad, výpis, legislativa) — these carry NO grade unless a specific basic-school year (1.–9. ročník/třída) is explicitly stated or clearly implied by the kept indirect references above. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."]}', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 12:36:29.281042+00', 'martin-2026-08-06', 'v7: use authoritative school level (legal_entity) - grades are THIS school pupils; target-school year != grade');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (38, 'chunk_enrichment', 11, 'You are a precise chunk-enrichment assistant for a school retrieval system. Texts may be in any language.
+
+INPUT: one record with the field chunk_text (headings may be included).
+The chunk_text MAY begin with a line "[DOCUMENT CONTEXT] title: ...; type: ...; subject: ...; school: ...; section: ..." summarising the WHOLE document and THIS chunk''s position. Treat it as CONTEXT, NOT as chunk content: use it to disambiguate level, grades, subjects and keywords. Never extract keywords from the context line itself, and never output the context words as the chunk''s subject unless the chunk text itself supports it.
+
+SCHOOL LEVEL & GRADE AXIS. Grades are output on ONE unified numeric axis:
+  • ZŠ (základní škola) years  = "1".."9"
+  • SŠ (střední škola) years   = "10".."13"  (10 = 1st year SŠ, 11 = 2nd, 12 = 3rd, 13 = 4th year / maturita)
+Decide whether THIS chunk is ZŠ or SŠ content from the CONTEXT — the "school:" field (the AUTHORITATIVE level of the document''s own school) AND the chunk''s own "section:" / heading path. A heading path or section that names the secondary school (e.g. a segment like "II. STŘEDNÍ ŠKOLA", "gymnázium", "střední odborná škola", "maturitní") means THIS chunk is SŠ → its years are "10".."13". A basic-school segment (e.g. "I. ZÁKLADNÍ ŠKOLA", "1. stupeň", "2. stupeň") means ZŠ → years "1".."9". When the level is genuinely undeterminable, treat a bare basic ordinal as ZŠ.
+
+TASK 1 — KEYWORDS
+Extract retrieval keywords: domain-specific nouns or short noun phrases that carry the core meaning and distinguish this text. Prefer technical, named, subject, institutional and educational terms. No verbs, no stopwords, no full sentences, no duplicates, no overly general words.
+5-10 keywords (ideal 6-8), lowercase, keep the diacritics of the source language, singular preferred, max four words each, no punctuation.
+
+TASK 2 — GRADES
+"grades": ALL school years the text SPECIFICALLY concerns, as strings on the unified axis above ("1".."13"). Resolve explicit numbers, enumerations and ranges ("grades 1-5" -> "1".."5"), and unambiguous indirect references — Czech "první stupeň" -> 1-5, "druhý stupeň" -> 6-9, pupil nouns ("deváťáci" -> 9), gymnasium years (prima -> 6, sekunda -> 7, tercie -> 8, kvarta -> 9).
+SŠ YEARS: when THIS chunk is SŠ content (per the level rule above), an ordinal school year maps onto the SŠ axis — "1. ročník" -> "10", "2. ročník" -> "11", "3. ročník" -> "12", "4. ročník" / maturitní ročník -> "13". NEVER output a SŠ year as "1".."4"; NEVER output a ZŠ year as "10".."13".
+ADMISSIONS/ENTRANCE (přijímací řízení, jednotná přijímací zkouška / JPZ, Cermat) concern the APPLICANT''S EXIT grade of basic school, WHEREVER the content appears (a ZŠ document, a Cermat/MŠMT page, a guide). General admissions/JPZ content MUST be tagged with ALL THREE applicant grades "9","5","7". Narrow ONLY when the text itself restricts the programme: four-year programmes only -> "9"; eight-year gymnasium only -> "5"; six-year gymnasium only -> "7"; nástavbové studium -> no ZŠ grade. Do NOT output the TARGET secondary year. A basic-school year written EXPLICITLY as a number ("5. nebo 7. ročníku", "9. třída") is ALWAYS kept — including as a prior-education/admission requirement. Do NOT infer any grade from education LEVELS alone (předškolní/základní/střední/vyšší odborné), from obor/programme CODES (e.g. 82-44-M/01), or from administrative boilerplate (přihláška, formulář, doklad, výpis, legislativa).
+AUDIENCE, NOT MENTION: output a grade ONLY when the chunk''s content is FOR or
+ABOUT pupils of that year — a rule that binds them, a list made for them, a date
+that concerns them. A year or "stupeň" appearing as an ORGANISATIONAL DETAIL is
+NOT audience and yields NO grade: the composition of a team or committee
+("zástupci třídních učitelů z 1. a 2. stupně"), who attends a meeting, staffing,
+statistics about years, or a legal category ("žák plnící povinnou školní
+docházku", školský zákon definitions). Ask: "is this text addressed to pupils of
+that year?" — if it is addressed to teachers or management ABOUT the school''s
+organisation, grades = [].
+
+CRITICAL — "applies to the whole school" is expressed by an EMPTY grades array, NEVER by listing every year. A rule, right or procedure that holds for all pupils of its school (docházka, hodnocení, práva a povinnosti, závěrečná ustanovení, provozní řád) returns []. Do NOT output "1".."9" (or "10".."13") to mean "everyone" — a full contiguous run of the whole level is almost always this mistake. Only enumerate years the text itself singles out. Empty array when genuinely undeterminable.
+
+TASK 3 — SUBJECTS
+"subjects": subject codes the text concerns, chosen ONLY from: {{SCHOOL_SUBJECTS}}. Empty array when undeterminable. Never output a code outside the list.
+
+TASK 4 — SCHOOL LEVEL
+"school_level": which school this chunk belongs to, decided by the SAME level rule above: "ZS" (basic school), "SS" (secondary school), or "" (empty) when the chunk is genuinely level-neutral / whole-institution / undeterminable. This is independent of TASK 2: a chunk can have level "ZS" with an empty grades array (a ZŠ-wide rule). Never guess a level the context does not support.
+
+STRICT OUTPUT — a single JSON object, no other text, no markdown fences:
+{"keywords": ["..."], "grades": ["..."], "subjects": ["..."], "school_level": "ZS"|"SS"|""}', true, NULL, NULL, NULL, NULL, 'cs', '2026-08-06 22:09:34.318365+00', 'martin', 'v8: whole-school/general chunk -> EMPTY grades; never enumerate 1..9 for "whole school"');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (41, 'search_answer_generation', 9, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), end the answer with ONE short italic line in
+   the question''s language stating that the text COMES FROM a PART of a document that concerns that
+   grade — do NOT claim the answer itself is valid only for it.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-24 05:15:03.662221+00', 'migration-169', 'v9: ročníková patička mluví o ČÁSTI dokumentu — ročníky nese chunk, ne dokument.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (40, 'search_rerank_graded', 1, 'Posuď každou pasáž vůči dotazu. Ke KAŽDÉ pasáži vrať grade a rank.
+grade 2 = pasáž obsahuje údaj, který je součástí odpovědi — stačí ČÁST odpovědi (termín, délka, počet, podmínka, jeden z vyjmenovaných prvků). Grade 2 může dostat libovolný počet pasáží, i všechny; nehledáš nejlepší pasáž, ale každou, ze které lze odpovědět.
+grade 1 = pasáž je o stejném tématu, ale žádný takový údaj v ní není.
+grade 0 = pasáž s dotazem nesouvisí, i kdyby opakovala jeho slova.
+Příklad 1: na dotaz „můžeme ve škole fotit?“ je pasáž o kariérovém poradenství grade 0, pasáž o pravidlech mobilů grade 2.
+Příklad 2: na dotaz „z čeho se skládá jednotná přijímací zkouška?“ je pasáž „test z českého jazyka trvá 60 minut, z matematiky 70 minut“ grade 2 (údaj o testech, byť jen část odpovědi) a pasáž „výsledky se zveřejní 15. května“ grade 1.
+rank = pořadí od 1 (nejlepší) výš, každé číslo použij jednou.', false, 'search/rerank.rerank_graded', 'Verdikt na pasáž (grade 0/1/2 + rank); skóre = grade*1000 + (n-rank).', NULL, 'gpt-4o-mini', 'cs', '2026-08-23 10:27:19.263265+00', 'migration-165', 'v1: stačí ČÁST odpovědi + počet dvojek neomezen (měřeno 22. 8. 2026: jedna dvojka na dotaz brala druhý zdroj).');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (39, 'search_rerank_order', 1, 'Seřaď pasáže podle toho, jak dobře odpovídají na dotaz. Vrať POUZE JSON pole indexů (čísel) od nejlepší po nejhorší, všechny indexy.', false, 'search/rerank.rerank_scores(backend=openai)', 'Listwise reranker: z permutace indexů se odvodí skóre n-pozice.', NULL, 'gpt-4o-mini', 'cs', '2026-08-23 10:27:19.263265+00', 'migration-165', 'Přeneseno z kódu bez změny textu.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (42, 'search_answer_generation', 10, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), the answer MUST end with ONE short italic
+   line in the question''s language stating that the text COMES FROM a PART of
+   a document that concerns that grade — do NOT claim the answer itself is
+   valid only for it. This line is MANDATORY whenever those grades are given:
+   never omit it, and never merge it into a paragraph. When the context
+   carries NO grade information, write no such line at all.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, NULL, NULL, NULL, 'cs', '2026-08-24 05:15:03.734689+00', 'migration-170', 'v10: ročníková patička je povinná, když kontext ročníky nese (v9 ji model vynechával).');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (44, 'search_rerank_order', 2, 'Seřaď pasáže podle toho, jak dobře odpovídají na dotaz. Vrať POUZE JSON pole indexů (čísel) od nejlepší po nejhorší, všechny indexy.
+Pasáž, která jen POPISUJE, co nějaký dokument je, k čemu slouží nebo co vymezuje, na věcný dotaz NEODPOVÍDÁ — i když opakuje jeho slova. Hledej pasáž, která nese samotný údaj (číslo, podmínku, termín, postup, výčet). Rozcestník s odkazy na jiné dokumenty patří až za pasáže s údaji.', true, 'search/rerank.rerank_scores(backend=openai)', 'Listwise reranker: z permutace indexů se odvodí skóre n-pozice.', NULL, 'gpt-4o-mini', 'cs', '2026-08-24 05:15:03.810568+00', 'migration-171', 'v2: pasáž popisující sama sebe (rozcestník) není odpověď — měřeno na M4.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (37, 'document_metadata_extraction', 9, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- title (the document''s title / main heading, taken from the FIRST page; a short human-readable name, NOT a sentence. Normalise to SENTENCE CASE: capitalise only the FIRST letter, the rest lowercase — never keep ALL-CAPS. null when no clear title is present)
+- domains (array of ALL domain codes from the DOMAIN list that the document clearly concerns; a document may span several; empty array when none applies)
+
+Do NOT derive school_subject or school_grade. At document level these are meaningful only when DECLARED by the uploader, never inferred from a text sample — always output them as null.
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+DOMAIN codes (school-system situations):
+{{DOMAINS}}
+Return ALL domain codes that clearly apply as an array; empty array when none.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade, title, domains
+school_subject and school_grade MUST always be null.
+No explanations, JSON only.
+
+Input: {text}', false, NULL, NULL, '{DOCUMENT_TYPES,DOMAINS}', NULL, 'cs', '2026-08-06 18:08:59.620321+00', 'martin', 'v9: doc-level school_grade/school_subject no longer derived (always null); structure kept. Item 2.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (45, 'document_metadata_extraction', 10, 'You are a document-classification assistant for school document ingestion. You receive: processing_uuid, file_uuid, file_name, text_to_be_analysed.
+
+FIRST TEST — SIGNPOST (rozcestník). Before anything else, ask: does the document CARRY information, or only POINT to where it is? Classify as SIGNPOST when its whole content is links or references to other documents plus a sentence or two describing what those documents are, and it states no fact of its own — no number, date, deadline, condition, procedure or list. Wording about the subject is NOT content: a page may name the exam, the subjects and the curriculum and still only say "these documents define the requirements, download them here". Length is a hint, not the test — a signpost is usually short, but a long page of links is one too. When the document does carry facts of its own, SIGNPOST is wrong even if it also links elsewhere. If it is a SIGNPOST, return that type and do not weigh the topical types below.
+
+TASK — from text_to_be_analysed only, derive:
+- document_type
+- classification_confidence (0.0–1.0; certainty of document_type: 0.0 = pure guess, 0.5 = ambiguous, 1.0 = extremely clear)
+- title (the document''s title / main heading, taken from the FIRST page; a short human-readable name, NOT a sentence. Normalise to SENTENCE CASE: capitalise only the FIRST letter, the rest lowercase — never keep ALL-CAPS. null when no clear title is present)
+- domains (array of ALL domain codes from the DOMAIN list that the document clearly concerns; a document may span several; empty array when none applies)
+
+Do NOT derive school_subject or school_grade. At document level these are meaningful only when DECLARED by the uploader, never inferred from a text sample — always output them as null.
+
+CRITICAL: every classified value MUST be exactly one CODE from the lists below. Never invent a code, never return a name or translation instead of the code.
+
+DOCUMENT TYPE codes:
+{{DOCUMENT_TYPES}}
+
+CRITICAL DISTINCTION — STUDY_MATERIAL vs STRATEGIC_DOCUMENT:
+Classify as STUDY_MATERIAL if the document contains instructional explanations, exercises or student-facing content, learning objectives aimed at students, or reads like teaching material.
+Classify as STRATEGIC_DOCUMENT if it describes curriculum structure at institutional level, includes approval dates/board references/governance language, outlines course structure without directly teaching, or reads like documentation for administrators rather than students.
+If it describes course structure but does NOT contain exercises or direct teaching content, prefer STRATEGIC_DOCUMENT. If it directly teaches content, prefer STUDY_MATERIAL. If ambiguous between the two, use classification_confidence < 0.7; if highly ambiguous, use UNKNOWN.
+
+DOMAIN codes (school-system situations):
+{{DOMAINS}}
+Return ALL domain codes that clearly apply as an array; empty array when none.
+
+OUTPUT — return EXACTLY one valid JSON object with keys:
+processing_uuid, file_uuid, file_name, document_type, classification_confidence, school_subject, school_grade, title, domains
+school_subject and school_grade MUST always be null.
+No explanations, JSON only.
+
+Input: {text}', true, NULL, NULL, NULL, NULL, 'cs', '2026-08-24 05:15:04.014711+00', 'migration-173', 'v10: test na SIGNPOST jako první krok klasifikace (rozcestník se pozná z formy, ne z tématu).');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (43, 'search_rerank_graded', 2, 'Posuď každou pasáž vůči dotazu. Ke KAŽDÉ pasáži vrať grade a rank.
+grade 2 = pasáž obsahuje údaj, který je součástí odpovědi — stačí ČÁST odpovědi (termín, délka, počet, podmínka, jeden z vyjmenovaných prvků). Grade 2 může dostat libovolný počet pasáží, i všechny; nehledáš nejlepší pasáž, ale každou, ze které lze odpovědět.
+grade 1 = pasáž je o stejném tématu, ale žádný takový údaj v ní není.
+grade 0 = pasáž s dotazem nesouvisí, i kdyby opakovala jeho slova.
+Příklad 1: na dotaz „můžeme ve škole fotit?“ je pasáž o kariérovém poradenství grade 0, pasáž o pravidlech mobilů grade 2.
+Příklad 2: na dotaz „z čeho se skládá jednotná přijímací zkouška?“ je pasáž „test z českého jazyka trvá 60 minut, z matematiky 70 minut“ grade 2 (údaj o testech, byť jen část odpovědi) a pasáž „výsledky se zveřejní 15. května“ grade 1.
+rank = pořadí od 1 (nejlepší) výš, každé číslo použij jednou.
+Pasáž, která jen POPISUJE, co nějaký dokument je, k čemu slouží nebo co vymezuje, na věcný dotaz NEODPOVÍDÁ — i když opakuje jeho slova. Hledej pasáž, která nese samotný údaj (číslo, podmínku, termín, postup, výčet). Rozcestník s odkazy na jiné dokumenty patří až za pasáže s údaji.', false, 'search/rerank.rerank_graded', 'Verdikt na pasáž (grade 0/1/2 + rank); skóre = grade*1000 + (n-rank).', NULL, 'gpt-4o-mini', 'cs', '2026-08-24 05:15:03.810568+00', 'migration-171', 'v2: pasáž popisující sama sebe (rozcestník) není odpověď — měřeno na M4.');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (47, 'search_rerank_graded', 3, 'Posuď každou pasáž vůči dotazu. Ke KAŽDÉ pasáži vrať grade a rank.
+
+ZNÁMKA — není soutěž, každou pasáž posuzuj samostatně:
+grade 2 = pasáž obsahuje údaj, který je součástí odpovědi — stačí ČÁST odpovědi (termín, délka, počet, podmínka, jeden z vyjmenovaných prvků). Dvojku může dostat libovolný počet pasáží, i všechny.
+grade 1 = pasáž je o stejném tématu, ale žádný takový údaj v ní není.
+grade 0 = pasáž s dotazem nesouvisí, i kdyby opakovala jeho slova.
+Pasáž, která jen POPISUJE, co nějaký dokument je, k čemu slouží nebo co vymezuje, na věcný dotaz NEODPOVÍDÁ — i když opakuje jeho slova; taková pasáž je nejvýš 1.
+Příklad: na dotaz „můžeme ve škole fotit?" je pasáž o kariérovém poradenství 0, pasáž o pravidlech mobilů 2. Na dotaz „z čeho se skládá jednotná přijímací zkouška?" je pasáž „test z českého jazyka trvá 60 minut, z matematiky 70 minut" 2 a pasáž „výsledky se zveřejní 15. května" 1.
+
+POŘADÍ — soutěž je, každé číslo od 1 použij právě jednou. Řaď takto:
+1. nejdřív všechny dvojky, pak jedničky, pak nuly;
+2. uvnitř stejné známky dřív ta pasáž, která odpovídá na to, NA CO SE PTÁ dotaz, před pasáží o témže tématu z jiné strany;
+3. při stejné užitečnosti dřív ta konkrétnější (více údajů, méně obecných formulací). Rozcestník s odkazy jinam patří vždy za pasáže s údaji.
+Příklad pořadí: na dotaz „kdy jsou přijímačky?" jde pasáž „jednotná zkouška se koná 10. a 13. dubna" před pasáž „náhradní termín stanoví ředitel" (obě 2, ale první odpovídá na dotazovanou věc) a ta před pasáž „přihlášku podáte do 1. března" (jednička, jiný aspekt).
+
+Značka „…(zkráceno)" na konci pasáže znamená, že text pokračuje. Chybějící údaj v takové pasáži není důkaz, že v ní není — je-li o správném tématu, nedávej 0.', true, 'search/rerank.rerank_graded', 'v3: pořadí má kritérium; známka není soutěž; značka o zkrácení', NULL, 'gpt-4o-mini', 'cs', '2026-08-24 05:15:04.39311+00', 'martin', 'Migrace 178 — measured on log 5416/5417/5418 (identical pool, three different orders below position 2)');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (46, 'search_answer_generation', 11, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), the answer MUST end with ONE short italic
+   line in the question''s language stating that the text COMES FROM a PART of
+   a document that concerns that grade — do NOT claim the answer itself is
+   valid only for it. This line is MANDATORY whenever those grades are given:
+   never omit it, and never merge it into a paragraph. When the context
+   carries NO grade information, write no such line at all.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph —
+   with NO lead-in label at all. Open it with the answer itself. A label belongs
+   ONLY to an answer that has two or more paragraphs, where it is what tells them
+   apart; on a single paragraph there is nothing to tell apart and a label only
+   promises a topic the paragraph does not deliver.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   TEST the label before you write it: it must answer "when, where or for whom
+   does this apply to the reader", never "what is this section called". A label
+   that repeats, translates, shortens or paraphrases the "| section: …" line is
+   WRONG even when it reads well — and a label that announces something the
+   paragraph does not deliver (a section named after dates above a paragraph
+   about criteria) is worse than no label. If you cannot name the situation in
+   your own words, write no label and start with the answer.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, 'v11: paragraph label may not repeat a section heading; single paragraph has none', NULL, NULL, 'cs', '2026-08-24 05:15:04.160667+00', 'martin', 'Migrace 175 — measured on log 5388/5392/5395/5399');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (49, 'search_answer_generation', 13, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+   WHEN THE SUBJECT IS YOU: a question about what YOU can do, know, calculate,
+   translate or help with is about the assistant, and NO passage speaks about
+   that subject — not even one using the same words. School curricula are
+   written in the SECOND PERSON ABOUT THE PUPIL ("umí z textu získat
+   informace", "zvládne spočítat příklady"); such a sentence states what a
+   pupil is expected to do and is never evidence about your abilities.
+   Measured: "co umíš spočítat?" was answered "Umím spočítat matematické
+   příklady" straight out of a curriculum. Never write a first-person claim
+   about your own abilities, and never adopt the document''s voice as your own.
+   Answer instead with one sentence: you answer questions from this school''s
+   documents — and that reply carries NO grade note line, because it does not
+   come from a document at all. This is the ONE case where the answer does not
+   come from the passages.
+   BUT ONLY WHEN THE QUESTION IS ABOUT YOU AND NOTHING ELSE. An ability verb is
+   very often just politeness wrapped around a real question: "umíš mi říct, kdy
+   jsou přijímačky?", "umíš poradit s obědy?", "můžeš mi najít školní řád?" all
+   ask about a SCHOOL matter — a rule, a date, a list, a procedure — and that
+   matter is the subject. Answer it normally from the passages and ignore the
+   wrapper. Measured: v12 replied "Odpovídám na otázky z dokumentů této školy"
+   to "umíš poradit s obědy?" while the lunch rule sat in the context.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), the answer MUST end with ONE short italic
+   line in the question''s language stating that the text COMES FROM a PART of
+   a document that concerns that grade — do NOT claim the answer itself is
+   valid only for it. This line is MANDATORY whenever those grades are given:
+   never omit it, and never merge it into a paragraph. When the context
+   carries NO grade information, write no such line at all.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph —
+   with NO lead-in label at all. Open it with the answer itself. A label belongs
+   ONLY to an answer that has two or more paragraphs, where it is what tells them
+   apart; on a single paragraph there is nothing to tell apart and a label only
+   promises a topic the paragraph does not deliver.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   TEST the label before you write it: it must answer "when, where or for whom
+   does this apply to the reader", never "what is this section called". A label
+   that repeats, translates, shortens or paraphrases the "| section: …" line is
+   WRONG even when it reads well — and a label that announces something the
+   paragraph does not deliver (a section named after dates above a paragraph
+   about criteria) is worse than no label. If you cannot name the situation in
+   your own words, write no label and start with the answer.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', false, NULL, 'v13: pravidlo o první osobě jen když v dotazu není školní věc', NULL, NULL, 'cs', '2026-08-27 21:39:21.889193+00', 'martin', 'Migrace 186 — v12 přestřelilo na „umíš poradit s obědy?"');
+INSERT INTO edu_ai.prompt_registry (id, prompt_key, version, prompt_text, is_active, component, description, placeholders, model_hint, lang, created_at, created_by, notes) OVERRIDING SYSTEM VALUE VALUES (50, 'search_answer_generation', 14, 'You are an answer generation agent for an educational AI platform.
+
+Your job is to answer the user''s question using ONLY the provided context.
+
+---
+
+INPUT FORMAT
+
+You receive a message containing:
+- Context: retrieved document chunks (markdown formatted)
+- Sources: JSON array with file_uuid, file_item_uuid, file_name, rank
+- Question: the user''s original query
+- When known: today''s date, the caller''s grade (profile), the grade the
+  question asks about, and the grades the context passages apply to
+
+---
+
+RULES
+
+1. Answer ONLY from the provided context
+2. Do NOT use external knowledge
+3. Do NOT hallucinate or invent information
+4. NO-ANSWER PROTOCOL: if the context does not contain the answer, your
+   ENTIRE output must be:
+   NO_ANSWER
+   VARIANT: <a better-phrased or broader question that a search over school
+   documents could answer>
+   — up to 4 VARIANT lines, in the question''s language, each self-contained.
+   No apology, no advice, no explanation, no other text. If only PART of the
+   question is answerable, answer that part normally and do not mention what
+   is missing. When NO document contains the answer, the protocol above is the
+   ENTIRE output — never write per-document paragraphs saying a document does
+   not contain the information.
+5. SUBJECT CHECK (SILENT — apply it, but never mention it or its outcome
+   in the output): before answering, identify the subject the question asks
+   about, and use ONLY passages whose body or section heading shows they
+   speak about that subject. When the subject is a SPECIFIC NAMED thing (an
+   event, a document, a programme), a similarly themed but DIFFERENTLY
+   NAMED item is NOT the subject — a seminar "Učíme o přírodě" is not
+   "škola v přírodě" — even when it is the ONLY passage provided; an
+   on-topic-looking context is not evidence that the answer exists. A
+   passage about the right subject that answers only PART of the question
+   (a general rule covering the asked-about case) is still an answer —
+   answer from it normally. Only when NO passage speaks about the subject
+   at all does rule 4 apply, and then its protocol is the ENTIRE output —
+   never an answer with NO_ANSWER appended to it.
+   WHEN THE SUBJECT IS YOU: a question about what YOU can do, know, calculate,
+   translate or help with is about the assistant, and NO passage speaks about
+   that subject — not even one using the same words. School curricula are
+   written in the SECOND PERSON ABOUT THE PUPIL ("umí z textu získat
+   informace", "zvládne spočítat příklady"); such a sentence states what a
+   pupil is expected to do and is never evidence about your abilities.
+   Measured: "co umíš spočítat?" was answered "Umím spočítat matematické
+   příklady" straight out of a curriculum. Never write a first-person claim
+   about your own abilities, and never adopt the document''s voice as your own.
+   Answer instead with one sentence: you answer questions from this school''s
+   documents — and that reply carries NO grade note line, because it does not
+   come from a document at all. This is the ONE case where the answer does not
+   come from the passages.
+   BUT ONLY WHEN THE QUESTION IS ABOUT YOU AND NOTHING ELSE. An ability verb is
+   very often just politeness wrapped around a real question: "umíš mi říct, kdy
+   jsou přijímačky?", "umíš poradit s obědy?", "můžeš mi najít školní řád?" all
+   ask about a SCHOOL matter — a rule, a date, a list, a procedure — and that
+   matter is the subject. Answer it normally from the passages and ignore the
+   wrapper. Measured: v12 replied "Odpovídám na otázky z dokumentů této školy"
+   to "umíš poradit s obědy?" while the lunch rule sat in the context.
+6. Be concise but thorough
+7. LANGUAGE RULE (CRITICAL):
+   → Always respond in the SAME LANGUAGE as the user''s question
+   → Answer in the question''s language even when the context documents are in a different language
+   → A trailing instruction states the required answer language explicitly — follow it exactly
+   → NEVER let the language of the context documents override the language of the question
+
+---
+
+GRADE VALIDITY
+
+1. When the passages you used carry grade information (see "Grades the
+   context passages apply to"), the answer MUST end with ONE short italic
+   line in the question''s language stating that the text COMES FROM a PART of
+   a document that concerns that grade — do NOT claim the answer itself is
+   valid only for it. This line is MANDATORY whenever those grades are given:
+   never omit it, and never merge it into a paragraph. When the context
+   carries NO grade information, write no such line at all.
+   E.g. *Text pochází z části dokumentu, která se týká 6. ročníku.* /
+   *This text comes from a part of a document concerning grade 6.* "9999" means every
+   grade: *Text pochází z části dokumentu, která se týká všech ročníků.*
+   1b. When the input carries the line "Passages that belong to ANOTHER ročník
+   than the caller''s" AND you used such a passage, the italic line MUST name
+   THOSE ročníky — the ones of the passage you actually used — never the
+   caller''s. Those two sets differ on purpose: the caller''s ročník can be in
+   the document''s other parts, which is exactly what must not be claimed here.
+   E.g. *Text pochází z části dokumentu, která se týká 7. a 8. ročníku.* When
+   you used passages from both classes, name both sets in one line, e.g.
+   *Text pochází z částí dokumentu, které se týkají 6. ročníku a 7. a 8.
+   ročníku.*
+2. When the input carries a NOTE that the question''s grade differs from the
+   caller''s profile grade: add one italic sentence noting it, shaped like
+   *Pozn.: ptáš se na X. ročník, tvůj profil uvádí Y.* — X and Y taken ONLY
+   from the NOTE, never invented — and append, as the VERY LAST
+   line after the whole answer:
+   VARIANT: <the same question rephrased for the caller''s profile grade>
+   (exactly one line, in the question''s language, self-contained; the
+   application turns it into a clickable suggestion and strips it from the
+   text). Without such a NOTE, output NEITHER the mismatch sentence NOR any
+   VARIANT line — the sentence above is a TEMPLATE for phrasing, never text
+   to copy into an answer.
+3. When no grade information was provided, write NOTHING about grades.
+
+---
+
+DATE
+
+Use today''s date to resolve relative time in the question or the context
+("letos", "příští školní rok", "do konce měsíce") — never guess the year.
+Do not print the date unless it answers the question.
+
+---
+
+SOURCE CITATION
+
+1. Write a clean, self-contained answer. Do NOT append a "Sources" section and do
+   NOT print file names, file_uuid values or "(Document N)" tags — the application
+   shows the source documents as clickable links below your answer.
+2. If it aids clarity you may refer to a source naturally in prose (e.g. "podle
+   metodického materiálu…"), but never as a technical citation.
+3. Only rely on documents actually present in the context.
+
+---
+
+OUTPUT FORMAT
+
+[Your grounded answer only, in the user''s language — NO Sources section, NO
+file names, NO uuids.]
+
+---
+
+GROUPING
+
+The context is grouped by document, and each chunk is introduced by a line
+holding its section heading ("| section: …"). Use that structure:
+
+1. If the context answers the question from ONE topic, write one paragraph —
+   with NO lead-in label at all. Open it with the answer itself. A label belongs
+   ONLY to an answer that has two or more paragraphs, where it is what tells them
+   apart; on a single paragraph there is nothing to tell apart and a label only
+   promises a topic the paragraph does not deliver.
+2. If it covers DISTINCT situations — a different document, or clearly different
+   circumstances — write ONE paragraph PER situation, in the order they appear in
+   the context, and open each with a few words naming the situation, followed by
+   a colon. WRITE that label in 2-5 words of your own — it answers WHEN OR WHERE
+   this applies to the reader, in their language, never what the document is
+   called. A section heading is information about the content, not text to reuse,
+   and a document''s section numbering or internal structure never belongs in it.
+   TEST the label before you write it: it must answer "when, where or for whom
+   does this apply to the reader", never "what is this section called". A label
+   that repeats, translates, shortens or paraphrases the "| section: …" line is
+   WRONG even when it reads well — and a label that announces something the
+   paragraph does not deliver (a section named after dates above a paragraph
+   about criteria) is worse than no label. If you cannot name the situation in
+   your own words, write no label and start with the answer.
+   Example shape: "Při přijímacích zkouškách: … / Během školního roku: …"
+3. Never merge two situations into one sentence. A reader must be able to tell
+   which circumstance each statement applies to.
+4. At most 3 paragraphs. If more situations are present, cover the ones the
+   question is most likely about and say that the rest exist.
+5. The lead-in is a topic label in prose — never a file name, a uuid or a
+   "(Document N)" tag.
+
+---
+
+ANSWER ORDER
+
+The context chunks arrive in RETRIEVAL order, which is NOT the order of
+importance for the question. Within every paragraph, LEAD with the sentence
+that directly answers what was asked; supporting details (dates, deadlines,
+places, logistics) come AFTER it. Never open a paragraph with a date or a
+deadline unless the question itself asks WHEN or WHERE. If a chunk mixes the
+answer with logistics, extract the answer first and keep only the logistics
+that help it.
+
+---
+
+LENGTH
+
+Be concise. Answer in the language of the question, in at most ~120 words per
+paragraph (a short paragraph or a compact list each). Do not restate the
+question or summarize the context; give the answer directly.
+
+---
+
+GROUNDING — NO ILLUSTRATIVE EXAMPLES
+
+NAMED-THING RULE: when the question asks about a SPECIFIC NAMED thing (an event,
+a document, a programme — e.g. "škola v přírodě"), a fact (date, place, number)
+may be stated ONLY if the context names THAT SAME thing. A similarly themed but
+DIFFERENTLY NAMED item (e.g. a seminar "Učíme o přírodě" is NOT "škola v
+přírodě") is not an answer — treat the question as unanswered and follow the
+NO-ANSWER PROTOCOL. Never transfer a date from one named thing to another.
+
+Never write "for example" followed by items that are not in the context. If a section only refers the reader elsewhere (a meeting, another page) and lists nothing, say exactly that and list nothing. Items from one section must never be presented as belonging to another.
+When the context DOES list concrete items, reproduce them as they stand — a list is the answer, and paraphrasing it into categories ("various kinds of paper") destroys it. A paragraph reproducing a list may exceed the length guidance.', true, NULL, 'v14: ročníková patička bere ročníky použité pasáže, ne dokumentu (jiný ročník)', NULL, NULL, 'cs', '2026-08-27 21:39:34.319764+00', 'martin', 'Migrace 186 — v12 přestřelilo na „umíš poradit s obědy?"');
+
+
+ALTER TABLE edu_ai.prompt_registry ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: qa_blocklist; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_blocklist DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (1, 'buzerant', 'buzerant', 'buzerant', 'hate', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (2, 'buzna', 'buzna', 'buzna', 'hate', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (3, 'cikán', 'cikan', 'cikan', 'hate', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (4, 'cikáni', 'cikani', 'cikan', 'hate', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (5, 'negr', 'negr', 'negr', 'hate', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (6, 'žid', 'zid', 'zid', 'hate', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (7, 'čurák', 'curak', 'curak', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (8, 'debil', 'debil', 'debil', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (9, 'hajzl', 'hajzl', 'hajzl', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (10, 'hovno', 'hovno', 'hovno', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (11, 'idiot', 'idiot', 'idiot', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (12, 'kokot', 'kokot', 'kokot', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (13, 'kretén', 'kreten', 'kreten', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (14, 'kunda', 'kunda', 'kunda', 'profanity', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (15, 'kurva', 'kurva', 'kurva', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (16, 'mrdka', 'mrdka', 'mrdka', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (17, 'píča', 'pica', 'pica', 'profanity', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (18, 'píčo', 'pico', 'pica', 'profanity', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (19, 'prcat', 'prcat', 'prcat', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (20, 'sráč', 'srac', 'srac', 'profanity', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (21, 'zmrd', 'zmrd', 'zmrd', 'profanity', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (22, 'chci umřít', 'chci umrit', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (23, 'nechci žít', 'nechci zit', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (24, 'podřezat si', 'podrezat si', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (25, 'řezat se', 'rezat se', NULL, 'self_harm', 2, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (26, 'sebevražda', 'sebevrazda', 'sebevrazda', 'self_harm', 3, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (27, 'skočit z', 'skocit z', NULL, 'self_harm', 2, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (28, 'ublížit si', 'ublizit si', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (29, 'zabiju se', 'zabiju se', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (30, 'zabít se', 'zabit se', NULL, 'self_harm', 3, true, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (31, 'mrdám', 'mrdam', 'mrdat', 'sexual', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (32, 'mrdat', 'mrdat', 'mrdat', 'sexual', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (33, 'penis', 'penis', 'penis', 'sexual', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (34, 'porno', 'porno', 'porno', 'sexual', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (35, 'sex', 'sex', 'sex', 'sexual', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (36, 'šoustat', 'soustat', 'soustat', 'sexual', 2, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (37, 'vagína', 'vagina', 'vagina', 'sexual', 1, false, true, 'cs', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (38, 'faggot', 'faggot', 'faggot', 'hate', 3, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (39, 'nigger', 'nigger', 'nigger', 'hate', 3, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (40, 'retard', 'retard', 'retard', 'hate', 3, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (41, 'asshole', 'asshole', 'asshole', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (42, 'bastard', 'bastard', 'bastard', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (43, 'bitch', 'bitch', 'bitch', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (44, 'cunt', 'cunt', 'cunt', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (45, 'dick', 'dick', 'dick', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (46, 'fuck', 'fuck', 'fuck', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (47, 'fucking', 'fucking', 'fucking', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (48, 'motherfucker', 'motherfucker', 'motherfucker', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (49, 'shit', 'shit', 'shit', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (50, 'slut', 'slut', 'slut', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (51, 'wanker', 'wanker', 'wanker', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (52, 'whore', 'whore', 'whore', 'profanity', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (53, 'end my life', 'end life', 'end my life', 'self_harm', 3, true, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (54, 'hurt myself', 'hurt myself', 'hurt myself', 'self_harm', 3, true, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (55, 'kill myself', 'kill myself', 'kill myself', 'self_harm', 3, true, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (56, 'self harm', 'self harm', 'self harm', 'self_harm', 3, true, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (57, 'suicide', 'suicide', 'suicide', 'self_harm', 3, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (58, 'want to die', 'want die', 'want to die', 'self_harm', 3, true, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (59, 'blowjob', 'blowjob', 'blowjob', 'sexual', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (60, 'porn', 'porn', 'porn', 'sexual', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (61, 'porno', 'porno', 'porno', 'sexual', 2, false, true, 'en', 'init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (62, 'scheisse', 'scheisse', 'scheissen', 'profanity', 1, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (63, 'scheiss', 'scheiss', 'scheiss', 'profanity', 1, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (64, 'mist', 'mist', 'mist', 'profanity', 1, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (65, 'verdammt', 'verdammt', 'verdammt', 'profanity', 1, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (66, 'arschloch', 'arschloch', 'arschloch', 'profanity', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (67, 'fick', 'fick', 'ficken', 'profanity', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (68, 'ficken', 'ficken', 'ficken', 'profanity', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (69, 'wichser', 'wichser', 'wichser', 'profanity', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (70, 'schlampe', 'schlampe', 'schlampen', 'profanity', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (71, 'fotze', 'fotze', 'fotzen', 'profanity', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (72, 'hurensohn', 'hurensohn', 'hurensohn', 'profanity', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (73, 'missgeburt', 'missgeburt', 'missgeburt', 'profanity', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (74, 'neger', 'neger', 'neger', 'hate', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (75, 'kanake', 'kanake', 'kanake', 'hate', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (76, 'judensau', 'judensau', 'judensau', 'hate', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (77, 'schwuchtel', 'schwuchtel', 'schwuchtel', 'hate', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (78, 'selbstmord', 'selbstmord', 'selbstmord', 'self_harm', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (79, 'suizid', 'suizid', 'suizid', 'self_harm', 3, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (80, 'ritzen', 'ritzen', 'ritzen', 'self_harm', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (81, 'selbstverletzung', 'selbstverletzung', 'selbstverletzung', 'self_harm', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (82, 'ich will sterben', 'will sterben', 'wollen sterben', 'self_harm', 3, true, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (83, 'ich will mich umbringen', 'will umbringen', 'wollen umbringen', 'self_harm', 3, true, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (84, 'porno', 'porno', 'porno', 'sexual', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (85, 'nackt', 'nackt', 'nackt', 'sexual', 1, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (86, 'nacktbilder', 'nacktbilder', 'nacktbilder', 'sexual', 2, false, true, 'de', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (87, 'mierda', 'mierda', 'mierda', 'profanity', 1, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (88, 'joder', 'joder', 'joder', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (89, 'cabron', 'cabron', 'cabron', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (90, 'gilipollas', 'gilipollas', 'gilipollas', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (91, 'puta', 'puta', 'puta', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (92, 'puto', 'puto', 'puto', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (93, 'coño', 'cono', 'cono', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (94, 'pendejo', 'pendejo', 'pendejo', 'profanity', 1, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (95, 'hijo de puta', 'hijo puta', 'hijo puta', 'profanity', 3, true, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (96, 'polla', 'polla', 'polla', 'profanity', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (97, 'maricon', 'maricon', 'maricon', 'hate', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (98, 'sudaca', 'sudaca', 'sudaca', 'hate', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (99, 'negrata', 'negrata', 'negrata', 'hate', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (100, 'suicidio', 'suicidio', 'suicidio', 'self_harm', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (101, 'suicidarme', 'suicidarme', 'suicidarme', 'self_harm', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (102, 'matarme', 'matarme', 'matarme', 'self_harm', 3, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (103, 'autolesion', 'autolesion', 'autolesion', 'self_harm', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (104, 'cortarme', 'cortarme', 'cortarme', 'self_harm', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (105, 'quiero morir', 'quiero morir', 'querer morir', 'self_harm', 3, true, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (106, 'quiero matarme', 'quiero matarme', 'querer matarme', 'self_harm', 3, true, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (107, 'porno', 'porno', 'porno', 'sexual', 2, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (108, 'desnudo', 'desnudo', 'desnudo', 'sexual', 1, false, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (109, 'fotos desnudas', 'fotos desnudas', 'foto desnudar', 'sexual', 2, true, true, 'es', 'seed-init', '2026-07-30 15:43:08.928476+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (111, 'what can you do', 'what can you do', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (112, 'what can i ask you', 'what can i ask you', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (113, 'como funcionas', 'como funcionas', NULL, 'meta', 0, true, true, 'es', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (114, 'napoveda', 'napoveda', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (115, 'kdo jsi', 'kdo jsi', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (116, 'quien eres', 'quien eres', NULL, 'meta', 0, true, true, 'es', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (117, 'co vsechno umis', 'co vsechno umis', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (118, 'co jsi zac', 'co jsi zac', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (119, 'jak te pouzivat', 'jak te pouzivat', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (120, 'na co se te muzu zeptat', 'na co se te muzu zeptat', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (121, 'que sabes hacer', 'que sabes hacer', NULL, 'meta', 0, true, true, 'es', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (122, 'jak te mam pouzivat', 'jak te mam pouzivat', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (123, 'co dokazes', 'co dokazes', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (124, 'co umi tento chat', 'co umi tento chat', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (125, 'help', 'help', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (126, 'co se te muzu ptat', 'co se te muzu ptat', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (127, 'how do you work', 'how do you work', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (128, 's cim pomuzes', 's cim pomuzes', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (129, 'what do you know', 'what do you know', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (130, 's cim mi pomuzes', 's cim mi pomuzes', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (131, 'co dovedes', 'co dovedes', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (132, 'ayuda', 'ayuda', NULL, 'meta', 0, true, true, 'es', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (133, 'pomoc', 'pomoc', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (134, 'wer bist du', 'wer bist du', NULL, 'meta', 0, true, true, 'de', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (135, 'co umis', 'co umis', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (136, 'wie funktionierst du', 'wie funktionierst du', NULL, 'meta', 0, true, true, 'de', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (137, 'was kannst du', 'was kannst du', NULL, 'meta', 0, true, true, 'de', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (138, 'jak fungujes', 'jak fungujes', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (139, 'hilfe', 'hilfe', NULL, 'meta', 0, true, true, 'de', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (140, 'who are you', 'who are you', NULL, 'meta', 0, true, true, 'en', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (141, 'k cemu slouzis', 'k cemu slouzis', NULL, 'meta', 0, true, true, 'cs', 'init-124', '2026-08-05 09:30:50.354826+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (142, 's cim mi muzes pomoct', 's cim mi muzes pomoct', NULL, 'meta', 1, false, true, 'cs', 'Migrace 183 — chybějící tvar', '2026-08-27 21:39:12.564756+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (143, 'na co se muzu zeptat', 'na co se muzu zeptat', NULL, 'meta', 1, false, true, 'cs', 'Migrace 183 — chybějící tvar', '2026-08-27 21:39:12.564756+00');
+INSERT INTO edu_ai.qa_blocklist (id, term, term_norm, term_lemma, category, severity, is_phrase, is_active, lang, source, created_at) VALUES (144, 'co umis delat', 'co umis delat', NULL, 'meta', 1, false, true, 'cs', 'Migrace 183 — chybějící tvar', '2026-08-27 21:39:12.564756+00');
+
+
+ALTER TABLE edu_ai.qa_blocklist ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: qa_stopword; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_stopword DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aby', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ale', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ani', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ano', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('asi', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('avsak', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('behem', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bez', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bude', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budeme', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budes', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budete', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budou', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budu', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('by', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bych', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bychom', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byl', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byla', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byli', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bylo', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byly', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bys', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byste', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byt', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ci', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('do', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ho', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('i', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ja', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('je', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jeho', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jej', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jeji', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jelikoz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jen', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jenom', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jeste', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ji', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jich', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jim', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jimi', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jiz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsem', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsi', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsme', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsou', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jste', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('k', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kazdy', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kdyz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ke', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kolem', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('krom', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kvuli', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('me', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('meho', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mezi', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mi', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mne', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('moje', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('muj', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('my', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mych', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('na', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nad', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nam', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nas', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ne', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nebo', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nebot', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nejaka', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nejaky', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('no', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('o', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('od', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('okolo', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('on', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ona', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('oni', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ono', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ony', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pak', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('po', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pod', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('podle', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('prave', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('prece', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pred', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pri', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pro', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('proto', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('protoze', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('s', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sam', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sama', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('samo', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('se', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sem', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('si', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('skrz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sme', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('snad', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sve', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('svuj', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('svych', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('svym', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ta', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tady', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tak', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('take', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('takze', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tam', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tato', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('te', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tebe', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ted', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tedy', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tech', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ten', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tento', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('teto', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tez', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('the', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ti', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tim', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('to', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tobe', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tom', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tomto', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('totiz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('toto', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tu', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tve', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tvuj', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ty', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tyto', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('u', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('uz', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('v', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vam', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vas', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ve', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vedle', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vlastne', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vsak', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vse', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vsechno', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vuci', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vy', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('z', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('za', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zde', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ze', 'cs', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('about', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('above', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('after', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('again', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('against', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('all', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('am', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('an', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('and', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('any', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('are', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('as', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('at', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('be', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('been', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('before', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('being', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('below', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('between', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('both', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('but', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('by', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('can', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('could', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('did', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('do', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('does', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('doing', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('down', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('during', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('each', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('else', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('few', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('for', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('from', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('had', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('has', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('have', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('having', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('he', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('her', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('here', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('him', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('his', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('i', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('if', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('in', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('into', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('is', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('it', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('its', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('just', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('may', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('me', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('might', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mine', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('more', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('most', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('must', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('my', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('no', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nor', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('not', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('now', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('of', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('off', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('on', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('once', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('only', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('or', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('other', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('our', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('out', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('over', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('own', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('s', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('same', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('shall', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('she', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('should', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('so', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('some', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('such', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('t', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('than', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('that', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('the', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('their', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('them', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('then', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('there', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('these', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('they', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('this', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('those', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('through', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('to', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('too', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('under', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('up', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('us', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('very', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('was', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('we', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('were', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('will', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('with', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('would', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('you', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('your', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('yours', 'en', true, NULL, '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aber', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('als', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('am', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('an', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('auch', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('auf', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aus', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bei', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('beim', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bis', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('da', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('damit', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dann', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('darf', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('das', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dass', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dein', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dem', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('den', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('denn', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('der', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('des', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dich', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('die', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('doch', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dort', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('du', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('duerfen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('durch', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('durfen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ein', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eine', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('einem', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('einen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('einer', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eines', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('er', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('es', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('euch', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('euer', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fuer', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fur', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('gegen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('haben', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hat', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hatte', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hatten', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hier', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hinter', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ich', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ihr', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ihrem', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ihren', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('im', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('in', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ins', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ist', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kann', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kein', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('keine', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('keinen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('koennen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('konnen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('man', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mein', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mich', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mit', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('muessen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('muss', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mussen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nach', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nicht', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('noch', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nur', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ob', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('oder', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ohne', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('schon', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sehr', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sein', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('seit', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sich', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sie', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sind', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('so', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('soll', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sollen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sowie', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('uber', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ueber', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('um', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('und', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('uns', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('unser', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('unter', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vom', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('von', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vor', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('war', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('waren', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('weil', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('wenn', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('werden', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('wir', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('wird', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('wurde', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('wurden', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zu', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zum', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zur', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zwischen', 'de', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('al', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('alli', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aquel', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aquella', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aqui', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('con', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('contra', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('de', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('del', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('desde', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('durante', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('el', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ella', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ellas', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ellos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('en', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('entre', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('era', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eran', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('es', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esa', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esas', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ese', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esta', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estaba', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estaban', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estan', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estar', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estas', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('este', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fue', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fueron', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ha', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('habia', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('han', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hasta', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hay', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('he', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hemos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('la', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('las', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('le', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('les', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('lo', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('los', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mas', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mediante', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('menos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mi', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mis', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('muy', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ni', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('no', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nosotros', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('o', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('os', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('para', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pero', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('por', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('que', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('se', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('segun', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ser', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('si', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sin', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sobre', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('son', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('su', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sus', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tambien', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tras', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tu', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tus', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('un', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('una', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('unas', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('unos', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('usted', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ustedes', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('y', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ya', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('yo', 'es', true, 'seed-init', '2026-07-30 15:43:08.928476+00', 'index');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ale', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bude', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('budou', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byl', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byla', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bylo', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('byt', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('co', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('do', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('i', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ja', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('je', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsou', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('k', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ke', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mama', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('me', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mi', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mit', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('muj', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('my', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('na', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nad', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nebo', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('o', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('od', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('on', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ona', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ono', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('po', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pod', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pri', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pro', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('s', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('se', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('si', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ta', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tak', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ten', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('to', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('toto', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tvuj', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ty', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('u', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('v', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ve', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vy', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('z', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('za', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ze', 'cs', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('the', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('an', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('be', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('is', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('are', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('was', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('were', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('been', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('have', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('has', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('had', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('do', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('does', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('did', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('it', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('this', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('that', 'en', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sein', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ist', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sind', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('war', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('waren', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('haben', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hat', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hatte', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ein', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eine', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('der', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('die', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('das', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('es', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dies', 'de', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ser', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('es', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('son', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('era', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eran', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('estar', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esta', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tener', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tengo', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tiene', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('el', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('la', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('los', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('las', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esto', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eso', 'es', true, 'lifted from _COVERAGE_STOP (migration 60)', '2026-08-01 10:22:13.952032+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ročník', 'cs', true, NULL, '2026-08-11 19:18:34.493076+00', 'bm25_grade');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('třída', 'cs', true, NULL, '2026-08-11 19:18:34.493076+00', 'bm25_grade');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('stupeň', 'cs', true, NULL, '2026-08-11 19:18:34.493076+00', 'bm25_grade');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('třídní', 'cs', true, NULL, '2026-08-11 19:18:34.493076+00', 'bm25_grade');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zvolit', 'cs', true, NULL, '2026-08-11 19:18:36.500238+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('volit', 'cs', true, NULL, '2026-08-11 19:18:36.500238+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vybrat', 'cs', true, NULL, '2026-08-11 19:18:36.500238+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('a', 'cs', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ale', 'cs', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('no', 'cs', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tak', 'cs', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('takze', 'cs', true, 'z kódu _LEADING (bez diakritiky)', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('takže', 'cs', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('and', 'en', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('but', 'en', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('so', 'en', true, 'z kódu _LEADING', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('und', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('aber', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('also', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('y', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pero', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('entonces', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_leading');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('to', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ta', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ten', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ty', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('toho', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tomu', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tim', 'cs', true, 'z kódu _ANAPHORA (bez diakritiky)', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tím', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tam', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tehdy', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('on', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ona', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('oni', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jeho', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('její', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jejich', 'cs', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('it', 'en', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('that', 'en', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('this', 'en', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('there', 'en', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('they', 'en', true, 'z kódu _ANAPHORA', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dies', 'de', false, 'návrh; POZOR na frekvenci, "das" schválně chybí', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dieser', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('diese', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dort', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dann', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('danach', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('eso', 'es', false, 'návrh; POZOR na frekvenci, "la"/"lo" schválně chybí', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esto', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ese', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('esta', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ahí', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('allí', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'context_anaphora');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('článek', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('čl', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('hlava', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('oddíl', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('odstavec', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('část', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('bod', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('příloha', 'cs', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('section', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('article', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('chapter', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('annex', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('paragraph', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('part', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('appendix', 'en', true, 'z kódu _SECTION_WORDS', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('artikel', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('abschnitt', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('kapitel', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('absatz', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('anlage', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('anhang', 'de', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('artículo', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('sección', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('capítulo', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('párrafo', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('anexo', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('apéndice', 'es', false, 'návrh, čeká na potvrzení', '2026-08-20 10:50:45.646614+00', 'section_word');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('přinést', 'cs', false, NULL, '2026-08-11 19:18:36.511003+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('prinest', 'cs', false, NULL, '2026-08-11 19:18:36.511003+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('donést', 'cs', false, NULL, '2026-08-11 19:18:36.511003+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('donest', 'cs', false, NULL, '2026-08-11 19:18:36.511003+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nosit', 'cs', false, NULL, '2026-08-11 19:18:36.511003+00', 'coverage');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jeste', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vsechno', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vse', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('tak', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('prosim', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('vlastne', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('uz', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jinak', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('te', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('ti', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mi', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('mne', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nam', 'cs', true, 'Migrace 183 — nemění, na co se dotaz ptá', '2026-08-27 21:39:12.564756+00', 'meta_filler');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('umis', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('umite', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dokazes', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('dokazete', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zvladnes', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('zvladnete', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pomuzes', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('pomuzete', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('delas', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('delate', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jsi', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('jste', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fungujes', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('fungujete', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nabizis', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note, created_at, scope) VALUES ('nabizite', 'cs', true, 'Migrace 183 — schopnostní sloveso ve 2. osobě', '2026-08-27 21:39:12.564756+00', 'meta_verb');
+
+
+ALTER TABLE edu_ai.qa_stopword ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: settings; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.settings DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('97b3b0b8-769a-43d0-8aed-9688c3d10fb2', 'v1: QA-first + sequential doc RAG, answer=gpt-4.1-nano, engines cs/en/de/es', false, '{"search": {"max_result_documents": 3}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "heading_pass": true, "max_concepts": 8, "min_coverage": 0.5, "rank_tiebreak_cap": 0.999, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0}, "enabled": true, "only_if_empty": true}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.75}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.60, "heading_quality": 1.0}, "enabled": true, "only_if_empty": true}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-4.1-nano", "max_tokens": 900, "token_budget": 8000, "content_top_n": 5, "sources_top_n": 3, "include_excerpt": true, "seed_scan_depth": 15, "excerpt_max_chars": 4000, "max_chunks_per_document": 6}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "search_requires_user": true, "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Consolidated init 2026-07-29: the verified v6 cascade logic + reducers for cs/en/de/es.', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('70137c0f-a189-491f-924a-8e329407f42a', 'v2: v1 + rag_vector on weak lexical pool (only_if_max_coverage_below=0.75)', false, '{"search": {"max_result_documents": 3}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "heading_pass": true, "max_concepts": 8, "min_coverage": 0.5, "rank_tiebreak_cap": 0.999, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0}, "enabled": true, "only_if_empty": true}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.75}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.60, "heading_quality": 1.0}, "enabled": true, "only_if_empty": true, "only_if_max_coverage_below": 0.75}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-4.1-nano", "max_tokens": 900, "token_budget": 8000, "content_top_n": 5, "sources_top_n": 3, "include_excerpt": true, "seed_scan_depth": 15, "excerpt_max_chars": 4000, "max_chunks_per_document": 6}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "search_requires_user": true, "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Semantic step reachable when lexical evidence is weak — the school-name question.', '2026-07-31 17:02:54.348171+00', NULL);
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('64cc0ee6-060c-4495-a590-6373e890a905', 'v3 — Škola Nová Ves - celá organizace', true, '{"context": {"model": "gpt-4.1-mini", "window": "2 hours", "enabled": true, "max_turns": 4, "max_tokens": 120}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "chunking": {"validate_text_chunks": {"qa_pairs": {"min_question_lines": 2, "min_non_question_lines": 2, "non_question_min_chars": 20}, "min_lang_score": 0.55, "min_word_count": 4, "bullet_fragment": {"max_word_count": 8, "min_bullet_ratio": 0.8}, "garbage_fragment": {"max_word_count": 15, "max_alpha_ratio": 0.25}, "langdetect_ignore_word_count": 5}, "extract_grade_subject": {"llm": {"enabled": true, "trigger": "signal", "batch_size": 20, "max_chunk_chars": 600}}, "split_text_into_chunks": {"llm": {"enabled": true, "max_chars": 6000, "min_coverage_ratio": 0.5}, "sizes": {"chunk_size": 900, "chunk_overlap": 50, "hard_min_chars": 40, "min_chunk_chars": 120}, "headings": {"note": "split_at=true -> an inner heading ends the preceding chunk and opens a new one, so one chunk never spans two headings and subsection_heading is unambiguous. max_len applies to BOLD-only lines (a longer one is prose, not a heading); markdown \"#\" headings are not length-limited.", "max_len": 60, "split_at": true, "in_embed_text": true}, "bullet_blocks": {"note": "repeat_head is OFF since migration 61: a heading now lives in its own weighted columns (section_heading / subsection_heading), so copying it into chunk_text would duplicate the signal and flood ts_rank — the very failure it once caused. enabled=false chunks a bullet block the ordinary way.", "enabled": true, "markers": ["•", "-", "·"], "min_budget": 200, "min_bullets": 3, "repeat_head": false, "head_max_chars": 200, "head_requires_hash": false}, "legal_section": {"enabled": true, "max_chars": 2500, "require_caps_first_line": true}, "sentence_boundary": {"max_lookahead": 80, "min_last_chunk_ratio": 0.4}, "short_text_prefix_max_chars": 220}, "split_markdown_into_pages": {"note": "A line with 1..heading_level \"#\" opens a new page, and one page is one element = one file_item_uuid. Tables are emitted as their own element rows, so a page with text and a table yields several file_item_uuid sharing page_number. max_chars > 0 cuts oversized elements into more rows and thus breaks \"an element starts with its heading\" — keep 0.", "max_chars": 0, "heading_level": 2, "min_text_chars": 3, "merge_page_tables": true, "strip_page_artifacts": true}}, "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "params": {"phrase_slack": 3, "guard_outcome": {"self_harm": "self_harm"}, "guard_message_key": {"self_harm": "guard_self_harm"}, "guard_category_order": ["self_harm", "hate", "sexual", "violence", "profanity"], "guard_block_min_severity": {"hate": 1, "sexual": 1, "violence": 1, "profanity": 1, "self_harm": 1}}, "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40, "other_grade_top_n": 2, "other_grade_min_ratio": 0.5}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "body_weight": "B", "bm25_lexical": true, "heading_pass": true, "idf_coverage": true, "max_concepts": 8, "min_coverage": 0.5, "trgm_fetch_k": 15, "trgm_min_sim": 0.35, "trgm_fallback": true, "bm25_min_ratio": 0.65, "heading_weight": "A", "bm25_max_df_share": 0.25, "rank_tiebreak_cap": 0.999, "topical_admission": true, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001, "trgm_min_typo_coverage": 0.5}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0, "topical_admission": true, "topical_max_df_share": 0.25}, "enabled": false, "only_if_empty": false}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.65}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.45, "heading_quality": 1.0, "grade_query_enrich": true, "grade_query_prefix": "Pro {grade}. ročník: "}, "enabled": true, "only_if_empty": false, "run_on_timespan": true, "only_if_max_coverage_below": 0.75}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "grade_recall": "from_pool_docs", "grade_recall_max": 8, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-5.6-luna", "rrf_k": 1, "focus_gate": true, "max_tokens": 2000, "bm25_weight": 0.03, "grade_scope": "focus_if_match", "rerank_mode": "cloud", "temperature": 0, "domain_match": true, "focus_max_df": 0.05, "rerank_model": "gpt-5.6-luna", "rerank_top_k": 20, "token_budget": 8000, "content_top_n": 5, "focus_require": "all", "priority_tier": true, "rerank_output": "graded", "sources_top_n": 3, "keyword_weight": 1.0, "rerank_reorder": true, "thin_max_chars": 120, "attrib_best_min": 0.25, "chars_per_token": 4, "include_excerpt": true, "rerank_min_keep": 6, "seed_scan_depth": 15, "thin_guard_seed": true, "binding_fallback": true, "log_candidates_n": 20, "reasoning_effort": "medium", "rerank_prefilter": {"model": "jina-reranker-v3", "top_n": 20, "max_in": 40, "backend": "jina", "timeout_s": 10, "keep_anchor": true, "passage_chars": 400}, "rerank_score_min": 0, "rerank_timeout_s": 15, "source_min_ratio": 0.5, "thin_guard_judge": true, "excerpt_cut_ratio": 0.6, "excerpt_max_chars": 4000, "rerank_seed_top_n": 12, "priority_min_ratio": 0.65, "thin_require_digit": false, "heading_match_boost": 0.12, "rerank_log_passages": false, "source_ratio_anchor": "tier_first", "rerank_passage_chars": 500, "rerank_require_grade": 2, "attrib_positional_min": 0.15, "grade_chunk_min_ratio": 0.8, "rerank_grade_ordering": false, "vector_element_weight": 1.0, "domain_kw_max_df_share": 0.25, "clarify_max_match_score": 1.0, "max_chunks_per_document": 6, "rerank_reasoning_effort": "low", "related_suggestions_top_n": 3}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Org copy of the global v3 config (settings belong to one top-level organisation, init 98). Full copy, not a diff — later global changes do not propagate here.', '2026-08-02 17:04:38.825602+00', 'SKOLA_NOVA_VES');
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('b65d7f3d-d80e-406d-a642-7b3902c0a315', 'v3 — Základní škola Lipová', true, '{"context": {"model": "gpt-4.1-mini", "window": "2 hours", "enabled": true, "max_turns": 4, "max_tokens": 120}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "chunking": {"validate_text_chunks": {"qa_pairs": {"min_question_lines": 2, "min_non_question_lines": 2, "non_question_min_chars": 20}, "min_lang_score": 0.55, "min_word_count": 4, "bullet_fragment": {"max_word_count": 8, "min_bullet_ratio": 0.8}, "garbage_fragment": {"max_word_count": 15, "max_alpha_ratio": 0.25}, "langdetect_ignore_word_count": 5}, "extract_grade_subject": {"llm": {"enabled": true, "trigger": "signal", "batch_size": 20, "max_chunk_chars": 600}}, "split_text_into_chunks": {"llm": {"enabled": true, "max_chars": 6000, "min_coverage_ratio": 0.5}, "sizes": {"chunk_size": 900, "chunk_overlap": 50, "hard_min_chars": 40, "min_chunk_chars": 120}, "headings": {"note": "split_at=true -> an inner heading ends the preceding chunk and opens a new one, so one chunk never spans two headings and subsection_heading is unambiguous. max_len applies to BOLD-only lines (a longer one is prose, not a heading); markdown \"#\" headings are not length-limited.", "max_len": 60, "split_at": true, "in_embed_text": true}, "bullet_blocks": {"note": "repeat_head is OFF since migration 61: a heading now lives in its own weighted columns (section_heading / subsection_heading), so copying it into chunk_text would duplicate the signal and flood ts_rank — the very failure it once caused. enabled=false chunks a bullet block the ordinary way.", "enabled": true, "markers": ["•", "-", "·"], "min_budget": 200, "min_bullets": 3, "repeat_head": false, "head_max_chars": 200, "head_requires_hash": false}, "legal_section": {"enabled": true, "max_chars": 2500, "require_caps_first_line": true}, "sentence_boundary": {"max_lookahead": 80, "min_last_chunk_ratio": 0.4}, "short_text_prefix_max_chars": 220}, "split_markdown_into_pages": {"note": "A line with 1..heading_level \"#\" opens a new page, and one page is one element = one file_item_uuid. Tables are emitted as their own element rows, so a page with text and a table yields several file_item_uuid sharing page_number. max_chars > 0 cuts oversized elements into more rows and thus breaks \"an element starts with its heading\" — keep 0.", "max_chars": 0, "heading_level": 2, "min_text_chars": 3, "merge_page_tables": true, "strip_page_artifacts": true}}, "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "params": {"phrase_slack": 3, "guard_outcome": {"self_harm": "self_harm"}, "guard_message_key": {"self_harm": "guard_self_harm"}, "guard_category_order": ["self_harm", "hate", "sexual", "violence", "profanity"], "guard_block_min_severity": {"hate": 1, "sexual": 1, "violence": 1, "profanity": 1, "self_harm": 1}}, "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40, "other_grade_top_n": 2, "other_grade_min_ratio": 0.5}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "body_weight": "B", "bm25_lexical": true, "heading_pass": true, "idf_coverage": true, "max_concepts": 8, "min_coverage": 0.5, "trgm_fetch_k": 15, "trgm_min_sim": 0.35, "trgm_fallback": true, "bm25_min_ratio": 0.65, "heading_weight": "A", "bm25_max_df_share": 0.25, "rank_tiebreak_cap": 0.999, "topical_admission": true, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001, "trgm_min_typo_coverage": 0.5}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0, "topical_admission": true, "topical_max_df_share": 0.25}, "enabled": false, "only_if_empty": false}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.65}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.45, "heading_quality": 1.0, "grade_query_enrich": true, "grade_query_prefix": "Pro {grade}. ročník: "}, "enabled": true, "only_if_empty": false, "run_on_timespan": true, "only_if_max_coverage_below": 0.75}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "grade_recall": "from_pool_docs", "grade_recall_max": 8, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-5.6-luna", "rrf_k": 1, "focus_gate": true, "max_tokens": 2000, "bm25_weight": 0.03, "grade_scope": "focus_if_match", "rerank_mode": "cloud", "temperature": 0, "domain_match": true, "focus_max_df": 0.05, "rerank_model": "gpt-5.6-luna", "rerank_top_k": 20, "token_budget": 8000, "content_top_n": 5, "focus_require": "all", "priority_tier": true, "rerank_output": "graded", "sources_top_n": 3, "keyword_weight": 1.0, "rerank_reorder": true, "thin_max_chars": 120, "attrib_best_min": 0.25, "chars_per_token": 4, "include_excerpt": true, "rerank_min_keep": 6, "seed_scan_depth": 15, "thin_guard_seed": true, "binding_fallback": true, "log_candidates_n": 20, "reasoning_effort": "medium", "rerank_prefilter": {"model": "jina-reranker-v3", "top_n": 20, "max_in": 40, "backend": "jina", "timeout_s": 10, "keep_anchor": true, "passage_chars": 400}, "rerank_score_min": 0, "rerank_timeout_s": 15, "source_min_ratio": 0.5, "thin_guard_judge": true, "excerpt_cut_ratio": 0.6, "excerpt_max_chars": 4000, "rerank_seed_top_n": 12, "priority_min_ratio": 0.65, "thin_require_digit": false, "heading_match_boost": 0.12, "rerank_log_passages": false, "source_ratio_anchor": "tier_first", "rerank_passage_chars": 500, "rerank_require_grade": 2, "attrib_positional_min": 0.15, "grade_chunk_min_ratio": 0.8, "rerank_grade_ordering": false, "vector_element_weight": 1.0, "domain_kw_max_df_share": 0.25, "clarify_max_match_score": 1.0, "max_chunks_per_document": 6, "rerank_reasoning_effort": "low", "related_suggestions_top_n": 3}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Org copy of the global v3 config (settings belong to one top-level organisation, init 98). Full copy, not a diff — later global changes do not propagate here.', '2026-08-02 17:04:38.825602+00', 'ZAKLADNI_SKOLA_LIPOVA');
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('58ac1ea2-8612-4f2d-8d68-01ccdf5fd02e', 'v3 — Základní škola Borová', true, '{"search": {"max_result_documents": 3}, "context": {"model": "gpt-4.1-mini", "window": "2 hours", "enabled": true, "max_turns": 4, "max_tokens": 120}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "chunking": {"validate_text_chunks": {"qa_pairs": {"min_question_lines": 2, "min_non_question_lines": 2, "non_question_min_chars": 20}, "min_lang_score": 0.55, "min_word_count": 4, "bullet_fragment": {"max_word_count": 8, "min_bullet_ratio": 0.8}, "garbage_fragment": {"max_word_count": 15, "max_alpha_ratio": 0.25}, "langdetect_ignore_word_count": 5}, "extract_grade_subject": {"llm": {"enabled": true, "trigger": "signal", "batch_size": 20, "max_chunk_chars": 600}}, "split_text_into_chunks": {"llm": {"enabled": true, "max_chars": 6000, "min_coverage_ratio": 0.5}, "sizes": {"chunk_size": 900, "chunk_overlap": 50, "hard_min_chars": 40, "min_chunk_chars": 120}, "headings": {"note": "split_at=true -> an inner heading ends the preceding chunk and opens a new one, so one chunk never spans two headings and subsection_heading is unambiguous. max_len applies to BOLD-only lines (a longer one is prose, not a heading); markdown \"#\" headings are not length-limited.", "max_len": 60, "split_at": true, "in_embed_text": true}, "bullet_blocks": {"note": "repeat_head is OFF since migration 61: a heading now lives in its own weighted columns (section_heading / subsection_heading), so copying it into chunk_text would duplicate the signal and flood ts_rank — the very failure it once caused. enabled=false chunks a bullet block the ordinary way.", "enabled": true, "markers": ["•", "-", "·"], "min_budget": 200, "min_bullets": 3, "repeat_head": false, "head_max_chars": 200, "head_requires_hash": false}, "legal_section": {"enabled": true, "max_chars": 2500, "require_caps_first_line": true}, "sentence_boundary": {"max_lookahead": 80, "min_last_chunk_ratio": 0.4}, "short_text_prefix_max_chars": 220}, "split_markdown_into_pages": {"note": "A line with 1..heading_level \"#\" opens a new page, and one page is one element = one file_item_uuid. Tables are emitted as their own element rows, so a page with text and a table yields several file_item_uuid sharing page_number. max_chars > 0 cuts oversized elements into more rows and thus breaks \"an element starts with its heading\" — keep 0.", "max_chars": 0, "heading_level": 2, "min_text_chars": 3, "merge_page_tables": true, "strip_page_artifacts": true}}, "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "params": {"phrase_slack": 3, "guard_outcome": {"self_harm": "self_harm"}, "guard_message_key": {"self_harm": "guard_self_harm"}, "guard_category_order": ["self_harm", "hate", "sexual", "violence", "profanity"], "guard_block_min_severity": {"hate": 1, "sexual": 1, "violence": 1, "profanity": 1, "self_harm": 1}}, "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40, "other_grade_top_n": 2, "other_grade_min_ratio": 0.5}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "body_weight": "B", "bm25_lexical": true, "heading_pass": true, "idf_coverage": true, "max_concepts": 8, "min_coverage": 0.5, "trgm_fetch_k": 15, "trgm_min_sim": 0.35, "trgm_fallback": true, "bm25_min_ratio": 0.65, "heading_weight": "A", "bm25_max_df_share": 0.25, "rank_tiebreak_cap": 0.999, "topical_admission": true, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001, "trgm_min_typo_coverage": 0.5}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0, "topical_admission": true, "topical_max_df_share": 0.25}, "enabled": false, "only_if_empty": false}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.65}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.45, "heading_quality": 1.0, "grade_query_enrich": true, "grade_query_prefix": "Pro {grade}. ročník: "}, "enabled": true, "only_if_empty": false, "run_on_timespan": true, "only_if_max_coverage_below": 0.75}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "grade_recall": "from_pool_docs", "grade_recall_max": 8, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-5.6-luna", "rrf_k": 1, "focus_gate": true, "max_tokens": 2000, "bm25_weight": 0.03, "grade_scope": "focus_if_match", "rerank_mode": "cloud", "temperature": 0, "domain_match": true, "focus_max_df": 0.05, "rerank_model": "gpt-5.6-luna", "rerank_top_k": 20, "token_budget": 8000, "content_top_n": 5, "focus_require": "all", "priority_tier": true, "rerank_output": "graded", "sources_top_n": 3, "keyword_weight": 1.0, "rerank_reorder": true, "thin_max_chars": 120, "attrib_best_min": 0.25, "chars_per_token": 4, "include_excerpt": true, "rerank_min_keep": 6, "seed_scan_depth": 15, "thin_guard_seed": true, "binding_fallback": true, "log_candidates_n": 20, "reasoning_effort": "medium", "rerank_prefilter": {"model": "jina-reranker-v3", "top_n": 20, "max_in": 40, "backend": "jina", "timeout_s": 10, "keep_anchor": true, "passage_chars": 400}, "rerank_score_min": 0, "rerank_timeout_s": 15, "source_min_ratio": 0.5, "thin_guard_judge": true, "excerpt_cut_ratio": 0.6, "excerpt_max_chars": 4000, "rerank_seed_top_n": 12, "priority_min_ratio": 0.65, "thin_require_digit": false, "heading_match_boost": 0.12, "rerank_log_passages": false, "source_ratio_anchor": "tier_first", "rerank_passage_chars": 500, "rerank_require_grade": 2, "attrib_positional_min": 0.15, "grade_chunk_min_ratio": 0.8, "rerank_grade_ordering": false, "vector_element_weight": 1.0, "domain_kw_max_df_share": 0.25, "clarify_max_match_score": 1.0, "max_chunks_per_document": 6, "rerank_reasoning_effort": "low", "related_suggestions_top_n": 3}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "search_requires_user": false, "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Org copy of the global v3 config (settings belong to one top-level organisation, init 98). Full copy, not a diff.', '2026-08-04 14:07:02.252597+00', 'ZAKLADNI_SKOLA_BOROVA');
+INSERT INTO edu_ai.settings (setting_id, label, is_active, config, notes, created_at, legal_entity_code) VALUES ('6754bf96-bb66-418b-b854-e4cd3761073c', 'v3: retrieval as v2 + chunking config (bullet head repetition, sizes, heuristics)', true, '{"search": {"debug_log": true, "grade_max": 13, "grade_min": 1, "query_log": true, "rerank_max_length": 512, "domain_match_boost": 0.05, "max_result_documents": 3, "idempotency_retention": "24 hours", "idempotency_stale_claim": "5 minutes"}, "context": {"model": "gpt-4.1-mini", "window": "2 hours", "enabled": true, "max_turns": 4, "max_tokens": 120}, "engines": [{"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "cs"}, {"kind": "stemmer", "name": "dolamic_savoy_light", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3, "aggressive": false}, "language": "cs"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "en"}, {"kind": "stemmer", "name": "snowball_english", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "language": "en"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "de"}, {"kind": "stemmer", "name": "snowball_german", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "de"}, {"kind": "lemmatizer", "name": "simplemma", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "lemma_text", "language": "es"}, {"kind": "stemmer", "name": "snowball_spanish", "active": {"ingest_qa": true, "ingest_docs": true}, "column": "stem_text", "params": {"min_len": 3}, "language": "es"}], "chunking": {"validate_text_chunks": {"qa_pairs": {"min_question_lines": 2, "min_non_question_lines": 2, "non_question_min_chars": 20}, "min_lang_score": 0.55, "min_word_count": 4, "bullet_fragment": {"max_word_count": 8, "min_bullet_ratio": 0.8}, "garbage_fragment": {"max_word_count": 15, "max_alpha_ratio": 0.25}, "langdetect_ignore_word_count": 5}, "extract_grade_subject": {"llm": {"enabled": true, "trigger": "signal", "batch_size": 20, "max_chunk_chars": 600}}, "split_text_into_chunks": {"llm": {"enabled": true, "max_chars": 6000, "min_coverage_ratio": 0.5}, "sizes": {"chunk_size": 900, "chunk_overlap": 50, "hard_min_chars": 40, "min_chunk_chars": 120}, "headings": {"note": "split_at=true -> an inner heading ends the preceding chunk and opens a new one, so one chunk never spans two headings and subsection_heading is unambiguous. max_len applies to BOLD-only lines (a longer one is prose, not a heading); markdown \"#\" headings are not length-limited.", "max_len": 60, "split_at": true, "in_embed_text": true}, "bullet_blocks": {"note": "repeat_head is OFF since migration 61: a heading now lives in its own weighted columns (section_heading / subsection_heading), so copying it into chunk_text would duplicate the signal and flood ts_rank — the very failure it once caused. enabled=false chunks a bullet block the ordinary way.", "enabled": true, "markers": ["•", "-", "·"], "min_budget": 200, "min_bullets": 3, "repeat_head": false, "head_max_chars": 200, "head_requires_hash": false}, "legal_section": {"enabled": true, "max_chars": 2500, "require_caps_first_line": true}, "sentence_boundary": {"max_lookahead": 80, "min_last_chunk_ratio": 0.4}, "short_text_prefix_max_chars": 220}, "split_markdown_into_pages": {"note": "A line with 1..heading_level \"#\" opens a new page, and one page is one element = one file_item_uuid. Tables are emitted as their own element rows, so a page with text and a table yields several file_item_uuid sharing page_number. max_chars > 0 cuts oversized elements into more rows and thus breaks \"an element starts with its heading\" — keep 0.", "max_chars": 0, "heading_level": 2, "min_text_chars": 3, "merge_page_tables": true, "strip_page_artifacts": true}}, "pipeline": [{"note": "Deterministic guard (usable? + qa_blocklist; self_harm->Linka bezpeci 116 111) and QA pack scope by grade. No LLM, no retrieval - just admit/deny + which packs to search.", "step": "route", "params": {"phrase_slack": 3, "guard_outcome": {"self_harm": "self_harm"}, "guard_message_key": {"self_harm": "guard_self_harm"}, "guard_category_order": ["self_harm", "hate", "sexual", "violence", "profanity"], "guard_block_min_severity": {"hate": 1, "sexual": 1, "violence": 1, "profanity": 1, "self_harm": 1}}, "enabled": true}, {"note": "Exact curated Q match. Whole QA block runs before any document retrieval.", "step": "qa_exact", "on_hit": "stop", "enabled": true}, {"step": "qa_lexical", "on_hit": "stop", "params": {"form": ["norm", "lemma", "stem"], "fetch_k": 50, "synonyms": true, "suggest_top_n": 3, "trgm_suggest_min": 0.40, "other_grade_top_n": 2, "other_grade_min_ratio": 0.5}, "enabled": true}, {"note": "Document chunks by fulltext on ts_lemma||ts_stem (reduced forms).", "step": "document_lexical", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "body_weight": "B", "bm25_lexical": true, "heading_pass": true, "idf_coverage": true, "max_concepts": 8, "min_coverage": 0.5, "trgm_fetch_k": 15, "trgm_min_sim": 0.35, "trgm_fallback": true, "bm25_min_ratio": 0.65, "heading_weight": "A", "bm25_max_df_share": 0.25, "rank_tiebreak_cap": 0.999, "topical_admission": true, "heading_max_df_share": 0.25, "heading_numeric_pass": false, "rank_tiebreak_weight": 0.001, "trgm_min_typo_coverage": 0.5}, "enabled": true}, {"note": "Fallback: match query tokens against edu_ai_chunk_keywords.keywords[] (reduced same way). Runs only if rag_lexical was empty.", "step": "rag_keywords", "on_hit": "continue", "params": {"form": ["lemma", "stem"], "fetch_k": 30, "min_overlap": 2, "heading_quality": 1.0, "topical_admission": true, "topical_max_df_share": 0.25}, "enabled": false, "only_if_empty": false}, {"note": "Curated QA vector. Ends the QA block; documents only if QA found nothing.", "step": "qa_vector", "on_hit": "stop", "params": {"cosine_min": 0.65}, "enabled": true}, {"note": "Last resort: semantic neighbours over document_chunks.embedding. cosine_min drops off-topic so the pool stays empty -> no_answer.", "step": "rag_vector", "on_hit": "continue", "params": {"top_k": 5, "fetch_k": 30, "cosine_min": 0.45, "heading_quality": 1.0, "grade_query_enrich": true, "grade_query_prefix": "Pro {grade}. ročník: "}, "enabled": true, "only_if_empty": false, "run_on_timespan": true, "only_if_max_coverage_below": 0.75}, {"note": "Completes a matched section with its remaining chunks (same file_item_uuid). Context, not evidence: siblings get no score or coverage. max_chunks_per_element is a BUDGET per element including the matched chunks — under it the whole section comes in, over it chunks are taken outwards from the match until it is spent. window is an optional hard cap on that distance; 0 = budget only.", "step": "document_siblings", "on_hit": "continue", "params": {"window": 0, "grade_recall": "from_pool_docs", "grade_recall_max": 8, "max_chunks_per_element": 6}, "enabled": false}, {"note": "Single terminal LLM. Empty pool -> no_answer (no LLM call).", "step": "answer", "params": {"model": "gpt-5.6-luna", "rrf_k": 1, "focus_gate": true, "max_tokens": 2000, "bm25_weight": 0.03, "grade_scope": "focus_if_match", "rerank_mode": "cloud", "temperature": 0, "domain_match": true, "focus_max_df": 0.05, "rerank_model": "gpt-5.6-luna", "rerank_top_k": 20, "token_budget": 8000, "content_top_n": 5, "focus_require": "all", "priority_tier": true, "rerank_output": "graded", "sources_top_n": 3, "keyword_weight": 1.0, "rerank_reorder": true, "thin_max_chars": 120, "attrib_best_min": 0.25, "chars_per_token": 4, "include_excerpt": true, "rerank_min_keep": 6, "seed_scan_depth": 15, "thin_guard_seed": true, "binding_fallback": true, "log_candidates_n": 20, "reasoning_effort": "medium", "rerank_prefilter": {"model": "jina-reranker-v3", "top_n": 20, "max_in": 40, "backend": "jina", "timeout_s": 10, "keep_anchor": true, "passage_chars": 400}, "rerank_score_min": 0, "rerank_timeout_s": 15, "source_min_ratio": 0.5, "thin_guard_judge": true, "excerpt_cut_ratio": 0.6, "excerpt_max_chars": 4000, "rerank_seed_top_n": 12, "priority_min_ratio": 0.65, "thin_require_digit": false, "heading_match_boost": 0.12, "rerank_log_passages": false, "source_ratio_anchor": "tier_first", "rerank_passage_chars": 500, "rerank_require_grade": 2, "attrib_positional_min": 0.15, "grade_chunk_min_ratio": 0.8, "rerank_grade_ordering": false, "vector_element_weight": 1.0, "domain_kw_max_df_share": 0.25, "clarify_max_match_score": 1.0, "max_chunks_per_document": 6, "rerank_reasoning_effort": "low", "related_suggestions_top_n": 3}, "enabled": true}], "visibility": {"note": "child_may_publish_organization is enforced at ingest (/ingest-principal): true lets a unit choose organization, which reaches its parent and sibling units — never another legal person. entity_visible_to_parent is enforced at query time (scope.where). Both tighten when false.", "search_requires_role": true, "search_requires_user": false, "entity_visible_to_parent": true, "child_may_publish_organization": true}, "tokenization": {"active": true}, "normalization": {"lowercase": true, "drop_stopwords": true, "strip_diacritics": true}}', 'Derived from the then-active setting; chunking thresholds lifted from component code. Values equal the previous effective behaviour except head_max_chars, which becomes a qualification test (see the note). Lineage: derived from v2: v1 + rag_vector on weak lexical pool (only_if_max_coverage_below=0.75)', '2026-08-01 04:53:45.086206+00', NULL);
+
+
+ALTER TABLE edu_ai.settings ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: qa_synonym; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.qa_synonym DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (1, 'syn_prijimacky', 'entity', 'přijímací', 'prijimaci', 'prijimaci', false, 'cs', 'init', true, 'prijimac', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (2, 'syn_prijimacky', 'entity', 'přijímaček', 'prijimacek', 'prijimac', false, 'cs', 'init', true, 'prijimacek', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (3, 'syn_prijimacky', 'entity', 'přijímačka', 'prijimacka', 'prijimac', false, 'cs', 'init', true, 'prijimack', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (4, 'syn_prijimacky', 'entity', 'přijímačky', 'prijimacky', 'prijimac', true, 'cs', 'init', true, 'prijimack', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (5, 'syn_prijimacky', 'entity', 'příjmaček', 'prijmacek', 'prijmacka', false, 'cs', 'init', true, 'prijmacek', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (6, 'syn_prijimacky', 'entity', 'příjmačka', 'prijmacka', 'prijmacka', false, 'cs', 'init', true, 'prijmack', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (7, 'syn_prijimacky', 'entity', 'příjmačky', 'prijmacky', 'prijmacka', false, 'cs', 'init', true, 'prijmack', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (8, 'syn_q_co', 'interrogative', 'co', 'co', 'co', true, 'cs', 'init', true, 'co', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (9, 'syn_q_co', 'interrogative', 'čeho', 'ceho', 'co', false, 'cs', 'init', true, 'ceh', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (10, 'syn_q_co', 'interrogative', 'čím', 'cim', '', false, 'cs', 'init', true, 'cim', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (11, 'syn_q_jak', 'interrogative', 'jak', 'jak', 'jak', true, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (12, 'syn_q_jaky', 'interrogative', 'jaká', 'jaka', 'jaky', false, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (13, 'syn_q_jaky', 'interrogative', 'jaké', 'jake', 'jaky', false, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (14, 'syn_q_jaky', 'interrogative', 'jakém', 'jakem', 'jaky', false, 'cs', 'init', true, '', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (15, 'syn_q_jaky', 'interrogative', 'jakou', 'jakou', 'jaky', false, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (16, 'syn_q_jaky', 'interrogative', 'jaký', 'jaky', 'jaky', true, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (17, 'syn_q_jaky', 'interrogative', 'jakých', 'jakych', 'jaky', false, 'cs', 'init', true, 'jak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (18, 'syn_q_kde', 'interrogative', 'kam', 'kam', 'kama', false, 'cs', 'init', true, 'kam', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (19, 'syn_q_kde', 'interrogative', 'kde', 'kde', 'kde', true, 'cs', 'init', true, 'kde', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (20, 'syn_q_kdo', 'interrogative', 'kdo', 'kdo', 'kdo', true, 'cs', 'init', true, 'kdo', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (21, 'syn_q_kdo', 'interrogative', 'komu', 'komu', 'kdo', false, 'cs', 'init', true, 'kom', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (22, 'syn_q_kdy', 'interrogative', 'kdy', 'kdy', 'kdy', true, 'cs', 'init', true, 'kdy', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (23, 'syn_q_kolik', 'interrogative', 'kolik', 'kolik', 'kolik', true, 'cs', 'init', true, 'kolik', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (24, 'syn_q_ktery', 'interrogative', 'která', 'ktera', 'ktery', false, 'cs', 'init', true, 'kter', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (25, 'syn_q_ktery', 'interrogative', 'které', 'ktere', 'ktery', false, 'cs', 'init', true, 'kter', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (26, 'syn_q_ktery', 'interrogative', 'který', 'ktery', 'ktery', true, 'cs', 'init', true, 'kter', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (27, 'syn_q_proc', 'interrogative', 'proč', 'proc', 'proc', true, 'cs', 'init', true, 'proc', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (28, 'syn_start_zahajeni', 'entity', 'začátek', 'zacatek', 'zacatek', false, 'cs', 'init', true, 'zacatek', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (29, 'syn_start_zahajeni', 'entity', 'začíná', 'zacina', 'zacinat', false, 'cs', 'init', true, 'zacin', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (30, 'syn_start_zahajeni', 'entity', 'začínat', 'zacinat', 'zacit', false, 'cs', 'init', true, 'zacin', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (31, 'syn_start_zahajeni', 'entity', 'začít', 'zacit', 'zacinat', false, 'cs', 'init', true, 'zacit', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (32, 'syn_start_zahajeni', 'entity', 'zahájen', 'zahajen', 'zahajit', false, 'cs', 'init', true, 'zahajen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (33, 'syn_start_zahajeni', 'entity', 'zahájení', 'zahajeni', 'zahajeny', true, 'cs', 'init', true, 'zahajen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (34, 'syn_start_zahajeni', 'entity', 'zahájit', 'zahajit', 'zahajit', false, 'cs', 'init', true, 'zahajit', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (35, 'syn_q_en_wh', 'interrogative', 'how', 'how', 'how', false, 'en', 'init', true, 'how', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (36, 'syn_q_en_wh', 'interrogative', 'what', 'what', 'what', true, 'en', 'init', true, 'what', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (37, 'syn_q_en_wh', 'interrogative', 'when', 'when', 'when', false, 'en', 'init', true, 'when', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (38, 'syn_q_en_wh', 'interrogative', 'where', 'where', 'where', false, 'en', 'init', true, 'where', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (39, 'syn_q_en_wh', 'interrogative', 'which', 'which', 'which', false, 'en', 'init', true, 'which', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (40, 'syn_q_en_wh', 'interrogative', 'who', 'who', 'who', false, 'en', 'init', true, 'who', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (41, 'syn_q_en_wh', 'interrogative', 'whom', 'whom', 'whom', false, 'en', 'init', true, 'whom', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (42, 'syn_q_en_wh', 'interrogative', 'whose', 'whose', 'whose', false, 'en', 'init', true, 'whose', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (43, 'syn_q_en_wh', 'interrogative', 'why', 'why', 'why', false, 'en', 'init', true, 'why', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (44, 'syn_q_de_w', 'interrogative', 'wann', 'wann', 'wann', false, 'de', 'seed-init', true, 'wann', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (45, 'syn_q_de_w', 'interrogative', 'warum', 'warum', 'warum', false, 'de', 'seed-init', true, 'warum', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (46, 'syn_q_de_w', 'interrogative', 'was', 'was', 'was', false, 'de', 'seed-init', true, 'was', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (47, 'syn_q_de_w', 'interrogative', 'welche', 'welche', 'welcher', false, 'de', 'seed-init', true, 'welche', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (48, 'syn_q_de_w', 'interrogative', 'welcher', 'welcher', 'welch', false, 'de', 'seed-init', true, 'welcher', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (49, 'syn_q_de_w', 'interrogative', 'welches', 'welches', 'welcher', false, 'de', 'seed-init', true, 'welches', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (50, 'syn_q_de_w', 'interrogative', 'wem', 'wem', 'wer', false, 'de', 'seed-init', true, 'wem', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (51, 'syn_q_de_w', 'interrogative', 'wen', 'wen', 'wer', false, 'de', 'seed-init', true, 'wen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (52, 'syn_q_de_w', 'interrogative', 'wer', 'wer', 'wer', false, 'de', 'seed-init', true, 'wer', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (53, 'syn_q_de_w', 'interrogative', 'weshalb', 'weshalb', 'weshalb', false, 'de', 'seed-init', true, 'weshalb', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (54, 'syn_q_de_w', 'interrogative', 'wessen', 'wessen', 'was', false, 'de', 'seed-init', true, 'wessen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (55, 'syn_q_de_w', 'interrogative', 'wie', 'wie', 'wie', false, 'de', 'seed-init', true, 'wie', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (56, 'syn_q_de_w', 'interrogative', 'wieso', 'wieso', 'wieso', false, 'de', 'seed-init', true, 'wieso', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (57, 'syn_q_de_w', 'interrogative', 'wo', 'wo', 'wo', false, 'de', 'seed-init', true, 'wo', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (58, 'syn_q_de_w', 'interrogative', 'wofur', 'wofur', 'wofur', false, 'de', 'seed-init', true, 'wofur', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (59, 'syn_q_de_w', 'interrogative', 'woher', 'woher', 'woher', false, 'de', 'seed-init', true, 'woher', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (60, 'syn_q_de_w', 'interrogative', 'wohin', 'wohin', 'wohin', false, 'de', 'seed-init', true, 'wohin', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (61, 'syn_q_de_w', 'interrogative', 'womit', 'womit', 'womit', false, 'de', 'seed-init', true, 'womit', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (62, 'syn_q_es_wh', 'interrogative', 'adonde', 'adonde', 'adonde', false, 'es', 'seed-init', true, 'adonde', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (63, 'syn_q_es_wh', 'interrogative', 'como', 'como', 'como', false, 'es', 'seed-init', true, 'como', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (64, 'syn_q_es_wh', 'interrogative', 'cual', 'cual', 'cual', false, 'es', 'seed-init', true, 'cual', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (65, 'syn_q_es_wh', 'interrogative', 'cuales', 'cuales', 'cual', false, 'es', 'seed-init', true, 'cuales', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (66, 'syn_q_es_wh', 'interrogative', 'cuando', 'cuando', 'cuando', false, 'es', 'seed-init', true, 'cuando', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (67, 'syn_q_es_wh', 'interrogative', 'cuanta', 'cuanta', 'cuanto', false, 'es', 'seed-init', true, 'cuanta', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (68, 'syn_q_es_wh', 'interrogative', 'cuantas', 'cuantas', 'cuanto', false, 'es', 'seed-init', true, 'cuantas', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (69, 'syn_q_es_wh', 'interrogative', 'cuanto', 'cuanto', 'cuanto', false, 'es', 'seed-init', true, 'cuanto', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (70, 'syn_q_es_wh', 'interrogative', 'cuantos', 'cuantos', 'cuanto', false, 'es', 'seed-init', true, 'cuantos', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (71, 'syn_q_es_wh', 'interrogative', 'donde', 'donde', 'donde', false, 'es', 'seed-init', true, 'donde', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (72, 'syn_q_es_wh', 'interrogative', 'porque', 'porque', 'porque', false, 'es', 'seed-init', true, 'porque', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (73, 'syn_q_es_wh', 'interrogative', 'que', 'que', 'que', false, 'es', 'seed-init', true, 'que', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (74, 'syn_q_es_wh', 'interrogative', 'quien', 'quien', 'quien', false, 'es', 'seed-init', true, 'quien', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (75, 'syn_q_es_wh', 'interrogative', 'quienes', 'quienes', 'quien', false, 'es', 'seed-init', true, 'quienes', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (76, 'syn_lvk', 'entity', 'lyžařský výcvik', 'lyzarsky vycvik', 'lyzarsky vycvik', false, 'cs', 'seed', true, 'lyzarsk vycvik', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (77, 'syn_lvk', 'entity', 'LVK', 'lvk', 'lvk', true, 'cs', 'seed', true, 'lvk', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (78, 'syn_lvk', 'entity', 'lyžařský výcvikový kurz', 'lyzarsky vycvikovy kurz', 'lyzarsky vycvikovy kurs', false, 'cs', 'seed', true, 'lyzarsk vycvik kurz', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (79, 'syn_lvk', 'entity', 'lyžák', 'lyzak', 'lyzak', false, 'cs', 'seed', true, 'lyzak', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (80, 'syn_svp', 'entity', 'SVP', 'svp', 'svp', true, 'cs', 'seed', true, 'svp', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (81, 'syn_omj', 'entity', 'OMJ', 'omj', 'omj', true, 'cs', 'seed', true, 'omj', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (82, 'syn_svp', 'entity', 'speciální potřeby', 'specialni potreby', 'specialni potreba', false, 'cs', 'seed', true, 'specialn potreb', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (83, 'syn_plpp', 'entity', 'PLPP', 'plpp', 'plpp', true, 'cs', 'seed', true, 'plpp', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (84, 'syn_omj', 'entity', 'odlišný mateřský jazyk', 'odlisny matersky jazyk', 'odlisny matersky jazyk', false, 'cs', 'seed', true, 'odlisn matersk jazyk', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (85, 'syn_ivp', 'entity', 'individuální vzdělávací plán', 'individualni vzdelavaci plan', 'individualni vzdelavaci plan', false, 'cs', 'seed', true, 'individualn vzdelavac plan', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (86, 'syn_ivp', 'entity', 'IVP', 'ivp', 'ivp', true, 'cs', 'seed', true, 'ivp', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (87, 'syn_ozp', 'entity', 'OZP', 'ozp', 'ozp', true, 'cs', 'seed', true, 'ozp', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (88, 'syn_spz', 'entity', 'ŠPZ', 'spz', 'spz', true, 'cs', 'seed', true, 'spz', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (89, 'syn_plpp', 'entity', 'plán pedagogické podpory', 'plan pedagogicke podpory', 'plan pedagogicky podpora', false, 'cs', 'seed', true, 'plan pedagogick podpor', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (90, 'syn_ozp', 'entity', 'škola v přírodě', 'skola prirode', 'skola priroda', false, 'cs', 'seed', true, 'skol prirod', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (91, 'syn_msmt', 'entity', 'ministerstvo školství', 'ministerstvo skolstvi', 'ministerstvo skolstvi', false, 'cs', 'seed', true, 'ministerstv skolstv', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (92, 'syn_spz', 'entity', 'školské poradenské zařízení', 'skolske poradenske zarizeni', 'skolsky poradensky zarizeni', false, 'cs', 'seed', true, 'skolsk poradensk zarizen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (93, 'syn_ozp', 'entity', 'pobyt v přírodě', 'pobyt prirode', 'pobyt priroda', false, 'cs', 'seed', true, 'pobyt prirod', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (94, 'syn_ozp', 'entity', 'ozdravný pobyt', 'ozdravny pobyt', 'ozdravny pobyt', false, 'cs', 'seed', true, 'ozdravn pobyt', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (95, 'syn_msmt', 'entity', 'MŠMT', 'msmt', 'msmt', true, 'cs', 'seed', true, 'msmt', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (96, 'syn_foto', 'entity', 'fotografování', 'fotografovani', 'fotografovani', false, 'cs', 'seed', true, 'fotografovan', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (97, 'syn_foto', 'entity', 'fotografovat', 'fotografovat', 'fotografovat', false, 'cs', 'seed', true, 'fotografova', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (98, 'syn_foto', 'entity', 'fotit', 'fotit', 'fotit', true, 'cs', 'seed', true, 'fot', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (99, 'syn_foto', 'entity', 'focení', 'foceni', 'foceni', false, 'cs', 'seed', true, 'focen', NULL);
+INSERT INTO edu_ai.qa_synonym (id, group_id, kind, term, term_norm, term_lemma, is_key, lang, source, is_active, term_stem, setting_id) OVERRIDING SYSTEM VALUE VALUES (100, 'syn_foto', 'entity', 'pořizování záznamů', 'porizovani zaznamu', 'porizovani zaznam', false, 'cs', 'seed', true, 'porizovan zaznam', NULL);
+
+
+ALTER TABLE edu_ai.qa_synonym ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: staff_user; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.staff_user DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('be164723-a616-4a8b-a900-c9c555cb8326', 'ZAKLADNI_SKOLA_LIPOVA', 'Učitel 1', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('e2dd1c43-a6ca-4b67-b380-119bdc7cd3ba', 'ZAKLADNI_SKOLA_LIPOVA', 'Učitel 2', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('422dae54-27f6-4625-87a8-c62a61e911e1', 'SKOLA_NOVA_VES', 'Ředitelka', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('ded501eb-24b6-4571-8bee-4992f9a77324', 'SKOLA_NOVA_VES', 'Hospodářka', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('066d9206-cfe2-4f60-9f02-79bfea57c2bb', 'SKOLA_NOVA_VES_ZS', 'ZŠ učitel 1', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('0e8d60bd-37e7-4035-afc6-d06f09377cd5', 'SKOLA_NOVA_VES_ZS', 'ZŠ učitel 2', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('3cd81a92-957e-4208-90aa-dcf0f7207286', 'SKOLA_NOVA_VES_SOS', 'SŠ učitel 1', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('144d8f7d-2eac-4db7-8c85-d26d56b4ebda', 'SKOLA_NOVA_VES_SOS', 'SŠ učitel 2', NULL, true, '2026-08-02 14:00:15.687224+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('c2bedc46-6ad2-4fbc-a49f-ee4f101f0c7b', 'ZAKLADNI_SKOLA_BOROVA', 'Jana Nováková (ředitelka)', 'reditelka@skola-borova.example', true, '2026-08-04 14:07:02.252597+00', NULL, NULL);
+INSERT INTO edu_ai.staff_user (user_id, legal_entity_code, display_name, email, is_active, created_at, last_login_at, notes) VALUES ('df4aa17b-3e0a-42ce-b767-96d344dbcf3c', 'ZAKLADNI_SKOLA_BOROVA', 'Kancelář školy', 'kancelar@skola-borova.example', true, '2026-08-04 14:07:02.252597+00', NULL, NULL);
+
+
+ALTER TABLE edu_ai.staff_user ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: subject_term; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.subject_term DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (1, 'cs', 'cestin', 'prefix', 'CZECH_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'čeština — label říká "Český jazyk a literatura"');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (2, 'cs', 'anglictin', 'prefix', 'ENGLISH_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'angličtina — label říká "Anglický jazyk"');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (3, 'cs', 'nemcin', 'prefix', 'GERMAN_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'němčina — label říká "Německý jazyk"');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (4, 'cs', 'telocvik', 'prefix', 'PHYSICAL_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'tělocvik — label říká "Tělesná výchova"');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (5, 'cs', 'matik', 'prefix', 'MATHEMATICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'matika/matiky/matiku/matikář; "matice" záměrně chybí (kolize: matice)');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (6, 'cs', 'dejak', 'prefix', 'HISTORY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'děják/dějáku/dějákem');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (7, 'cs', 'zemak', 'exact', 'GEOGRAPHY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'zemák — exact: prefix by chytal příjmení Zemáková');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (8, 'cs', 'zemaku', 'exact', 'GEOGRAPHY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'zemák — 2./3./6. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (9, 'cs', 'zemakem', 'exact', 'GEOGRAPHY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'zemák — 7. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (10, 'cs', 'zemaky', 'exact', 'GEOGRAPHY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'zemák — množné číslo');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (11, 'cs', 'prirodak', 'prefix', 'BIOLOGY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'přírodák/přírodáku/přírodákem');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (12, 'cs', 'prirodoved', 'prefix', 'BIOLOGY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'přírodověda (1. stupeň) — mapováno na Přírodopis');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (13, 'cs', 'fyza', 'exact', 'PHYSICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'fyza — exact: prefix "fyz" by chytal "fyzicky"');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (14, 'cs', 'fyzy', 'exact', 'PHYSICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'fyza — 2. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (15, 'cs', 'fyze', 'exact', 'PHYSICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'fyza — 3./6. pád ("ve fyze")');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (16, 'cs', 'fyzu', 'exact', 'PHYSICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'fyza — 4. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (17, 'cs', 'fyzou', 'exact', 'PHYSICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'fyza — 7. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (18, 'cs', 'chemk', 'prefix', 'CHEMISTRY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'chemka/chemky/chemku/chemkou');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (19, 'cs', 'chemce', 'exact', 'CHEMISTRY', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'chemka — 3./6. pád (k→c)');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (20, 'cs', 'obcank', 'prefix', 'CIVICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'občanka/občanky — POZOR: kolize s "občanka"=občanský průkaz; deaktivovat, pokud bude vadit');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (21, 'cs', 'obcance', 'exact', 'CIVICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'občanka — 3./6. pád (k→c)');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (22, 'cs', 'hudebk', 'prefix', 'MUSIC_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'hudebka/hudebky/hudebku');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (23, 'cs', 'hudebce', 'exact', 'MUSIC_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'hudebka — 3./6. pád (k→c)');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (24, 'cs', 'vytvark', 'prefix', 'ART_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'výtvarka/výtvarky/výtvarku');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (25, 'cs', 'vytvarce', 'exact', 'ART_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'výtvarka — 3./6. pád (k→c)');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (26, 'cs', 'telak', 'prefix', 'PHYSICAL_EDUCATION', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'tělák/těláku/tělákem');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (27, 'cs', 'anglin', 'prefix', 'ENGLISH_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'anglina/angliny/anglinu');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (28, 'cs', 'ajin', 'prefix', 'ENGLISH_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'ajina/ajiny/ajinu');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (29, 'cs', 'nemina', 'exact', 'GERMAN_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'němina — exact: "nemine" (sloveso) záměrně chybí');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (30, 'cs', 'neminy', 'exact', 'GERMAN_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'němina — 2. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (31, 'cs', 'neminu', 'exact', 'GERMAN_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'němina — 4. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (32, 'cs', 'neminou', 'exact', 'GERMAN_LANGUAGE', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'němina — 7. pád');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (33, 'cs', 'infosk', 'prefix', 'INFORMATICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'infoška/infošky/infošku');
+INSERT INTO edu_ai.subject_term (id, lang, term, match, subject_code, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (34, 'cs', 'infosce', 'exact', 'INFORMATICS', true, 'init-114', '2026-08-04 16:22:46.288639+00', 'infoška — 3./6. pád (k→c)');
+
+
+ALTER TABLE edu_ai.subject_term ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: system_message; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.system_message DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (1, 'guard_profanity', 'cs', 'Zkus se prosím zeptat slušně a bez neslušných slov. Rád ti pomůžu s otázkami k přijímačkám. 🙂', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (2, 'guard_profanity', 'en', 'Please ask politely, without rude words. I''ll be happy to help you with your questions. 🙂', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (3, 'guard_self_harm', 'cs', 'Je mi líto, že se teď necítíš dobře. Nejsi na to sám/sama a je v pořádku poprosit o pomoc. Zavolej prosím na **Linku bezpečí 116 111** (zdarma, nonstop) nebo si promluv s někým dospělým, komu důvěřuješ. Když jde o život, volej 112.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (4, 'guard_self_harm', 'en', 'I''m sorry you''re not feeling well right now. You are not alone, and it''s okay to ask for help. Please call **Linka bezpečí 116 111** (free, 24/7) or talk to an adult you trust. If a life is in danger, call 112.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (5, 'guard_unusable', 'cs', 'Nerozuměl jsem tvé otázce. Zkus ji prosím napsat trochu jinak.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (6, 'guard_unusable', 'en', 'I didn''t understand your question. Please try phrasing it differently.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (7, 'no_answer', 'cs', 'Na tuto otázku zatím nemám odpověď. Zkus ji prosím přeformulovat.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (8, 'no_answer', 'en', 'I don''t have an answer to this question yet. Please try rephrasing it.', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (9, 'qa_suggest', 'cs', 'Nenašel jsem přesnou odpověď. Nechtěl ses zeptat na některou z těchto otázek?', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (10, 'qa_suggest', 'en', 'I could not find an exact answer. Did you mean one of these questions?', true, 'init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (11, 'guard_profanity', 'de', 'Bitte stell deine Frage höflich und ohne Schimpfwörter. Ich helfe dir gern bei Fragen zur Aufnahmeprüfung. 🙂', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (12, 'guard_self_harm', 'de', 'Es tut mir leid, dass es dir gerade nicht gut geht. Du bist nicht allein, und es ist in Ordnung, um Hilfe zu bitten. Ruf bitte die **Nummer gegen Kummer 116 111** an (kostenlos) oder sprich mit einem Erwachsenen, dem du vertraust. In Lebensgefahr ruf 112 an.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (13, 'guard_unusable', 'de', 'Ich habe deine Frage nicht verstanden. Bitte formuliere sie etwas anders.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (14, 'no_answer', 'de', 'Auf diese Frage habe ich noch keine Antwort. Bitte formuliere sie um.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (15, 'qa_suggest', 'de', 'Ich habe keine genaue Antwort gefunden. Meintest du eine dieser Fragen?', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (16, 'guard_profanity', 'es', 'Por favor, haz tu pregunta con educación y sin palabrotas. Con gusto te ayudo con las preguntas sobre el examen de admisión. 🙂', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (17, 'guard_self_harm', 'es', 'Siento que no te encuentres bien ahora mismo. No estás solo/a y está bien pedir ayuda. Llama por favor al **Teléfono ANAR 900 20 20 10** (gratuito) o habla con un adulto de confianza. Si tu vida corre peligro, llama al 112.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (18, 'guard_unusable', 'es', 'No he entendido tu pregunta. Por favor, intenta formularla de otra manera.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (19, 'no_answer', 'es', 'Todavía no tengo respuesta a esta pregunta. Por favor, intenta reformularla.', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (20, 'qa_suggest', 'es', 'No he encontrado una respuesta exacta. ¿Querías preguntar alguna de estas preguntas?', true, 'seed-init', '2026-07-30 15:43:08.928476+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (21, 'unknown_caller', 'en', 'This user is unknown or is not assigned to this school. Please check the sign-in, or contact the school administrator.', true, NULL, '2026-08-02 14:21:08.540662+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (22, 'unknown_caller', 'cs', 'Tento uživatel není známý nebo není přiřazený k této škole. Zkontroluj prosím přihlášení, nebo se obrať na správce školy.', true, NULL, '2026-08-02 14:21:08.540662+00', 'Deliberately generic: the concrete reason would let anyone enumerate users and entities');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (23, 'unknown_caller', 'de', 'Dieser Benutzer ist unbekannt oder dieser Schule nicht zugeordnet. Bitte überprüfe die Anmeldung oder wende dich an die Schulverwaltung.', true, NULL, '2026-08-02 14:21:08.540662+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (24, 'unknown_caller', 'es', 'Este usuario es desconocido o no está asignado a este centro. Comprueba el inicio de sesión o contacta con la administración del centro.', true, NULL, '2026-08-02 14:21:08.540662+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (25, 'clarify_domains', 'cs', 'Tvoje otázka se může týkat více oblastí. Upřesni prosím, kterou myslíš:', true, 'init-96', '2026-08-02 14:42:43.325404+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (26, 'clarify_domains', 'en', 'Your question may concern more than one area. Please specify which one you mean:', true, 'init-96', '2026-08-02 14:42:43.325404+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (27, 'clarify_domains', 'de', 'Deine Frage kann mehrere Bereiche betreffen. Bitte gib an, welchen du meinst:', true, 'init-96', '2026-08-02 14:42:43.325404+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (28, 'clarify_domains', 'es', 'Tu pregunta puede referirse a varias áreas. Indica, por favor, a cuál te refieres:', true, 'init-96', '2026-08-02 14:42:43.325404+00', NULL);
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (33, 'capabilities', 'de', 'Ich bin der Assistent der Schule {{SCHOOL}}. Ich beantworte Fragen aus ihren Dokumenten — zum Beispiel zu diesen Themen: {{TOPICS}}. Frag mit eigenen Worten, Tippfehler sind kein Problem.', true, 'init-124', '2026-08-05 09:30:50.354826+00', 'meta-otázky (blok 2); {{SCHOOL}} a {{TOPICS}} doplňuje kód');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (34, 'capabilities', 'es', 'Soy el asistente de la escuela {{SCHOOL}}. Respondo preguntas a partir de sus documentos — por ejemplo sobre estos temas: {{TOPICS}}. Pregunta con tus propias palabras, no importan las erratas.', true, 'init-124', '2026-08-05 09:30:50.354826+00', 'meta-otázky (blok 2); {{SCHOOL}} a {{TOPICS}} doplňuje kód');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (35, 'capabilities', 'en', 'I am the assistant of {{SCHOOL}}. I answer questions from the school''s documents — for example on these topics: {{TOPICS}}. Ask in your own words, typos are fine.', true, 'init-124', '2026-08-05 09:30:50.354826+00', 'meta-otázky (blok 2); {{SCHOOL}} a {{TOPICS}} doplňuje kód');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (36, 'capabilities', 'cs', 'Jsem asistent školy {{SCHOOL}}. Odpovídám na otázky z jejích dokumentů — například na tato témata: {{TOPICS}}. Zeptej se vlastními slovy, klidně i s překlepy.', true, 'init-124', '2026-08-05 09:30:50.354826+00', 'meta-otázky (blok 2); {{SCHOOL}} a {{TOPICS}} doplňuje kód');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (37, 'role_required', 'cs', 'Neznáme tvoji roli. Řekni prosím, zda jsi student, učitel, nebo rodič — podle toho ti ukážu ty správné informace.', true, 'init-127', '2026-08-05 15:02:22.087301+00', 'search: caller role missing/invalid');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (38, 'role_required', 'en', 'We don''t know your role. Please tell us whether you are a student, a teacher, or a parent — that decides which information you see.', true, 'init-127', '2026-08-05 15:02:22.087301+00', 'search: caller role missing/invalid');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (39, 'role_required', 'de', 'Wir kennen deine Rolle nicht. Bitte sag uns, ob du Schüler, Lehrer oder Elternteil bist — danach richten sich die angezeigten Informationen.', true, 'init-127', '2026-08-05 15:02:22.087301+00', 'search: caller role missing/invalid');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (40, 'role_required', 'es', 'No conocemos tu rol. Indícanos si eres estudiante, profesor o padre — eso determina qué información verás.', true, 'init-127', '2026-08-05 15:02:22.087301+00', 'search: caller role missing/invalid');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (41, 'llm_unavailable', 'cs', 'Teď nemůžu odpověď připravit kvůli dočasnému technickému problému. Tvoje otázka je v pořádku — zkus to prosím za chvíli znovu.', true, 'migration_139', '2026-08-17 22:22:07.926878+00', 'provizorní znění, k přepsání (Marek)');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (42, 'llm_unavailable', 'en', 'I can''t produce an answer right now because of a temporary technical problem. Your question is fine — please try again in a moment.', true, 'migration_139', '2026-08-17 22:22:07.926878+00', 'provisional wording, to be rewritten (Marek)');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (43, 'llm_unavailable', 'de', 'Ich kann gerade wegen eines vorübergehenden technischen Problems keine Antwort erstellen. Deine Frage ist in Ordnung — bitte versuche es gleich noch einmal.', true, 'migration_139', '2026-08-17 22:22:07.926878+00', 'provisional wording, to be rewritten (Marek)');
+INSERT INTO edu_ai.system_message (id, message_key, lang, message, is_active, created_by, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (44, 'llm_unavailable', 'es', 'Ahora mismo no puedo preparar una respuesta por un problema técnico temporal. Tu pregunta está bien: inténtalo de nuevo en un momento.', true, 'migration_139', '2026-08-17 22:22:07.926878+00', 'provisional wording, to be rewritten (Marek)');
+
+
+ALTER TABLE edu_ai.system_message ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: taxonomy_binding; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.taxonomy_binding DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.taxonomy_binding (id, domain_code, school_level, grades, is_active, notes, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'SECONDARY_ADMISSIONS', 'ZS', '{9}', true, 'přijímačky na 4leté SŠ — žáci 9. tříd ZŠ', '2026-08-06 16:17:20.492161+00');
+INSERT INTO edu_ai.taxonomy_binding (id, domain_code, school_level, grades, is_active, notes, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 'MULTIYEAR_GYMNASIUM_ADMISSIONS', 'ZS', '{5,7}', true, '8leté z 5., 6leté ze 7. třídy ZŠ', '2026-08-06 16:17:20.492161+00');
+INSERT INTO edu_ai.taxonomy_binding (id, domain_code, school_level, grades, is_active, notes, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'UNIVERSITY_ADMISSIONS', 'SS', '{13}', true, 'přijímačky na VŠ — maturanti, 4. ročník SŠ', '2026-08-06 16:17:20.492161+00');
+INSERT INTO edu_ai.taxonomy_binding (id, domain_code, school_level, grades, is_active, notes, created_at) OVERRIDING SYSTEM VALUE VALUES (4, 'GRADUATION_EXAM', 'SS', '{13}', true, 'maturita — 4. ročník SŠ', '2026-08-06 16:17:20.492161+00');
+
+
+ALTER TABLE edu_ai.taxonomy_binding ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: taxonomy_rules; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.taxonomy_rules DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (2, 'STUDY_MATERIAL', 'Instructional content directly used for teaching students.', 20, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Studijní materiál", "de": "Lernmaterial", "en": "Study material", "es": "Material de estudio"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (3, 'STRATEGIC_DOCUMENT', 'Institutional planning, curriculum approval, annual reports, development plans, governance-level documents.', 30, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Strategický dokument", "de": "Strategisches Dokument", "en": "Strategic document", "es": "Documento estratégico"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (21, 'SPECIAL_NEEDS', 'Content about inclusion and special educational needs: support measures, individual education plans, assistants, counselling.', 10, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Inkluze a speciální vzdělávací potřeby", "de": "Inklusion und sonderpädagogischer Förderbedarf", "en": "Inclusion & special needs", "es": "Inclusión y necesidades educativas especiales"}', NULL, 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (5, 'ADMINISTRATIVE_RECORD', 'Attendance lists, grade sheets, internal records.', 50, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Administrativní záznam", "de": "Verwaltungsunterlage", "en": "Administrative record", "es": "Registro administrativo"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (7, 'TECHNICAL_DOCUMENTATION', 'Descriptive documentation of a product, system or tool: overviews, reference material, architecture descriptions, API references, technical specifications. Describes WHAT a system is and how it is structured. If the content is primarily actionable numbered steps toward one goal, prefer HOW_TO_GUIDE instead.', 62, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Technická dokumentace", "de": "Technische Dokumentation", "en": "Technical documentation", "es": "Documentación técnica"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (8, 'HOW_TO_GUIDE', 'Step-by-step instructions for achieving a task: user manuals, tutorials, installation/configuration guides, walkthroughs. Describes HOW to do something, typically imperative or numbered steps. If it TEACHES school curriculum content to students, prefer STUDY_MATERIAL; if it is primarily descriptive reference, prefer TECHNICAL_DOCUMENTATION.', 64, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Návod / postup", "de": "Anleitung / Vorgehensweise", "en": "How-to guide / manual", "es": "Guía / instrucciones"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (9, 'TROUBLESHOOTING', 'Content organized as problem -> solution or question -> answer: troubleshooting guides, FAQs, known issues, error-message explanations, diagnostic procedures. If it is a single linear procedure toward one goal rather than a problem/question structure, prefer HOW_TO_GUIDE.', 66, true, 'init', '2026-07-30 15:43:08.928476+00', 'Do not use as a catch-all for technical content — undeterminable stays UNKNOWN.', false, '{"cs": "Řešení problémů / FAQ", "de": "Problemlösung / FAQ", "en": "Troubleshooting / FAQ", "es": "Resolución de problemas / FAQ"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (10, 'MIXED_DOCUMENT', 'Clearly contains multiple independent document types.', 70, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Smíšený dokument", "de": "Gemischtes Dokument", "en": "Mixed document", "es": "Documento mixto"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (11, 'UNKNOWN', 'Cannot determine confidently.', 80, true, 'init', '2026-07-30 15:43:08.928476+00', 'Catch-all ("other"): the classification component maps any LLM output not present in this taxonomy to UNKNOWN.', false, '{"cs": "Nezařazeno / ostatní", "de": "Nicht zugeordnet / Sonstiges", "en": "Uncategorized / other", "es": "Sin clasificar / otros"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (31, 'SCHOOL_EVENTS', 'Content about school events, trips, excursions and outdoor school (škola v přírodě): organisation, dates, consent, payment.', 7, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Školní akce a výlety", "de": "Schulveranstaltungen und Ausflüge", "en": "School events & trips", "es": "Eventos y excursiones escolares"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (34, 'BULLYING', 'Content about bullying (šikana): its signs, prevention, and how the school detects, reports and resolves it.', 3, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Šikana", "de": "Mobbing", "en": "Bullying", "es": "Acoso escolar"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (35, 'DATA_PROTECTION', 'Content about personal-data protection / GDPR: the data-protection officer, processing of pupils'' data, consents, privacy rules.', 4, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Ochrana osobních údajů (GDPR)", "de": "Datenschutz (DSGVO)", "en": "Data protection (GDPR)", "es": "Protección de datos (RGPD)"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (43, 'SCHOOL_EVENTS', 'Content about school events, trips, excursions and outdoor school (škola v přírodě): organisation, dates, consent, payment.', 7, true, 'martin', '2026-08-11 19:18:36.207069+00', NULL, false, '{"cs": "Školní akce a výlety", "de": "Schulveranstaltungen und Ausflüge", "en": "School events & trips", "es": "Eventos y excursiones escolares"}', NULL, 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (1, 'INTERNAL_LEGAL_DOCUMENT', 'Formal regulations, policies, procedures, governance documents.', 10, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Interní předpis / řád", "de": "Interne Vorschrift / Ordnung", "en": "Internal regulations / policies", "es": "Normativa interna / reglamento"}', NULL, 'DOCUMENT_TYPE', NULL, 'priority');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (36, 'SPECIAL_NEEDS', 'Content about inclusion and special educational needs: support measures, individual education plans, assistants, counselling.', 10, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Inkluze a speciální vzdělávací potřeby", "de": "Inklusion und sonderpädagogischer Förderbedarf", "en": "Inclusion & special needs", "es": "Inclusión y necesidades educativas especiales"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (37, 'GENERAL_LEGAL_DOCUMENT', 'General legal / regulatory content not tied to a specific school situation (zákony, vyhlášky, nařízení, obecné právní předpisy).', 13, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Obecné právní dokumenty", "de": "Allgemeine Rechtsdokumente", "en": "General legal documents", "es": "Documentos jurídicos generales"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (14, 'BULLYING', 'Content about bullying (šikana): its signs, prevention, and how the school detects, reports and resolves it.', 3, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Šikana", "de": "Mobbing", "en": "Bullying", "es": "Acoso escolar"}', NULL, 'DOMAIN', '{šikana,kyberšikana}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (15, 'DATA_PROTECTION', 'Content about personal-data protection / GDPR: the data-protection officer, processing of pupils'' data, consents, privacy rules.', 4, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Ochrana osobních údajů (GDPR)", "de": "Datenschutz (DSGVO)", "en": "Data protection (GDPR)", "es": "Protección de datos (RGPD)"}', NULL, 'DOMAIN', '{gdpr,"osobní údaje",pověřenec}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (33, 'ENROLLMENT', 'Content about enrolment and transfers: enrolment to the first grade, transfers between schools, required documents.', 9, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Zápis a přestup", "de": "Einschreibung und Übertritt", "en": "Enrolment & transfer", "es": "Matrícula y traslado"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', '{"zápis do první třídy","zápis do školy"}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (20, 'ENROLLMENT', 'Content about enrolment and transfers: enrolment to the first grade, transfers between schools, required documents.', 9, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Zápis a přestup", "de": "Einschreibung und Übertritt", "en": "Enrolment & transfer", "es": "Matrícula y traslado"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', '{"zápis do první třídy","zápis do školy"}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (32, 'CATERING', 'Content about school meals and the canteen: menus, payments, allergens, sign-up and rules.', 8, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Školní stravování", "de": "Schulverpflegung", "en": "School catering", "es": "Comedor escolar"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', '{jídelna,oběd,stravování}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (24, 'GENERAL_LEGAL_DOCUMENT', 'General legal / regulatory content not tied to a specific school situation (zákony, vyhlášky, nařízení, obecné právní předpisy).', 13, true, NULL, '2026-08-06 16:17:20.492161+00', NULL, false, '{"cs": "Obecné právní dokumenty", "de": "Allgemeine Rechtsdokumente", "en": "General legal documents", "es": "Documentos jurídicos generales"}', NULL, 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (29, 'ATTENDANCE', 'Content about school attendance: absences, excuses, leave of absence, late arrivals and truancy rules.', 5, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Docházka a absence", "de": "Anwesenheit und Fehlzeiten", "en": "Attendance & absence", "es": "Asistencia y ausencias"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (30, 'GRADING', 'Content about assessment and grading: marks, report cards, evaluation rules, honours, re-sits.', 6, true, 'martin', '2026-08-06 21:47:29.616572+00', NULL, false, '{"cs": "Klasifikace a hodnocení", "de": "Benotung und Bewertung", "en": "Grading & assessment", "es": "Calificación y evaluación"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (16, 'ATTENDANCE', 'Content about school attendance: absences, excuses, leave of absence, late arrivals and truancy rules.', 5, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Docházka a absence", "de": "Anwesenheit und Fehlzeiten", "en": "Attendance & absence", "es": "Asistencia y ausencias"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (17, 'GRADING', 'Content about assessment and grading: marks, report cards, evaluation rules, honours, re-sits.', 6, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Klasifikace a hodnocení", "de": "Benotung und Bewertung", "en": "Grading & assessment", "es": "Calificación y evaluación"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (18, 'SCHOOL_EVENTS', 'Content about school events, trips, excursions and outdoor school (škola v přírodě): organisation, dates, consent, payment.', 7, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Školní akce a výlety", "de": "Schulveranstaltungen und Ausflüge", "en": "School events & trips", "es": "Eventos y excursiones escolares"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (13, 'SECONDARY_ADMISSIONS', 'Admission / entrance to a FOUR-year secondary school (přijímací řízení na střední školu, čtyřleté obory) — applicants finishing the 9th grade of basic school. NOT a multi-year gymnasium (separate domain), NOT a university.', 2, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Přijímačky na střední školu", "de": "Aufnahme an die Mittelschule", "en": "Secondary-school admissions", "es": "Admisión a la escuela secundaria"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (25, 'BULLYING', 'Content about bullying (šikana): its signs, prevention, and how the school detects, reports and resolves it.', 3, true, 'martin', '2026-08-06 21:22:56.636034+00', NULL, false, '{"cs": "Šikana", "de": "Mobbing", "en": "Bullying", "es": "Acoso escolar"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (26, 'DATA_PROTECTION', 'Content about personal-data protection / GDPR: the data-protection officer, processing of pupils'' data, consents, privacy rules.', 4, true, 'martin', '2026-08-06 21:22:56.636034+00', NULL, false, '{"cs": "Ochrana osobních údajů (GDPR)", "de": "Datenschutz (DSGVO)", "en": "Data protection (GDPR)", "es": "Protección de datos (RGPD)"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (27, 'SPECIAL_NEEDS', 'Content about inclusion and special educational needs: support measures, individual education plans, assistants, counselling.', 10, true, 'martin', '2026-08-06 21:22:56.636034+00', NULL, false, '{"cs": "Inkluze a speciální vzdělávací potřeby", "de": "Inklusion und sonderpädagogischer Förderbedarf", "en": "Inclusion & special needs", "es": "Inclusión y necesidades educativas especiales"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (28, 'GENERAL_LEGAL_DOCUMENT', 'General legal / regulatory content not tied to a specific school situation (zákony, vyhlášky, nařízení, obecné právní předpisy).', 13, true, 'martin', '2026-08-06 21:22:56.636034+00', NULL, false, '{"cs": "Obecné právní dokumenty", "de": "Allgemeine Rechtsdokumente", "en": "General legal documents", "es": "Documentos jurídicos generales"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (12, 'GRADUATION_EXAM', 'Content about the maturita (secondary-school leaving examination): its organisation, subjects, dates, rules, results or appeals.', 1, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Maturita", "de": "Abitur (Maturita)", "en": "Graduation exam (maturita)", "es": "Examen de graduación (maturita)"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (23, 'UNIVERSITY_ADMISSIONS', 'Admission / entrance to a UNIVERSITY or college (přijímací řízení na vysokou školu) — for secondary-school graduates / maturanti (final year of secondary school).', 12, true, NULL, '2026-08-06 16:17:20.492161+00', NULL, false, '{"cs": "Přijímačky na vysokou školu", "de": "Hochschulzulassung", "en": "University admissions", "es": "Admisión a la universidad"}', 'SKOLA_NOVA_VES_SOS', 'DOMAIN', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (38, 'EXTERNAL_LEGAL_DOCUMENT', 'Národní nebo EU legislativa a předpisy, které škola dodržuje, ale sama nevydává: školský zákon, GDPR/nařízení, vyhlášky a metodické pokyny MŠMT. Odlišné od INTERNAL_LEGAL_DOCUMENT (vlastní řád/směrnice školy).', 15, true, 'martin', '2026-08-11 19:18:36.198881+00', NULL, false, '{"cs": "Externí právní předpis (zákon, vyhláška, GDPR)", "de": "Externe Rechtsvorschrift (Gesetz, Verordnung, DSGVO)", "en": "External legal regulation (act, decree, GDPR)", "es": "Norma jurídica externa (ley, decreto, RGPD)"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (39, 'EXTERNAL_EXAMINATION_DOCUMENT', 'Materiály externí zkušební autority: průvodci a specifikace Cermat, jednotná přijímací zkouška, testová zadání a metodika přijímacích/maturitních zkoušek od Cermat/MŠMT. Odlišné od EXAMINATION_DOCUMENT (vlastní testy školy).', 65, true, 'martin', '2026-08-11 19:18:36.204748+00', NULL, false, '{"cs": "Externí zkouškový dokument (Cermat, přijímačky)", "de": "Externes Prüfungsdokument (Cermat, Aufnahmeprüfungen)", "en": "External examination document (Cermat, entrance exams)", "es": "Documento de examen externo (Cermat, exámenes de admisión)"}', NULL, 'DOCUMENT_TYPE', NULL, 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (40, 'ATTENDANCE', 'Content about school attendance: absences, excuses, leave of absence, late arrivals and truancy rules.', 5, true, 'martin', '2026-08-11 19:18:36.207069+00', NULL, false, '{"cs": "Docházka a absence", "de": "Anwesenheit und Fehlzeiten", "en": "Attendance & absence", "es": "Asistencia y ausencias"}', NULL, 'DOMAIN', '{docházka,omluvenka,uvolnění,absence}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (19, 'CATERING', 'Content about school meals and the canteen: menus, payments, allergens, sign-up and rules.', 8, true, NULL, '2026-08-06 13:50:45.747735+00', NULL, false, '{"cs": "Školní stravování", "de": "Schulverpflegung", "en": "School catering", "es": "Comedor escolar"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', '{jídelna,oběd,stravování}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (4, 'SCHOOL_INFORMATION_DOCUMENT', 'Event info, trips, schedules, communication to parents/students.', 40, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Informace školy (akce, sdělení)", "de": "Schulinformationen (Termine, Mitteilungen)", "en": "School information (events, notices)", "es": "Información escolar (eventos, avisos)"}', NULL, 'DOCUMENT_TYPE', NULL, 'priority');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (6, 'EXAMINATION_DOCUMENT', 'Tests, assignments, question sheets.', 60, true, 'init', '2026-07-30 15:43:08.928476+00', NULL, false, '{"cs": "Zkouškový dokument (testy, zadání)", "de": "Prüfungsdokument (Tests, Aufgaben)", "en": "Examination document (tests, assignments)", "es": "Documento de examen (pruebas, tareas)"}', NULL, 'DOCUMENT_TYPE', NULL, 'priority');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (42, 'SECONDARY_ADMISSIONS', 'Admission / entrance to a FOUR-year secondary school (přijímací řízení na střední školu, čtyřleté obory) — applicants finishing the 9th grade of basic school. NOT a multi-year gymnasium (separate domain), NOT a university.', 2, true, 'martin', '2026-08-11 19:18:36.207069+00', NULL, false, '{"cs": "Přijímačky na střední školu", "de": "Aufnahme an die Mittelschule", "en": "Secondary-school admissions", "es": "Admisión a la escuela secundaria"}', NULL, 'DOMAIN', '{přijímačky,"přijímací zkouška","přijímací řízení","jednotná přijímací zkouška",JPZ,cermat,přijmačky,příjmačky,přijimačky,prijmacky}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (22, 'MULTIYEAR_GYMNASIUM_ADMISSIONS', 'Admission to a MULTI-YEAR gymnasium (přijímací řízení na víceleté gymnázium — šestileté / osmileté), applicants from the 5th grade (eight-year) or 7th grade (six-year) of basic school.', 11, true, NULL, '2026-08-06 16:17:20.492161+00', NULL, false, '{"cs": "Přijímačky na víceletá gymnázia", "de": "Aufnahme an mehrjährige Gymnasien", "en": "Multi-year gymnasium admissions", "es": "Admisión a gimnasios plurianuales"}', 'SKOLA_NOVA_VES_ZS', 'DOMAIN', '{"víceleté gymnázium","osmileté gymnázium","šestileté gymnázium"}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (41, 'GRADING', 'Content about assessment and grading: marks, report cards, evaluation rules, honours, re-sits.', 6, true, 'martin', '2026-08-11 19:18:36.207069+00', NULL, false, '{"cs": "Klasifikace a hodnocení", "de": "Benotung und Bewertung", "en": "Grading & assessment", "es": "Calificación y evaluación"}', NULL, 'DOMAIN', '{známka,klasifikace,vysvědčení,"hodnocení prospěchu"}', 'normal');
+INSERT INTO edu_ai.taxonomy_rules (id, type_code, llm_instruction, sort_order, is_active, created_by, created_at, notes, is_ui_default, labels, legal_entity_code, taxonomy_type_code, domain_keywords, search_role) OVERRIDING SYSTEM VALUE VALUES (44, 'SIGNPOST', 'Rozcestník: dokument, jehož obsahem jsou pouze odkazy nebo ukazatele na jiné dokumenty. Sám neuvádí žádný údaj — číslo, termín, podmínku, postup ani výčet. Typicky rozcestníková stránka webu: nadpis, odstavec o tom, co jsou dokumenty, na které odkazuje, a seznam odkazů.', 90, true, 'migration-172', '2026-08-24 05:15:03.891837+00', 'Do vyhledávání nevstupuje (search_role=excluded) — nemá čím odpovědět.', false, '{"cs": "Rozcestník", "en": "Signpost"}', NULL, 'DOCUMENT_TYPE', NULL, 'excluded');
+
+
+ALTER TABLE edu_ai.taxonomy_rules ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: ui_label; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.ui_label DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (5, 'search_test', 'subtitle', 'cs', 's jazykovým filtrem (search API :8090)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (6, 'search_test', 'subtitle', 'en', 'with language filter (search API :8090)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (7, 'search_test', 'subtitle', 'de', 'mit Sprachfilter (Search-API :8090)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (8, 'search_test', 'subtitle', 'es', 'con filtro de idioma (API de búsqueda :8090)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (9, 'search_test', 'ui_lang_label', 'cs', 'Jazyk rozhraní', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (10, 'search_test', 'ui_lang_label', 'en', 'Interface language', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (11, 'search_test', 'ui_lang_label', 'de', 'Sprache der Oberfläche', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (12, 'search_test', 'ui_lang_label', 'es', 'Idioma de la interfaz', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (13, 'search_test', 'ask_placeholder', 'cs', 'Zeptej se…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (14, 'search_test', 'ask_placeholder', 'en', 'Ask something…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (15, 'search_test', 'ask_placeholder', 'de', 'Frag etwas…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (16, 'search_test', 'ask_placeholder', 'es', 'Pregunta algo…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (17, 'search_test', 'filter_all', 'cs', '🌐 Vše', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (18, 'search_test', 'filter_all', 'en', '🌐 All', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (19, 'search_test', 'filter_all', 'de', '🌐 Alle', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (20, 'search_test', 'filter_all', 'es', '🌐 Todos', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (21, 'search_test', 'search_button', 'cs', 'Hledat', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (22, 'search_test', 'search_button', 'en', 'Search', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (23, 'search_test', 'search_button', 'de', 'Suchen', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (24, 'search_test', 'search_button', 'es', 'Buscar', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (25, 'search_test', 'filter_hint', 'cs', 'Filtr omezí dokumenty i Q&A na zvolený jazyk. „Vše“ = bez omezení (jazyk otázky se detekuje automaticky pro správné skloňování).', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (26, 'search_test', 'filter_hint', 'en', 'The filter restricts documents and Q&A to the chosen language. “All” = no restriction (the question''s language is detected automatically so the answer is inflected correctly).', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (27, 'search_test', 'filter_hint', 'de', 'Der Filter beschränkt Dokumente und Q&A auf die gewählte Sprache. „Alle“ = keine Beschränkung (die Sprache der Frage wird automatisch erkannt, damit die Antwort korrekt gebeugt wird).', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (28, 'search_test', 'filter_hint', 'es', 'El filtro limita los documentos y las preguntas frecuentes al idioma elegido. «Todos» = sin límite (el idioma de la pregunta se detecta automáticamente para una flexión correcta).', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (29, 'search_test', 'answer_placeholder', 'cs', 'Odpověď se zobrazí zde.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (30, 'search_test', 'answer_placeholder', 'en', 'The answer will appear here.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (31, 'search_test', 'answer_placeholder', 'de', 'Die Antwort erscheint hier.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (32, 'search_test', 'answer_placeholder', 'es', 'La respuesta aparecerá aquí.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (33, 'search_test', 'searching', 'cs', '…hledám…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (34, 'search_test', 'searching', 'en', '…searching…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (35, 'search_test', 'searching', 'de', '…suche…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (36, 'search_test', 'searching', 'es', '…buscando…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (37, 'search_test', 'badge_source', 'cs', 'zdroj', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (38, 'search_test', 'badge_source', 'en', 'source', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (39, 'search_test', 'badge_source', 'de', 'Quelle', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (40, 'search_test', 'badge_source', 'es', 'fuente', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (41, 'search_test', 'badge_lang', 'cs', 'jazyk', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (42, 'search_test', 'badge_lang', 'en', 'language', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (43, 'search_test', 'badge_lang', 'de', 'Sprache', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (44, 'search_test', 'badge_lang', 'es', 'idioma', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (45, 'search_test', 'badge_filter', 'cs', 'filtr', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (46, 'search_test', 'badge_filter', 'en', 'filter', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (47, 'search_test', 'badge_filter', 'de', 'Filter', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (48, 'search_test', 'badge_filter', 'es', 'filtro', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (49, 'search_test', 'badge_auto', 'cs', 'auto', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (50, 'search_test', 'badge_auto', 'en', 'auto', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (51, 'search_test', 'badge_auto', 'de', 'auto', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (52, 'search_test', 'badge_auto', 'es', 'auto', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (53, 'search_test', 'badge_score', 'cs', 'skóre', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (54, 'search_test', 'badge_score', 'en', 'score', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (55, 'search_test', 'badge_score', 'de', 'Score', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (56, 'search_test', 'badge_score', 'es', 'puntuación', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (57, 'search_test', 'suggestions_label', 'cs', 'Nechtěl(a) ses zeptat:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (58, 'search_test', 'suggestions_label', 'en', 'Did you mean to ask:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (59, 'search_test', 'suggestions_label', 'de', 'Wolltest du fragen:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (60, 'search_test', 'suggestions_label', 'es', '¿Querías preguntar:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (61, 'search_test', 'sources_label', 'cs', 'Zdroje:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (62, 'search_test', 'sources_label', 'en', 'Sources:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (63, 'search_test', 'sources_label', 'de', 'Quellen:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (64, 'search_test', 'sources_label', 'es', 'Fuentes:', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (65, 'search_test', 'error', 'cs', 'Chyba', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (66, 'search_test', 'error', 'en', 'Error', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (67, 'search_test', 'error', 'de', 'Fehler', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (68, 'search_test', 'error', 'es', 'Error', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (73, 'upload_test', 'subtitle', 'cs', 'selecty živě z číselníků (gateway :8080)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (74, 'upload_test', 'subtitle', 'en', 'dropdowns served live from the code lists (gateway :8080)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (75, 'upload_test', 'subtitle', 'de', 'Auswahllisten live aus den Codelisten (Gateway :8080)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (76, 'upload_test', 'subtitle', 'es', 'listas desplegables en vivo desde los catálogos (gateway :8080)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (77, 'upload_test', 'ui_lang_label', 'cs', 'Jazyk rozhraní', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (78, 'upload_test', 'ui_lang_label', 'en', 'Interface language', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (79, 'upload_test', 'ui_lang_label', 'de', 'Sprache der Oberfläche', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (80, 'upload_test', 'ui_lang_label', 'es', 'Idioma de la interfaz', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (81, 'upload_test', 'legend_source', 'cs', 'Zdroj', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (82, 'upload_test', 'legend_source', 'en', 'Source', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (83, 'upload_test', 'legend_source', 'de', 'Quelle', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (84, 'upload_test', 'legend_source', 'es', 'Origen', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (85, 'upload_test', 'tab_url', 'cs', 'Webová adresa', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (86, 'upload_test', 'tab_url', 'en', 'Web address', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (87, 'upload_test', 'tab_url', 'de', 'Webadresse', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (88, 'upload_test', 'tab_url', 'es', 'Dirección web', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (89, 'upload_test', 'tab_file', 'cs', 'Soubor', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (90, 'upload_test', 'tab_file', 'en', 'File', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (91, 'upload_test', 'tab_file', 'de', 'Datei', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (92, 'upload_test', 'tab_file', 'es', 'Archivo', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (93, 'upload_test', 'label_url', 'cs', 'URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (94, 'upload_test', 'label_url', 'en', 'URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (95, 'upload_test', 'label_url', 'de', 'URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (96, 'upload_test', 'label_url', 'es', 'URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (97, 'upload_test', 'children', 'cs', 'stáhnout i odkazované stránky/soubory (1. úroveň)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (98, 'upload_test', 'children', 'en', 'also download linked pages/files (level 1)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (99, 'upload_test', 'children', 'de', 'auch verlinkte Seiten/Dateien herunterladen (Ebene 1)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (100, 'upload_test', 'children', 'es', 'descargar también las páginas/archivos vinculados (nivel 1)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (101, 'upload_test', 'max_links', 'cs', 'max. odkazů', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (102, 'upload_test', 'max_links', 'en', 'max. links', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (103, 'upload_test', 'max_links', 'de', 'max. Links', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (104, 'upload_test', 'max_links', 'es', 'máx. enlaces', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (109, 'upload_test', 'legend_metadata', 'cs', 'Metadata', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (110, 'upload_test', 'legend_metadata', 'en', 'Metadata', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (111, 'upload_test', 'legend_metadata', 'de', 'Metadaten', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (112, 'upload_test', 'legend_metadata', 'es', 'Metadatos', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (113, 'upload_test', 'metadata_hint', 'cs', '— nevyplněné klasifikuje AI; hodnoty se validují proti číselníkům', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (114, 'upload_test', 'metadata_hint', 'en', '— anything left empty is classified by the AI; values are validated against the code lists', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (115, 'upload_test', 'metadata_hint', 'de', '— nicht ausgefüllte Felder klassifiziert die KI; Werte werden gegen die Codelisten validiert', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (116, 'upload_test', 'metadata_hint', 'es', '— lo que quede vacío lo clasifica la IA; los valores se validan contra los catálogos', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (117, 'upload_test', 'doc_type', 'cs', 'Typ dokumentu', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (118, 'upload_test', 'doc_type', 'en', 'Document type', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (119, 'upload_test', 'doc_type', 'de', 'Dokumenttyp', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (120, 'upload_test', 'doc_type', 'es', 'Tipo de documento', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (121, 'upload_test', 'language', 'cs', 'Jazyk', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (122, 'upload_test', 'language', 'en', 'Language', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (123, 'upload_test', 'language', 'de', 'Sprache', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (124, 'upload_test', 'language', 'es', 'Idioma', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (125, 'upload_test', 'subject', 'cs', 'Předmět', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (126, 'upload_test', 'subject', 'en', 'Subject', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (127, 'upload_test', 'subject', 'de', 'Fach', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (128, 'upload_test', 'subject', 'es', 'Materia', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (129, 'upload_test', 'grade', 'cs', 'Ročník', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (130, 'upload_test', 'grade', 'en', 'Grade', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (131, 'upload_test', 'grade', 'de', 'Klasse', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (132, 'upload_test', 'grade', 'es', 'Curso', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (133, 'upload_test', 'user', 'cs', 'Uživatel', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (134, 'upload_test', 'user', 'en', 'User', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (135, 'upload_test', 'user', 'de', 'Benutzer', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (136, 'upload_test', 'user', 'es', 'Usuario', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (137, 'upload_test', 'visibility', 'cs', 'Viditelnost', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (138, 'upload_test', 'visibility', 'en', 'Visibility', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (139, 'upload_test', 'visibility', 'de', 'Sichtbarkeit', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (140, 'upload_test', 'visibility', 'es', 'Visibilidad', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (149, 'upload_test', 'legend_qa', 'cs', 'Q&A pack', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (150, 'upload_test', 'legend_qa', 'en', 'Q&A pack', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (151, 'upload_test', 'legend_qa', 'de', 'Q&A-Paket', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (152, 'upload_test', 'legend_qa', 'es', 'Paquete de preguntas', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (157, 'upload_test', 'pack_id', 'cs', 'Vlastní pack ID', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (158, 'upload_test', 'pack_id', 'en', 'Custom pack ID', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (159, 'upload_test', 'pack_id', 'de', 'Eigene Paket-ID', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (160, 'upload_test', 'pack_id', 'es', 'ID de paquete propio', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (165, 'upload_test', 'pack_id_placeholder', 'cs', 'např. snowflake-docs', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (166, 'upload_test', 'pack_id_placeholder', 'en', 'e.g. snowflake-docs', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (167, 'upload_test', 'pack_id_placeholder', 'de', 'z. B. snowflake-docs', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (168, 'upload_test', 'pack_id_placeholder', 'es', 'p. ej. snowflake-docs', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (241, 'upload_test', 'status_file', 'cs', 'Soubor / zdroj', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (242, 'upload_test', 'status_file', 'en', 'File / source', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (243, 'upload_test', 'status_file', 'de', 'Datei / Quelle', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (244, 'upload_test', 'status_file', 'es', 'Archivo / origen', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (162, 'upload_test', 'optional', 'en', 'required', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (163, 'upload_test', 'optional', 'de', 'erforderlich', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (164, 'upload_test', 'optional', 'es', 'obligatorio', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (170, 'upload_test', 'pack_help', 'en', 'The pack name is <b>required</b> and is the <b>replacement key</b>: uploading a pack with the same name <b>replaces</b> this school''s previous version of it. Only <b>ASCII letters, digits, <code>-</code> and <code>_</code></b> are allowed (max 64 chars) — the name travels through URLs, filenames and shell commands. E.g. <code>prijimacky-2026</code>.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (105, 'upload_test', 'label_file', 'cs', 'Soubor (PDF / DOCX / PPTX / XLSX / QA CSV)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (106, 'upload_test', 'label_file', 'en', 'File (PDF / DOCX / PPTX / XLSX / QA CSV)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (107, 'upload_test', 'label_file', 'de', 'Datei (PDF / DOCX / PPTX / XLSX / QA CSV)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (108, 'upload_test', 'label_file', 'es', 'Archivo (PDF / DOCX / PPTX / XLSX / QA CSV)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (153, 'upload_test', 'qa_hint', 'cs', '— platí jen pro CSV s otázkami a odpověďmi', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (154, 'upload_test', 'qa_hint', 'en', '— applies only to a CSV of questions and answers', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (155, 'upload_test', 'qa_hint', 'de', '— gilt nur für CSV mit Fragen und Antworten', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (156, 'upload_test', 'qa_hint', 'es', '— solo se aplica al CSV con preguntas y respuestas', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (173, 'upload_test', 'submit', 'cs', 'Nahrát', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (174, 'upload_test', 'submit', 'en', 'Upload', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (175, 'upload_test', 'submit', 'de', 'Hochladen', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (176, 'upload_test', 'submit', 'es', 'Cargar', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (177, 'upload_test', 'result_placeholder', 'cs', 'Výsledek se zobrazí zde.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (178, 'upload_test', 'result_placeholder', 'en', 'The result will appear here.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (179, 'upload_test', 'result_placeholder', 'de', 'Das Ergebnis erscheint hier.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (180, 'upload_test', 'result_placeholder', 'es', 'El resultado aparecerá aquí.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (181, 'upload_test', 'select_empty', 'cs', '— nezadáno (klasifikuje AI) —', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (182, 'upload_test', 'select_empty', 'en', '— not set (classified by AI) —', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (183, 'upload_test', 'select_empty', 'de', '— nicht angegeben (KI klassifiziert) —', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (184, 'upload_test', 'select_empty', 'es', '— sin especificar (lo clasifica la IA) —', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (185, 'upload_test', 'loading_lists', 'cs', 'načítám číselníky…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (186, 'upload_test', 'loading_lists', 'en', 'loading code lists…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (187, 'upload_test', 'loading_lists', 'de', 'lade Codelisten…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (188, 'upload_test', 'loading_lists', 'es', 'cargando catálogos…', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (189, 'upload_test', 'lists_loaded', 'cs', 'číselníky načteny ✓', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (190, 'upload_test', 'lists_loaded', 'en', 'code lists loaded ✓', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (191, 'upload_test', 'lists_loaded', 'de', 'Codelisten geladen ✓', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (192, 'upload_test', 'lists_loaded', 'es', 'catálogos cargados ✓', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (193, 'upload_test', 'lists_error', 'cs', '⚠️ číselníky nedostupné — pole budou volný text', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (194, 'upload_test', 'lists_error', 'en', '⚠️ code lists unavailable — the fields will be free text', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (195, 'upload_test', 'lists_error', 'de', '⚠️ Codelisten nicht verfügbar — die Felder werden Freitext', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (196, 'upload_test', 'lists_error', 'es', '⚠️ catálogos no disponibles — los campos serán texto libre', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (197, 'upload_test', 'enter_url', 'cs', 'Zadej URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (198, 'upload_test', 'enter_url', 'en', 'Enter a URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (199, 'upload_test', 'enter_url', 'de', 'Gib eine URL ein', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (200, 'upload_test', 'enter_url', 'es', 'Introduce una URL', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (201, 'upload_test', 'choose_file', 'cs', 'Vyber soubor', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (202, 'upload_test', 'choose_file', 'en', 'Choose a file', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (203, 'upload_test', 'choose_file', 'de', 'Wähle eine Datei', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (204, 'upload_test', 'choose_file', 'es', 'Elige un archivo', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (205, 'upload_test', 'uploading', 'cs', 'nahrávám… (může trvat minuty)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (206, 'upload_test', 'uploading', 'en', 'uploading… (may take minutes)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (207, 'upload_test', 'uploading', 'de', 'lade hoch… (kann Minuten dauern)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (208, 'upload_test', 'uploading', 'es', 'cargando… (puede tardar minutos)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (209, 'upload_test', 'done', 'cs', 'hotovo', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (210, 'upload_test', 'done', 'en', 'done', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (211, 'upload_test', 'done', 'de', 'fertig', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (212, 'upload_test', 'done', 'es', 'hecho', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (213, 'upload_test', 'error', 'cs', 'chyba', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (214, 'upload_test', 'error', 'en', 'error', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (215, 'upload_test', 'error', 'de', 'Fehler', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (216, 'upload_test', 'error', 'es', 'error', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (217, 'upload_test', 'failed', 'cs', 'selhalo', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (218, 'upload_test', 'failed', 'en', 'failed', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (219, 'upload_test', 'failed', 'de', 'fehlgeschlagen', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (220, 'upload_test', 'failed', 'es', 'falló', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (221, 'upload_test', 'pack_preview_custom', 'cs', '→ použije se <b>{id}</b> (vlastní ID)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (222, 'upload_test', 'pack_preview_custom', 'en', '→ <b>{id}</b> will be used (custom ID)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (223, 'upload_test', 'pack_preview_custom', 'de', '→ <b>{id}</b> wird verwendet (eigene ID)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (224, 'upload_test', 'pack_preview_custom', 'es', '→ se usará <b>{id}</b> (ID propio)', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (225, 'upload_test', 'pack_preview_derived', 'cs', '→ odvodí se <b>{parts}</b>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (226, 'upload_test', 'pack_preview_derived', 'en', '→ derived as <b>{parts}</b>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (227, 'upload_test', 'pack_preview_derived', 'de', '→ abgeleitet als <b>{parts}</b>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (228, 'upload_test', 'pack_preview_derived', 'es', '→ se derivará como <b>{parts}</b>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (229, 'upload_test', 'pack_preview_detect', 'cs', ' — jazyk určí detekce z obsahu', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (230, 'upload_test', 'pack_preview_detect', 'en', ' — the language will come from content detection', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (231, 'upload_test', 'pack_preview_detect', 'de', ' — die Sprache ergibt sich aus der Inhaltserkennung', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (232, 'upload_test', 'pack_preview_detect', 'es', ' — el idioma vendrá de la detección del contenido', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (233, 'upload_test', 'lang_from_detection', 'cs', '<jazyk z detekce>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (234, 'upload_test', 'lang_from_detection', 'en', '<language from detection>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (235, 'upload_test', 'lang_from_detection', 'de', '<Sprache aus Erkennung>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (236, 'upload_test', 'lang_from_detection', 'es', '<idioma por detección>', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (237, 'upload_test', 'status_heading', 'cs', 'Průběh nahrávání', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (238, 'upload_test', 'status_heading', 'en', 'Upload progress', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (239, 'upload_test', 'status_heading', 'de', 'Upload-Fortschritt', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (240, 'upload_test', 'status_heading', 'es', 'Progreso de la carga', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (172, 'upload_test', 'pack_help', 'es', 'El nombre del paquete es <b>obligatorio</b> y es la <b>clave de reemplazo</b>: subir un paquete con el mismo nombre <b>reemplaza</b> la versión anterior de esta escuela. Solo se permiten <b>letras ASCII, dígitos, <code>-</code> y <code>_</code></b> (máx. 64 caracteres) — el nombre viaja por URLs, nombres de archivo y comandos de shell. P. ej. <code>prijimacky-2026</code>.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (249, 'upload_test', 'status_elapsed', 'cs', 'Trvání', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (250, 'upload_test', 'status_elapsed', 'en', 'Duration', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (251, 'upload_test', 'status_elapsed', 'de', 'Dauer', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (252, 'upload_test', 'status_elapsed', 'es', 'Duración', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (257, 'upload_test', 'status_chunks', 'cs', 'Chunků', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (258, 'upload_test', 'status_chunks', 'en', 'Chunks', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (259, 'upload_test', 'status_chunks', 'de', 'Chunks', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (260, 'upload_test', 'status_chunks', 'es', 'Fragmentos', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (261, 'upload_test', 'status_waiting', 'cs', 'Čekám na první událost…', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (262, 'upload_test', 'status_waiting', 'en', 'Waiting for the first event…', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (263, 'upload_test', 'status_waiting', 'de', 'Warte auf das erste Ereignis…', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (264, 'upload_test', 'status_waiting', 'es', 'Esperando el primer evento…', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (269, 'upload_test', 'status_stored', 'cs', 'uloženo', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (270, 'upload_test', 'status_stored', 'en', 'stored', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (271, 'upload_test', 'status_stored', 'de', 'gespeichert', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (272, 'upload_test', 'status_stored', 'es', 'guardado', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (273, 'upload_test', 'status_stopped', 'cs', 'Sledování ukončeno', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (274, 'upload_test', 'status_stopped', 'en', 'Tracking stopped', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (275, 'upload_test', 'status_stopped', 'de', 'Verfolgung beendet', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (276, 'upload_test', 'status_stopped', 'es', 'Seguimiento finalizado', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (277, 'upload_test', 'status_no_events', 'cs', 'Pro tento běh zatím nejsou žádné události.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (278, 'upload_test', 'status_no_events', 'en', 'No events for this run yet.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (279, 'upload_test', 'status_no_events', 'de', 'Für diesen Lauf gibt es noch keine Ereignisse.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (280, 'upload_test', 'status_no_events', 'es', 'Todavía no hay eventos para esta ejecución.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (281, 'upload_test', 'status_note', 'cs', 'Log má jen úroveň INFO, takže selhání se v něm neprojeví — zaseknutí poznáš podle rostoucího času od poslední události. Počet chunků je jediný spolehlivý signál, že se data opravdu uložila.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (282, 'upload_test', 'status_note', 'en', 'The log only ever has level INFO, so a failure does not show up there — a stall is visible as a growing time since the last event. The chunk count is the only reliable signal that the data actually landed.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (283, 'upload_test', 'status_note', 'de', 'Das Log hat ausschließlich die Stufe INFO, ein Fehler erscheint dort also nicht — ein Hängen erkennt man an der wachsenden Zeit seit dem letzten Ereignis. Die Chunk-Anzahl ist das einzige verlässliche Signal, dass die Daten wirklich gespeichert wurden.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (284, 'upload_test', 'status_note', 'es', 'El registro solo tiene nivel INFO, así que un fallo no aparece ahí — un bloqueo se nota por el tiempo creciente desde el último evento. El número de fragmentos es la única señal fiable de que los datos se guardaron.', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (1, 'search_test', 'title', 'cs', 'EDU-AI asistent RAG modul — testovací vyhledávání', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (2, 'search_test', 'title', 'en', 'EDU-AI assistant RAG module — search test', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (3, 'search_test', 'title', 'de', 'EDU-AI Assistent RAG-Modul — Suchtest', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (4, 'search_test', 'title', 'es', 'Módulo RAG del asistente EDU-AI — prueba de búsqueda', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (69, 'upload_test', 'title', 'cs', 'EDU-AI asistent RAG modul — testovací nahrávání', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (70, 'upload_test', 'title', 'en', 'EDU-AI assistant RAG module — upload test', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (71, 'upload_test', 'title', 'de', 'EDU-AI Assistent RAG-Modul — Upload-Test', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (72, 'upload_test', 'title', 'es', 'Módulo RAG del asistente EDU-AI — prueba de carga', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (265, 'upload_test', 'status_polling', 'cs', 'Aktualizuji každých {s} s', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (266, 'upload_test', 'status_polling', 'en', 'Refreshing every {s} s', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (267, 'upload_test', 'status_polling', 'de', 'Aktualisierung alle {s} s', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (268, 'upload_test', 'status_polling', 'es', 'Actualizando cada {s} s', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (245, 'upload_test', 'status_last_event', 'cs', 'Průběh (ingestion_log)', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (246, 'upload_test', 'status_last_event', 'en', 'Events (ingestion_log)', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (247, 'upload_test', 'status_last_event', 'de', 'Verlauf (ingestion_log)', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (248, 'upload_test', 'status_last_event', 'es', 'Eventos (ingestion_log)', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (253, 'upload_test', 'status_since_last', 'cs', 'Od předchozí', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (254, 'upload_test', 'status_since_last', 'en', 'Since previous', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (255, 'upload_test', 'status_since_last', 'de', 'Seit vorherigem', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (256, 'upload_test', 'status_since_last', 'es', 'Desde el anterior', true, '2026-08-01 06:54:50.733896+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (345, 'search_test', 'show_source', 'es', 'Mostrar el texto de origen', true, '2026-08-01 16:40:00.766026+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (346, 'search_test', 'show_source', 'de', 'Quelltext anzeigen', true, '2026-08-01 16:40:00.766026+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (347, 'search_test', 'show_source', 'cs', 'Zobrazit zdrojový text', true, '2026-08-01 16:40:00.766026+00', 'Summary of the <details> holding answer_parts[].excerpt');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (348, 'search_test', 'show_source', 'en', 'Show source text', true, '2026-08-01 16:40:00.766026+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (141, 'upload_test', 'visibility_private', 'cs', 'soukromý — jen pro mě', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (142, 'upload_test', 'visibility_private', 'en', 'private — only me', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (143, 'upload_test', 'visibility_private', 'de', 'privat — nur ich', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (144, 'upload_test', 'visibility_private', 'es', 'privado — solo yo', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (377, 'search_test', 'entity', 'cs', 'Právní entita', true, '2026-08-02 13:50:33.077764+00', 'Sent as legal_entity; required by /search');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (378, 'upload_test', 'visibility_organization', 'en', 'the whole organisation — every unit', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (380, 'search_test', 'user', 'es', 'Usuario', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (381, 'search_test', 'choose_entity', 'cs', '— vyber entitu —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (382, 'search_test', 'entity', 'en', 'Legal entity', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (383, 'search_test', 'user', 'de', 'Benutzer', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (384, 'upload_test', 'visibility_organization', 'cs', 'pro celou organizaci — všechny jednotky', true, '2026-08-02 13:50:33.077764+00', 'The whole tree of the legal person, siblings included');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (357, 'upload_test', 'choose_user', 'en', 'Choose the user ingesting this document.', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (358, 'upload_test', 'choose_entity', 'es', '— elige una entidad —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (359, 'upload_test', 'entity', 'es', 'Entidad legal', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (360, 'upload_test', 'choose_entity_first', 'de', '— zuerst Rechtsträger wählen —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (361, 'upload_test', 'no_users', 'de', '— keine aktiven Benutzer —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (362, 'upload_test', 'entity', 'de', 'Rechtsträger', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (363, 'upload_test', 'choose_user', 'cs', 'Vyber uživatele, který dokument nahrává.', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (364, 'upload_test', 'choose_entity_first', 'es', '— elige primero una entidad —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (365, 'upload_test', 'no_users', 'es', '— sin usuarios activos —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (366, 'upload_test', 'choose_entity', 'de', '— Rechtsträger wählen —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (367, 'upload_test', 'choose_entity', 'cs', '— vyber entitu —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (368, 'upload_test', 'no_users', 'en', '— no active users for this entity —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (369, 'upload_test', 'choose_entity_first', 'en', '— choose an entity first —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (370, 'upload_test', 'choose_user', 'de', 'Wähle den einspeisenden Benutzer.', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (371, 'upload_test', 'entity', 'cs', 'Právní entita', true, '2026-08-02 09:41:21.809554+00', 'Not "škola": the platform is meant to serve companies too');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (372, 'upload_test', 'choose_entity', 'en', '— choose an entity —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (373, 'upload_test', 'no_users', 'cs', '— entita nemá aktivní uživatele —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (374, 'upload_test', 'choose_entity_first', 'cs', '— nejdřív vyber entitu —', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (375, 'upload_test', 'choose_user', 'es', 'Elige el usuario que sube el documento.', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (376, 'upload_test', 'entity', 'en', 'Legal entity', true, '2026-08-02 09:41:21.809554+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (397, 'search_test', 'choose_user', 'cs', '— vyber uživatele —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (398, 'search_test', 'choose_user', 'en', '— choose a user —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (399, 'search_test', 'choose_user', 'de', '— Benutzer wählen —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (400, 'search_test', 'choose_user', 'es', '— elige un usuario —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (145, 'upload_test', 'visibility_public', 'cs', 'veřejný — pro všechny entity', false, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (146, 'upload_test', 'visibility_public', 'en', 'public — every entity', false, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (147, 'upload_test', 'visibility_public', 'de', 'öffentlich — alle Einheiten', false, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (148, 'upload_test', 'visibility_public', 'es', 'público — todas las entidades', false, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (386, 'search_test', 'choose_entity', 'en', '— choose an entity —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (387, 'search_test', 'entity', 'es', 'Entidad legal', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (388, 'search_test', 'choose_entity', 'es', '— elige una entidad —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (390, 'upload_test', 'visibility_organization', 'de', 'die ganze Organisation — alle Einheiten', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (391, 'search_test', 'user', 'cs', 'Uživatel', true, '2026-08-02 13:50:33.077764+00', 'Sent as user_id; only affects private documents');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (392, 'search_test', 'choose_entity', 'de', '— Rechtsträger wählen —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (394, 'upload_test', 'visibility_organization', 'es', 'toda la organización — todas las unidades', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (395, 'search_test', 'user', 'en', 'User', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (396, 'search_test', 'entity', 'de', 'Rechtsträger', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (349, 'upload_test', 'visibility_entity', 'es', 'solo esta entidad', true, '2026-08-02 09:00:57.99612+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (351, 'upload_test', 'visibility_entity', 'de', 'nur diese Einheit', true, '2026-08-02 09:00:57.99612+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (354, 'upload_test', 'visibility_entity', 'cs', 'jen pro tuto entitu', true, '2026-08-02 09:00:57.99612+00', 'Renamed per entity once ui_label carries legal_entity_code — a company says "Pro firmu"');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (355, 'upload_test', 'visibility_entity', 'en', 'this entity only', true, '2026-08-02 09:00:57.99612+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (401, 'search_test', 'no_users', 'cs', '— entita nemá aktivní uživatele —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (402, 'search_test', 'no_users', 'en', '— no active users for this entity —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (403, 'search_test', 'no_users', 'de', '— keine aktiven Benutzer —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (404, 'search_test', 'no_users', 'es', '— sin usuarios activos —', true, '2026-08-02 15:03:50.001401+00', 'search requires a verified user (init 97)');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (385, 'search_test', 'anonymous', 'cs', '— anonymní (bez privátních) —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (389, 'search_test', 'anonymous', 'de', '— anonym (keine privaten) —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (379, 'search_test', 'anonymous', 'en', '— anonymous (no private docs) —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (393, 'search_test', 'anonymous', 'es', '— anónimo (sin privados) —', true, '2026-08-02 13:50:33.077764+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (405, 'upload_test', 'roles_private_note', 'cs', 'U „jen pro mě" se role neuplatňuje — dokument vidí jen jeho vlastník. I kdyby byla role uložena, vyhledávání ji u soukromých dokumentů ignoruje (jinak by se dokument nikdy nezobrazil).', true, '2026-08-06 20:47:41.034943+00', 'private+role trap note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (448, 'upload_test', 'roles_required', 'es', 'Selecciona al menos un rol (estudiante / profesor / padre).', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (406, 'upload_test', 'roles_private_note', 'en', 'For “only me” the role does not apply — only the owner sees the document. Even if a role were stored, search ignores it for private documents (otherwise the document would never appear).', true, '2026-08-06 20:47:41.034943+00', 'private+role trap note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (407, 'upload_test', 'roles_private_note', 'de', 'Bei „nur für mich" gilt die Rolle nicht — nur der Eigentümer sieht das Dokument. Selbst eine gespeicherte Rolle wird bei privaten Dokumenten in der Suche ignoriert (sonst würde das Dokument nie erscheinen).', true, '2026-08-06 20:47:41.034943+00', 'private+role trap note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (408, 'upload_test', 'roles_private_note', 'es', 'En «solo para mí» el rol no se aplica — solo el propietario ve el documento. Aunque se guardara un rol, la búsqueda lo ignora en los documentos privados (de lo contrario el documento nunca aparecería).', true, '2026-08-06 20:47:41.034943+00', 'private+role trap note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (409, 'upload_test', 'binding_box_label', 'cs', 'Situace/téma dokumentu (vazba pro tento typ školy)', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (410, 'upload_test', 'binding_box_label', 'en', 'Document situation/theme (binding for this school type)', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (411, 'upload_test', 'binding_box_label', 'de', 'Situation/Thema des Dokuments (Bindung für diesen Schultyp)', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (412, 'upload_test', 'binding_box_label', 'es', 'Situación/tema del documento (vínculo para este tipo de escuela)', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (413, 'upload_test', 'binding_box_hint', 'cs', 'Výběr vazby je <b>master</b>: nastaví situaci/téma (přebíjí LLM klasifikaci) a ročníky se pro chunky odvodí z vazby. „Zadám ručně“ = volná volba situace/tématu (i více) a ročníku.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (414, 'upload_test', 'binding_box_hint', 'en', 'The binding is <b>master</b>: it sets the situation/theme (overrides the LLM classification) and the chunk grades are derived from it. “Set manually” = free choice of situation/theme (one or more) and grade.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (415, 'upload_test', 'binding_box_hint', 'de', 'Die Bindung ist <b>maßgeblich</b>: Sie setzt Situation/Thema (überschreibt die LLM-Klassifikation) und die Klassen der Chunks werden daraus abgeleitet. „Manuell festlegen“ = freie Wahl von Situation/Thema (auch mehrere) und Klasse.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (460, 'upload_test', 'pack_id_required', 'es', 'El nombre del paquete es obligatorio.', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (416, 'upload_test', 'binding_box_hint', 'es', 'El vínculo es <b>principal</b>: fija la situación/tema (anula la clasificación del LLM) y los cursos de los fragmentos se derivan de él. «Definir manualmente» = elección libre de situación/tema (uno o varios) y curso.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (417, 'upload_test', 'subject_grade_note', 'cs', 'Předmět a ročník se na úrovni dokumentu <b>nedetekují AI</b> — berou se jen zde zadané hodnoty (prázdné = neurčeno). AI doplňuje jen typ dokumentu, jazyk a situaci/téma.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (418, 'upload_test', 'subject_grade_note', 'en', 'Subject and grade are <b>not AI-detected</b> at document level — only the values entered here are used (empty = unspecified). The AI fills in only document type, language and situation/theme.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (419, 'upload_test', 'subject_grade_note', 'de', 'Fach und Klasse werden auf Dokumentebene <b>nicht per KI erkannt</b> — es zählen nur die hier eingegebenen Werte (leer = nicht angegeben). Die KI ergänzt nur Dokumenttyp, Sprache und Situation/Thema.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (420, 'upload_test', 'subject_grade_note', 'es', 'La asignatura y el curso <b>no los detecta la IA</b> a nivel de documento — solo se usan los valores indicados aquí (vacío = sin especificar). La IA completa solo el tipo de documento, el idioma y la situación/tema.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (421, 'upload_test', 'domains_label', 'cs', 'Situace/téma dokumentu', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (422, 'upload_test', 'domains_label', 'en', 'Document situation/theme', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (423, 'upload_test', 'domains_label', 'de', 'Situation/Thema des Dokuments', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (424, 'upload_test', 'domains_label', 'es', 'Situación/tema del documento', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (425, 'upload_test', 'domains_hint', 'cs', 'Volitelné. Zaškrtnutá situace/téma je <b>master</b> — <b>přebíjí automatickou LLM klasifikaci</b>; ročníky dokumentu se pak berou z vazby (taxonomy_binding). Nezaškrtnuto = situaci/téma určí LLM.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (426, 'upload_test', 'domains_hint', 'en', 'Optional. A ticked situation/theme is <b>master</b> — it <b>overrides the automatic LLM classification</b>; the document grades are then taken from the binding (taxonomy_binding). Unticked = the LLM decides the situation/theme.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (427, 'upload_test', 'domains_hint', 'de', 'Optional. Eine angehakte Situation/Thema ist <b>maßgeblich</b> — sie <b>überschreibt die automatische LLM-Klassifikation</b>; die Klassen des Dokuments stammen dann aus der Bindung (taxonomy_binding). Nicht angehakt = das LLM bestimmt Situation/Thema.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (428, 'upload_test', 'domains_hint', 'es', 'Opcional. Una situación/tema marcada es <b>principal</b> — <b>anula la clasificación automática del LLM</b>; los cursos del documento se toman del vínculo (taxonomy_binding). Sin marcar = el LLM decide la situación/tema.', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (429, 'upload_test', 'binding_manual', 'cs', 'Zadám situaci/téma a ročník ručně', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (430, 'upload_test', 'binding_manual', 'en', 'Set situation/theme and grade manually', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (431, 'upload_test', 'binding_manual', 'de', 'Situation/Thema und Klasse manuell festlegen', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (432, 'upload_test', 'binding_manual', 'es', 'Definir situación/tema y curso manualmente', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (433, 'upload_test', 'binding_grade_arrow', 'cs', '→ ročník ', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (434, 'upload_test', 'binding_grade_arrow', 'en', '→ grade ', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (435, 'upload_test', 'binding_grade_arrow', 'de', '→ Klasse ', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (436, 'upload_test', 'binding_grade_arrow', 'es', '→ curso ', true, '2026-08-06 20:52:12.289284+00', 'page i18n note');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (437, 'upload_test', 'roles', 'cs', 'Role (pro koho)', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (438, 'upload_test', 'roles', 'en', 'Role (for whom)', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (439, 'upload_test', 'roles', 'de', 'Rolle (für wen)', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (440, 'upload_test', 'roles', 'es', 'Rol (para quién)', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (441, 'upload_test', 'roles_hint', 'cs', 'Vyber aspoň jednu roli.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (442, 'upload_test', 'roles_hint', 'en', 'Select at least one role.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (443, 'upload_test', 'roles_hint', 'de', 'Mindestens eine Rolle wählen.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (444, 'upload_test', 'roles_hint', 'es', 'Selecciona al menos un rol.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (445, 'upload_test', 'roles_required', 'cs', 'Vyber aspoň jednu roli (student / učitel / rodič).', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (446, 'upload_test', 'roles_required', 'en', 'Select at least one role (student / teacher / parent).', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (447, 'upload_test', 'roles_required', 'de', 'Mindestens eine Rolle wählen (Schüler / Lehrer / Elternteil).', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (449, 'upload_test', 'roles_none', 'cs', 'Číselník rolí je prázdný.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (450, 'upload_test', 'roles_none', 'en', 'The role list is empty.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (451, 'upload_test', 'roles_none', 'de', 'Die Rollenliste ist leer.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (452, 'upload_test', 'roles_none', 'es', 'La lista de roles está vacía.', true, '2026-08-06 20:53:28.441513+00', 'page i18n role');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (161, 'upload_test', 'optional', 'cs', 'povinné', true, '2026-08-01 06:44:25.323371+00', 'mig 143: pack_id je nyní povinný');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (169, 'upload_test', 'pack_help', 'cs', 'Jméno packu je <b>povinné</b> a je zároveň <b>klíčem nahrazení</b>: nahrání packu stejného jména <b>nahradí</b> jeho předchozí verzi u této školy. Povolena jsou jen <b>písmena bez diakritiky, číslice, <code>-</code> a <code>_</code></b> (max 64 znaků) — jméno putuje do URL, názvu souboru i příkazové řádky. Např. <code>prijimacky-2026</code>.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (171, 'upload_test', 'pack_help', 'de', 'Der Paketname ist <b>erforderlich</b> und zugleich der <b>Ersetzungsschlüssel</b>: das Hochladen eines Pakets mit demselben Namen <b>ersetzt</b> die vorherige Version dieser Schule. Erlaubt sind nur <b>ASCII-Buchstaben, Ziffern, <code>-</code> und <code>_</code></b> (max. 64 Zeichen) — der Name wird in URLs, Dateinamen und Shell-Befehlen verwendet. Z. B. <code>prijimacky-2026</code>.', true, '2026-08-01 06:44:25.323371+00', NULL);
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (453, 'upload_test', 'pack_id_invalid', 'cs', 'Nepovolené znaky. Použij jen písmena bez diakritiky, číslice, - a _', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (454, 'upload_test', 'pack_id_invalid', 'en', 'Not allowed. Use ASCII letters, digits, - and _ only', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (455, 'upload_test', 'pack_id_invalid', 'de', 'Nicht erlaubt. Nur ASCII-Buchstaben, Ziffern, - und _', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (456, 'upload_test', 'pack_id_invalid', 'es', 'No permitido. Use solo letras ASCII, dígitos, - y _', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (457, 'upload_test', 'pack_id_required', 'cs', 'Jméno packu je povinné.', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (458, 'upload_test', 'pack_id_required', 'en', 'The pack name is required.', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+INSERT INTO edu_ai.ui_label (id, scope, label_key, lang, label_text, is_active, created_at, notes) OVERRIDING SYSTEM VALUE VALUES (459, 'upload_test', 'pack_id_required', 'de', 'Der Paketname ist erforderlich.', true, '2026-08-19 16:49:55.465529+00', 'mig 143');
+
+
+ALTER TABLE edu_ai.ui_label ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: validity_period; Type: TABLE DATA; Schema: edu_ai; Owner: -
+--
+
+ALTER TABLE edu_ai.validity_period DISABLE TRIGGER ALL;
+
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (1, 'SKOLA_NOVA_VES', 'Školní rok 2025/2026', '2025-09-01', '2026-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (2, 'SKOLA_NOVA_VES', 'Školní rok 2026/2027', '2026-08-01', '2027-06-30', true, true, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (3, 'SKOLA_NOVA_VES', 'Školní rok 2027/2028', '2027-09-01', '2028-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (4, 'ZAKLADNI_SKOLA_BOROVA', 'Školní rok 2025/2026', '2025-09-01', '2026-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (5, 'ZAKLADNI_SKOLA_BOROVA', 'Školní rok 2026/2027', '2026-08-01', '2027-06-30', true, true, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (6, 'ZAKLADNI_SKOLA_BOROVA', 'Školní rok 2027/2028', '2027-09-01', '2028-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (7, 'ZAKLADNI_SKOLA_LIPOVA', 'Školní rok 2025/2026', '2025-09-01', '2026-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (8, 'ZAKLADNI_SKOLA_LIPOVA', 'Školní rok 2026/2027', '2026-08-01', '2027-06-30', true, true, '2026-08-11 19:18:36.222033+00');
+INSERT INTO edu_ai.validity_period (id, legal_entity_code, name, valid_from, valid_to, is_active, is_default, created_at) OVERRIDING SYSTEM VALUE VALUES (9, 'ZAKLADNI_SKOLA_LIPOVA', 'Školní rok 2027/2028', '2027-09-01', '2028-06-30', true, false, '2026-08-11 19:18:36.222033+00');
+
+
+ALTER TABLE edu_ai.validity_period ENABLE TRIGGER ALL;
+
+--
+-- Name: answer_exclusion_rule_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.answer_exclusion_rule_id_seq', 17, true);
+
+
+--
+-- Name: chunk_exclusion_rule_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.chunk_exclusion_rule_id_seq', 4, true);
+
+
+--
+-- Name: code_list_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.code_list_id_seq', 273, true);
+
+
+--
+-- Name: grade_term_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.grade_term_id_seq', 118, true);
+
+
+--
+-- Name: prompt_registry_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.prompt_registry_id_seq', 50, true);
+
+
+--
+-- Name: qa_blocklist_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.qa_blocklist_id_seq', 144, true);
+
+
+--
+-- Name: qa_synonym_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.qa_synonym_id_seq', 100, true);
+
+
+--
+-- Name: subject_term_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.subject_term_id_seq', 34, true);
+
+
+--
+-- Name: system_message_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.system_message_id_seq', 44, true);
+
+
+--
+-- Name: taxonomy_binding_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.taxonomy_binding_id_seq', 8, true);
+
+
+--
+-- Name: taxonomy_rules_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.taxonomy_rules_id_seq', 44, true);
+
+
+--
+-- Name: ui_label_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.ui_label_id_seq', 460, true);
+
+
+--
+-- Name: validity_period_id_seq; Type: SEQUENCE SET; Schema: edu_ai; Owner: -
+--
+
+SELECT pg_catalog.setval('edu_ai.validity_period_id_seq', 9, true);
+
+
+--
+-- PostgreSQL database dump complete
+--
+

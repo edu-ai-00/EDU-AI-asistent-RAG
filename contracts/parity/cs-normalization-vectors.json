@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "language": "cs",
+  "generator": "search/app/text_norm.build_forms",
+  "config": "null (settings v1 defaults: lowercase + strip_diacritics + drop_stopwords)",
+  "note": "Canonical CZ normalization/lemma/stem parity vectors. The Python server and the Dart offline app MUST both reproduce these outputs (query<->index parity). Regenerate with contracts/parity/gen_vectors.py.",
+  "vectors": [
+    {
+      "input": "Kdy začíná školní rok?",
+      "norm": [
+        "kdy",
+        "zacina",
+        "skolni",
+        "rok"
+      ],
+      "lemma": [
+        "kdy",
+        "zacinat",
+        "skolni",
+        "rok"
+      ],
+      "stem": [
+        "kdy",
+        "zacin",
+        "skoln",
+        "rok"
+      ]
+    },
+    {
+      "input": "Přijímačky na střední školu",
+      "norm": [
+        "prijimacky",
+        "stredni",
+        "skolu"
+      ],
+      "lemma": [
+        "prijimac",
+        "stredni",
+        "skola"
+      ],
+      "stem": [
+        "prijimack",
+        "stredn",
+        "skol"
+      ]
+    },
+    {
+      "input": "PŘIHLÁŠKA",
+      "norm": [
+        "prihlaska"
+      ],
+      "lemma": [
+        "prihlaska"
+      ],
+      "stem": [
+        "prihlask"
+      ]
+    },
+    {
+      "input": "matematika a český jazyk",
+      "norm": [
+        "matematika",
+        "cesky",
+        "jazyk"
+      ],
+      "lemma": [
+        "matematika",
+        "cesky",
+        "jazyk"
+      ],
+      "stem": [
+        "matematik",
+        "cesk",
+        "jazyk"
+      ]
+    },
+    {
+      "input": "termín 1. září 2025",
+      "norm": [
+        "termin",
+        "1",
+        "zari",
+        "2025"
+      ],
+      "lemma": [
+        "termin",
+        "1",
+        "zari",
+        "2025"
+      ],
+      "stem": [
+        "termin",
+        "1",
+        "zar",
+        "2025"
+      ]
+    },
+    {
+      "input": "česko-slovenský slovník",
+      "norm": [
+        "cesko",
+        "slovensky",
+        "slovnik"
+      ],
+      "lemma": [
+        "cesko",
+        "slovensky",
+        "slovnik"
+      ],
+      "stem": [
+        "cesk",
+        "slovensk",
+        "slovnik"
+      ]
+    },
+    {
+      "input": "Jak se přihlásit?",
+      "norm": [
+        "jak",
+        "prihlasit"
+      ],
+      "lemma": [
+        "jak",
+        "prihlasit"
+      ],
+      "stem": [
+        "jak",
+        "prihlasit"
+      ]
+    },
+    {
+      "input": "vysvědčení",
+      "norm": [
+        "vysvedceni"
+      ],
+      "lemma": [
+        "vysvedcit"
+      ],
+      "stem": [
+        "vysvedcen"
+      ]
+    },
+    {
+      "input": "Co je to JPZ?",
+      "norm": [
+        "co",
+        "jpz"
+      ],
+      "lemma": [
+        "co",
+        "jpz"
+      ],
+      "stem": [
+        "co",
+        "jpz"
+      ]
+    },
+    {
+      "input": "škola",
+      "norm": [
+        "skola"
+      ],
+      "lemma": [
+        "skola"
+      ],
+      "stem": [
+        "skol"
+      ]
+    },
+    {
+      "input": "do školy",
+      "norm": [
+        "skoly"
+      ],
+      "lemma": [
+        "skola"
+      ],
+      "stem": [
+        "skol"
+      ]
+    },
+    {
+      "input": "2. kolo přijímaček",
+      "norm": [
+        "2",
+        "kolo",
+        "prijimacek"
+      ],
+      "lemma": [
+        "2",
+        "kolo",
+        "prijimac"
+      ],
+      "stem": [
+        "2",
+        "kol",
+        "prijimacek"
+      ]
+    },
+    {
+      "input": "němčina",
+      "norm": [
+        "nemcina"
+      ],
+      "lemma": [
+        "nemcina"
+      ],
+      "stem": [
+        "nemk"
+      ]
+    }
+  ]
+}

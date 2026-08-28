@@ -1,0 +1,211 @@
+# Stable error codes — edu_ai Search Service
+# Track: contract. Canonical owner of HTTP error semantics for the RAG module.
+# Source of truth: search/app/server.py (_ERROR_CODES, _RETRYABLE, _error_body)
+# and nginx/nginx.conf (the statuses the edge raises before the app is reached).
+# Do not define error codes elsewhere.
+#
+# Two layers must not be confused:
+#   * HTTP errors  — the request could not be processed (this file).
+#   * outcomes     — the request succeeded (HTTP 200) but the cascade produced a
+#                    non-answer (no_answer / blocked / role_required / ...).
+#                    Outcomes live in the body, see
+#                    contracts/schemas/search-response.schema.json.
+#     role_required and llm_unavailable are OUTCOMES, not errors: both are 200.
+
+version: 2   # v1 predated the error envelope and the versioned surface
+
+# ── The envelope ─────────────────────────────────────────────────────────────
+# EVERY error, from the app and from nginx, has one shape:
+#
+#   {"error": {"code": "...", "message": "...", "retryable": bool}}
+#
+# 422 adds `fields` (which field, and why). A client branches on `code`, never on
+# a parsed message, and decides whether to retry from `retryable` rather than
+# inferring it from the status — that inference used to send people hunting for
+# outages that were not happening.
+#
+# The code list may GROW. A client must survive a code it does not know: treat
+# an unknown code as its status class and obey `retryable`.
+
+envelope:
+  shape: '{"error": {"code": string, "message": string, "retryable": bool}}'
+  extra_on_422: 'fields: [{"field": string, "message": string}]'
+  retryable_means: >
+    Whether repeating the IDENTICAL request can help. A rate limit, a timeout or
+    an outage yes; a malformed body never.
+
+http_errors:
+  - status: 400
+    code: BAD_REQUEST
+    when: >
+      question is empty or whitespace-only; or legal_entity is unknown or
+      inactive. A `language` outside the code list used to land here too; since
+      2026-08-23 it is a 422 like every other rejected field VALUE.
+    retryable: false
+    source: search/app/server.py
+    client_action: Fix the field named in the message.
+
+  - status: 401
+    code: UNAUTHORIZED
+    when: >
+      Missing or wrong API key on /search/. Raised by NGINX, before the app — so
+      it happens for every path under /search/, including /search/health. The
+      key is BARE, no "Bearer " prefix.
+    retryable: false
+    source: nginx/nginx.conf
+    client_action: Fix the Authorization header. Do not retry as-is.
+
+  - status: 403
+    code: FORBIDDEN
+    when: >
+      The caller could not be established: a user_id was sent that is not an
+      active user of the entity or of one above it, OR no user_id was sent while
+      the platform requires one (settings visibility.search_requires_user on the
+      GLOBAL row, init 99 — currently false, so anonymous callers are allowed).
+      The message is deliberately generic and identical in both cases; a
+      specific one would let anyone enumerate users and entities.
+      Absent from the earlier hand-written client contract; clients written
+      against that document must be prepared for this status.
+    retryable: false
+    source: search/app/server.py (_resolve_search_caller)
+    client_action: >
+      Send a real user_id, or have the platform switch checked. Retrying the
+      same request cannot succeed.
+
+  - status: 404
+    code: NOT_FOUND
+    when: >
+      No such endpoint (the nginx catch-all, or the app router for an unknown
+      path under /search/), or a named resource does not exist — an inactive QA
+      pack on /v1/qa-export, an entity/user pair on /v1/ingest-principal.
+    retryable: false
+    source: search/app/server.py + nginx/nginx.conf
+    client_action: Check the path and the identifiers.
+
+  - status: 405
+    code: METHOD_NOT_ALLOWED
+    when: The path exists but not for this HTTP method (e.g. GET /v1/ask).
+    retryable: false
+    source: fastapi router, wrapped by the Starlette handler in server.py
+    client_action: Use the documented method.
+
+  - status: 409
+    code: IDEMPOTENCY_CONFLICT
+    when: >
+      The Idempotency-Key was already used with a DIFFERENT request body. Bodies
+      are compared by a canonical hash, so re-serialising an identical request is
+      not a conflict.
+    retryable: false
+    source: search/app/server.py + search/app/idempotency.py
+    client_action: Use a fresh key for a genuinely new request.
+
+  - status: 409
+    code: IDEMPOTENCY_IN_PROGRESS
+    when: >
+      The same key and the same body are being computed right now by another
+      request. A claim with no response goes stale after 5 minutes and is then
+      taken over.
+    retryable: true
+    source: search/app/idempotency.py
+    client_action: Back off and retry the same request with the same key.
+
+  - status: 413
+    code: PAYLOAD_TOO_LARGE
+    when: >
+      Request body over 1 MB on /search/ (nginx). A question is capped at 2000
+      characters, so this is a guard rail rather than a limit anyone reaches.
+    retryable: false
+    source: nginx/nginx.conf
+    client_action: Send a smaller body.
+
+  - status: 415
+    code: UNSUPPORTED_MEDIA_TYPE
+    when: The body is not application/json.
+    retryable: false
+    source: fastapi
+    client_action: Set Content-Type to application/json.
+
+  - status: 422
+    code: VALIDATION_ERROR
+    when: >
+      The body did not match the request schema: a missing required field, a
+      wrong type, question over 2000 characters, a conversation_id that is not a
+      UUID, or an UNKNOWN FIELD — the schema is closed
+      (additionalProperties false, enforced in the model since 2026-08-21), so a
+      misspelled field name is an error rather than a silent no-op. Also a
+      `language` outside the active code list (2026-08-23; it was a 400 before).
+    retryable: false
+    source: >
+      search/app/server.py (_validation_exception_handler; _validate_language
+      raises the same envelope by hand, and the HTTPException handler passes
+      `fields` through)
+    client_action: >
+      Read `fields`: it names the offending field and the reason. A typo in a
+      field NAME shows up here rather than as a puzzling 200.
+
+  - status: 429
+    code: RATE_LIMITED
+    when: >
+      Over 10 req/s per IP with a burst of 20 (nginx). limit_req_status is set to
+      429 explicitly — the nginx default is 503, which read as an outage.
+    retryable: true
+    source: nginx/nginx.conf
+    client_action: Back off and retry.
+
+  - status: 500
+    code: INTERNAL_ERROR
+    when: >
+      The cascade raised outside a pipeline step. Individual steps catch their
+      own errors and fall through (executor.run_search), so a 500 means a
+      failure around them — the active setting could not be loaded, the DB pool
+      is down. The message is the constant "search failed"; the exception stays
+      in the log, because it used to go out on the wire and told a client
+      nothing it could act on. An idempotency claim is RELEASED on this path, so
+      an immediate retry with the same key recomputes rather than answering
+      IDEMPOTENCY_IN_PROGRESS for 5 minutes.
+    retryable: true
+    source: search/app/server.py
+    client_action: Retry; if persistent, check the service logs and Postgres.
+
+  - status: 502
+    code: UPSTREAM_ERROR
+    when: nginx was reached but the search service was not.
+    retryable: true
+    source: nginx/nginx.conf
+    client_action: Retry with backoff.
+
+  - status: 503
+    code: UNAVAILABLE
+    when: The search service is not accepting connections (nginx).
+    retryable: true
+    source: nginx/nginx.conf
+    client_action: Retry with backoff.
+
+  - status: 504
+    code: TIMEOUT
+    when: >
+      The search ran past the nginx proxy_read_timeout of 120 s. Deliberately
+      its own code rather than UNAVAILABLE: the answer may simply be slow, and a
+      retry with the SAME Idempotency-Key is exactly the right move. Measured on
+      1187 production questions — p50 under a second, p95 18.3 s, max 27.6 s —
+      so 120 s is a wide margin, not a routine boundary.
+    retryable: true
+    source: nginx/nginx.conf
+    client_action: Retry with the same Idempotency-Key.
+
+notes:
+  - >
+    The SSE endpoint (/v1/ask/stream) reports a cascade failure as an `error`
+    EVENT carrying this same envelope, not as an HTTP status — the response has
+    already begun by then. Errors raised BEFORE streaming starts (validation,
+    unknown entity, auth) are ordinary HTTP errors from the table above.
+  - >
+    Logging never surfaces as an error: question_answer_log writes run as a
+    fire-and-forget BackgroundTask after the response is sent, and any failure is
+    swallowed (search/app/log.py). A logging failure NEVER changes the status or
+    the body.
+  - >
+    Degradation, not error: if the answer LLM is unavailable the cascade returns
+    HTTP 200 with outcome=llm_unavailable (init 139). It does not raise, and the
+    client must NOT tell the user to rephrase — the corpus was fine, the model
+    was not.

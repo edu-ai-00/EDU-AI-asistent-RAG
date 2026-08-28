@@ -1,0 +1,25 @@
+FROM pgvector/pgvector:0.7.4-pg16
+
+# Czech locale for correct collation / sorting.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends locales curl ca-certificates \
+ && sed -i 's/^# cs_CZ.UTF-8 UTF-8/cs_CZ.UTF-8 UTF-8/' /etc/locale.gen \
+ && locale-gen
+
+ENV LANG=cs_CZ.UTF-8
+ENV LC_COLLATE=cs_CZ.UTF-8
+ENV LC_CTYPE=cs_CZ.UTF-8
+
+# ParadeDB pg_search — BM25 full-text ranking for Postgres. The .deb is per-arch;
+# TARGETARCH (arm64 on the Mac dev box, amd64 on the server) is provided by
+# BuildKit and picks the matching package automatically. pg_search needs
+# shared_preload_libraries='pg_search' (set in docker-compose) and, once running,
+# `CREATE EXTENSION pg_search CASCADE;` (in init_clean / run once on an existing DB).
+ARG PG_SEARCH_VERSION=0.25.1
+ARG TARGETARCH
+RUN curl -fsSL \
+      "https://github.com/paradedb/paradedb/releases/download/v${PG_SEARCH_VERSION}/postgresql-16-pg-search_${PG_SEARCH_VERSION}-1PARADEDB-bookworm_${TARGETARCH}.deb" \
+      -o /tmp/pg_search.deb \
+ && apt-get install -y --no-install-recommends /tmp/pg_search.deb \
+ && rm -f /tmp/pg_search.deb \
+ && rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edu-ai/contracts/schemas/search-response.schema.json",
+  "title": "SearchResponse",
+  "description": "POST /v1/ask 200 body (public: /search/v1/ask). Canonical shape: search/app/server.py (class SearchResponse). EXTENSIBLE: additionalProperties is deliberately open (2026-08-13) — the server may add fields, and a client MUST ignore ones it does not know. Adding a field is therefore never a breaking change; removing or retyping one is. The request schema stays closed, so a misspelled request field is still an error.",
+  "type": "object",
+  "required": [
+    "answer",
+    "outcome",
+    "answer_source"
+  ],
+  "properties": {
+    "answer": {
+      "type": "string",
+      "description": "Curated (QA), generated (RAG), or guard message. May be empty when outcome=suggest. FORMAT: plain text with one markdown feature — **bold** — used for the paragraph lead-in when the answer spans several documents (\"**Jednotné testy:** …\"). A client that renders the string verbatim shows the asterisks, so it must either convert **…** to bold or strip the markers; no other markdown is emitted."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "answer",
+        "suggest",
+        "blocked",
+        "self_harm",
+        "unusable",
+        "no_answer",
+        "role_required",
+        "llm_unavailable"
+      ],
+      "description": "What kind of result this is. 'blocked'/'self_harm'/'unusable' come from the guard; 'no_answer' means nothing cleared the gates; 'role_required' (init 127) means the caller sent no usable role and none of the corpus is visible without one — the answer field carries the localized ask, render it like any other answer; 'llm_unavailable' (init 139) means the ANSWER MODEL failed, not the corpus — never tell the user to rephrase, and on the streaming endpoint the answer field may hold the partial text that was already streamed followed by the notice."
+    },
+    "answer_source": {
+      "type": "string",
+      "enum": [
+        "guard",
+        "meta",
+        "qa_exact",
+        "qa_lexical",
+        "qa_vector",
+        "rag",
+        "none"
+      ],
+      "description": "Coarse origin of the answer. Finer than this: `strategies`. 'meta' is the capabilities answer (\"co umíš?\"), built from the corpus's own headings without retrieval or an LLM call."
+    },
+    "strategies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Granular retrieval steps that contributed, in order (e.g. ['document_lexical'] or ['qa_lexical']). Populated by the executor.",
+      "default": []
+    },
+    "suggestions": {
+      "type": "array",
+      "description": "ALWAYS present. What the user could ask next; how (and whether) to render it is entirely the client's decision. THE CONTRACT: every item's `question` (and every string in `options`) is a text that can be sent straight back to /v1/ask as the next question — render, tap, resend, no other semantics needed. Populated on every outcome except the guards (blocked/self_harm/unusable, which deliberately offer nothing) and qa_exact (the user asked the exact curated question — there is nothing to disambiguate). May still be empty when the system genuinely has nothing to offer (e.g. an empty corpus).",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "question"
+        ],
+        "properties": {
+          "kind": {
+    "type": "string",
+    "enum": [
+     "qa",
+     "clarify",
+     "related",
+     "variant",
+     "other_grade"
+    ],
+            "description": "qa = a curated question ('did you mean?' next to a suggest/no_answer, or a related curated question next to a QA answer). clarify = the retrieved documents span different domains; `question` is the clarifying sentence to show and `options` are the ready-to-send refinements — the answer is still generated, the chat decides whether to show it or ask first. related = a section of an answering document that was retrieved but did not fit the context. variant = an LLM rephrasing of the question, offered when the retrieval pool came back empty. other_grade = a curated question that exists for a DIFFERENT ročník than the caller's. variant and other_grade were emitted in production but missing from this enum until 2026-08-21, so a client generated from this schema rejected real responses. Every kind here keeps the contract that `question` can be sent straight back — clarify is the sole exception, and it is off by default (platform_setting suggest_clarify)."
+          },
+          "question": {
+            "type": "string",
+            "description": "kind=qa: the entry's canonical_q. kind=clarify: the localized clarifying sentence (system_message 'clarify_domains'). kind=related: the section heading (headings are their own search signal, so it works as a query)."
+          },
+          "entry_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "qa_entries.entry_id (UUID). kind=qa only."
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "0..1 relevance of the entry (coverage or trigram similarity). kind=qa only."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "label",
+                "question"
+              ],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "What to SHOW: the domain's display name from document_type_taxonomy in the query's language."
+                },
+                "question": {
+                  "type": "string",
+                  "description": "What to SEND: the best section heading of that domain's document. A heading is its own retrieval signal, so resent as a query it lands in its document — appending the display label to the original question instead was measured to dilute the query into no_answer."
+                }
+              }
+            },
+            "description": "kind=clarify only: one option per domain found in the answer. Render `label`, send `question`."
+          },
+          "file_uuid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "kind=related only: the document the section belongs to."
+          }
+        }
+      },
+      "default": []
+    },
+    "matched_entry_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "qa_entries.entry_id of the winning/closest curated entry (QA branches only)."
+    },
+    "match_score": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "0..1 relevance of the winning/closest result; the metric depends on the retrieval method. QA lexical & RAG lexical/keywords: content coverage. QA vector & RAG vector: cosine. QA exact: 1.0. Null on guard/no_answer. Disambiguated by the query log's strategies_text."
+    },
+    "key_words_used": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Query concepts the keyword step matched (union of keyword_match over the chunks it returned). Empty on every other path: a QA hit or a purely lexical/vector answer used no keywords.",
+      "default": []
+    },
+    "delivered_by": {
+      "type": "string",
+      "description": "Always 'online' from this service. The constant exists so a client that can also answer from an on-device library tags both kinds of turn the same way.",
+      "default": "online"
+    },
+    "effective_scope": {
+      "type": ["object", "null"],
+      "description": "What the search ACTUALLY ran with — škola, role, ročník. NOT the spec's memberships[] with an `applied` flag: that presumes a token the server can enumerate memberships from, and this service has none (entity, role and ročník arrive per request).",
+      "properties": {
+        "legal_entity": { "type": ["string", "null"], "description": "Whose documents were searched." },
+        "role": { "type": ["string", "null"], "description": "code_list('role') code as validated. Null when the request carried none and the policy allows it — or on outcome=role_required, where null IS the finding." },
+        "school_grade": { "type": ["string", "null"], "description": "The ročník the cascade USED — may be derived from the question text when the request sent none." },
+        "language": { "type": ["string", "null"], "description": "Language filter that restricted retrieval; null = no restriction." },
+        "identified": { "type": "boolean", "description": "Whether the caller was identified. The private branch of the visibility predicate depends on it, so it answers 'why do I not see my own document'." }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "Source documents (see rag-source.schema.json). Populated on outcome=answer from RAG (documents actually retrieved) and, since 2026-08-24, from QA (the sources the curator cited in the pack's `sources` column — no file_uuid on those, only rank/title/url). Empty on every other outcome. A client MUST NOT infer the answer's origin from this array being non-empty — that is what answer_source is for. Was a JSON STRING until 2026-08-13 — clients no longer parse it a second time.",
+      "items": { "$ref": "rag-source.schema.json" },
+      "default": []
+    },
+    "language": {
+      "type": "string",
+      "description": "ISO 639-1 answer language. Currently always 'cs' on the deterministic paths; the RAG answer follows the question language (prompt rule, not enforced).",
+      "default": "cs"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "description": "Server-measured wall time for the cascade, milliseconds.",
+      "default": 0
+    },
+    "answer_parts": {
+      "type": "array",
+      "description": "The same answer split per paragraph, each carrying the document it came from. A multi-document answer is written as one paragraph per document, so a client can render each next to a link to its source instead of parsing the markdown. `answer` still holds the whole text — this is additive. Empty for QA and guard answers.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "0-based paragraph order. Deliberately NOT the same base as source_rank / sources[].rank, which are 1-based — index is only this array's position and is never an offset into sources; the published contract shows 0 and clients were written against it."
+          },
+          "lead_in": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Topic label the paragraph opens with, markers stripped."
+          },
+          "text": {
+            "type": "string",
+            "description": "The paragraph without its lead-in."
+          },
+          "markdown": {
+            "type": "string",
+            "description": "The paragraph as generated, lead-in still **bold**."
+          },
+          "source_rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Rank in `sources`; null when the paragraph could not be attributed with certainty — a wrong link is worse than none."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_uuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "excerpt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The source text this paragraph was written from: the chunks of that document which were in the context, in reading order, each introduced by its heading. Meant for a \"show the source\" affordance next to the link. null when the `include_excerpt` parameter is off or the paragraph is unattributed; cut at `excerpt_max_chars` and marked with […]."
+          }
+        },
+        "required": [
+          "index",
+          "text",
+          "markdown"
+        ]
+      }
+    },
+    "trace": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Per-step cascade trace: EVERY configured step in order with what it did (ran/skipped/disabled/error), its timing, what it added to the chunk pool and which step ended the walk. ALWAYS present — the server sends it on every response, so a client validating against this schema needs it declared even though it is diagnostic and the mobile client ignores it. Its inner shape is deliberately unconstrained: it is a debugging surface, not a contract."
+    }
+  }
+}

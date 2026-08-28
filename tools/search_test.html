@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title data-i18n="title">EDU-AI</title>
+<style>
+  :root { font-family: -apple-system, "Segoe UI", sans-serif; }
+  body { max-width: 680px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; }
+  h1 { font-size: 1.3rem; } h1 small { color:#888; font-weight:normal; font-size:.8rem; }
+  .topbar { display:flex; justify-content:flex-end; align-items:center; gap:.4rem;
+            font-size:.8rem; color:#666; margin-bottom:.4rem; }
+  .topbar select { padding:.25rem .4rem; font-size:.8rem; }
+  .bar { display:flex; gap:.6rem; align-items:stretch; }
+  input[type=text] { flex:1; padding:.6rem; border:1px solid #ccc; border-radius:8px; font-size:1rem; }
+  select { padding:.6rem; border:1px solid #ccc; border-radius:8px; font-size:.95rem; }
+  button { background:#2563eb; color:#fff; border:0; border-radius:8px; padding:.6rem 1.4rem; font-size:1rem; cursor:pointer; }
+  button:disabled { background:#aaa; }
+  #meta { margin-top:.8rem; display:flex; gap:.4rem; flex-wrap:wrap; }
+  .badge { font-size:.72rem; padding:.15rem .55rem; border-radius:99px; background:#e5e7eb; color:#333; }
+  .badge.src { background:#dbeafe; } .badge.lang { background:#dcfce7; } .badge.ms { background:#fef9c3; }
+  .badge.blocked { background:#fecaca; }
+  #answer { margin-top:.8rem; padding:1rem; background:#f6f7f9; border:1px solid #e5e7eb; border-radius:10px; line-height:1.5; white-space:pre-wrap; }
+  #answer.ok { border-color:#86efac; } #answer.none { border-color:#fca5a5; }
+  /* one block per answer paragraph, each with the document it came from */
+  #answer .apart + .apart { margin-top:.9rem; padding-top:.9rem; border-top:1px solid #e5e7eb; }
+  #answer .asrc { margin-top:.35rem; font-size:.82rem; white-space:normal; }
+  #answer .asrc a { color:#2563eb; text-decoration:none; word-break:break-all; }
+  #answer .asrc a:hover { text-decoration:underline; }
+  #answer .aex { margin-top:.35rem; font-size:.82rem; }
+  #answer .aex summary { cursor:pointer; color:#2563eb; width:max-content; }
+  #answer .aex pre { margin:.4rem 0 0; padding:.6rem .7rem; background:#eef1f5;
+    border:1px solid #dde2e8; border-radius:8px; white-space:pre-wrap;
+    font:inherit; font-size:.95em; max-height:22rem; overflow:auto; }
+  #sug { margin-top:.5rem; } #sug button { background:#eef2ff; color:#1e3a8a; font-size:.85rem; padding:.35rem .8rem; margin:.15rem; }
+  #sources { margin-top:.6rem; font-size:.85rem; } #sources a { color:#2563eb; }
+  .hint { font-size:.75rem; color:#999; margin-top:.4rem; }
+  /* Hide with a CLASS — `#flow { display:none }` plus style.display="" would
+     silently fall back to the rule and keep the panel invisible. */
+  .hidden { display:none; }
+  #flow h2, #logrow h2 { font-size:1rem; margin:1.2rem 0 .3rem; }
+  #flow table { width:100%; border-collapse:collapse; font-size:.78rem;
+                border:1px solid #cbd5e1; }
+  #flow th, #flow td { text-align:left; padding:.28rem .45rem;
+                       border:1px solid #e2e8f0; vertical-align:top; }
+  #flow thead th { background:#f1f5f9; border-color:#cbd5e1; }
+  #flow td.ms { text-align:right; white-space:nowrap; }
+  #flow tr.stop td { font-weight:600; background:#f0fdf4; }
+  #flow tr.skip td { color:#94a3b8; }
+  #flow tr.err td { background:#fef2f2; }
+  #flow .cc { margin-top:.35rem; font-weight:400; }
+  #flow .cc > div { padding:.2rem 0; border-top:1px dotted #cbd5e1; }
+  #flow .cc .n { display:inline-block; min-width:1.2rem; color:#64748b; }
+  #flow .cc .mono { font-family:ui-monospace, monospace; color:#64748b; }
+  #flow .cc .prev { color:#64748b; padding-left:1.2rem; }
+  #logrow table { width:100%; border-collapse:collapse; font-size:.78rem; }
+  #logrow td { padding:.2rem .4rem; border-bottom:1px solid #eee; }
+  #logrow td.k { color:#888; width:12rem; }
+</style>
+</head>
+<body>
+
+<!-- UI language = which language THIS PAGE is written in. Deliberately separate
+     from the #lang filter below, which restricts the DOCUMENTS searched: testing
+     a German interface against Czech documents has to stay possible. -->
+<div class="topbar">
+  <label for="uiLang" data-i18n="ui_lang_label">Jazyk rozhraní</label>
+  <select id="uiLang"></select>
+  <!-- Caller ROLE — right of the language, top of the page (init 127). MANDATORY:
+       /search refuses a missing role. Options come from code_list('role') with
+       the label in the current UI language. -->
+  <label for="roleSel" data-i18n="role_label" style="margin-left:.6rem">Role</label>
+  <select id="roleSel"></select>
+</div>
+
+<h1><span data-i18n="title">EDU-AI</span> <small data-i18n="subtitle"></small></h1>
+
+<div class="bar">
+  <input type="text" id="q" data-i18n-placeholder="ask_placeholder" autofocus>
+  <select id="lang">
+    <option value="" data-i18n="filter_all"></option>
+  </select>
+  <button id="go" data-i18n="search_button"></button>
+</div>
+<div class="hint" data-i18n="filter_hint"></div>
+<!-- WHO is asking. legal_entity is always required; whether user_id is too is
+     the ORGANISATION's policy (settings visibility.search_requires_user).
+     A supplied user is verified either way — the anonymous option appears only
+     for entities whose organisation allows a userless search. -->
+<div class="bar" style="margin-top:.5rem">
+  <label data-i18n="entity" style="align-self:center"></label>
+  <select id="legal_entity" onchange="loadUsers(); loadGrades()"></select>
+  <label data-i18n="user" style="align-self:center"></label>
+  <select id="user_id"></select>
+</div>
+
+<!-- Shown only when the selected entity RESOLVES to a grade codebook
+     (a unit resolves to its organisation's list — resolved_code_list).
+     Optional: the empty value sends no user_school_grade at all. -->
+<div class="bar" style="margin-top:.5rem">
+  <label id="gradeLbl" data-i18n="grade" style="align-self:center; display:none"></label>
+  <select id="school_grade" style="display:none"></select>
+</div>
+
+<div id="meta"></div>
+<div id="answer"></div>
+<div id="sug"></div>
+<div id="sources"></div>
+
+<!-- Cascade trace: every configured step in order, what it did and where the
+     walk ended. Comes straight from the run (SearchResponse.trace); the panel
+     below it is the same thing as PERSISTED in question_answer_log.flow_trace, which
+     arrives a moment later because logging is a background task. -->
+<!-- Diagnostics are ENGLISH-ONLY, headings included. Their vocabulary is
+     English on both ends (decision=A, only_if_empty, cosine_min, and the
+     question_answer_log column names), so a Czech heading over English content is the
+     worst of both — and a trace pasted into a bug report should read the same
+     for everyone. Only the page's own chrome above is localized. -->
+<div id="flow" class="hidden">
+  <h2>Search flow</h2>
+  <table>
+    <thead><tr>
+      <th>Step</th><th>Status</th><th>Step result</th><th>Time</th>
+    </tr></thead>
+    <tbody id="flowBody"></tbody>
+  </table>
+</div>
+
+<div id="logrow" class="hidden">
+  <h2>Row in question_answer_log</h2>
+  <div id="logBody" class="hint"></div>
+  <div class="hint">The log is written in the background after the answer is
+    sent, so it appears with a delay. The flow above comes from the run itself;
+    this row is what was persisted.</div>
+</div>
+
+<script>
+const SEARCH = "http://127.0.0.1:8090";
+const GW = "http://127.0.0.1:8080";
+const SCOPE = "search_test";
+const $ = id => document.getElementById(id);
+const SESSION = "search-test-page";
+// Anything from the DB or the user that lands in innerHTML goes through this.
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// The answer's paragraph lead-ins arrive as markdown **bold** (answer.py asks for
+// it, so the reader sees at a glance which situation each paragraph is about).
+// Rendering them puts markup into the DOM and the text is LLM output — so escape
+// EVERYTHING first and re-introduce exactly one thing afterwards: <strong> for
+// **…**. Nothing the model writes can become an element, an attribute or a script.
+// Line breaks stay as they are: #answer is white-space:pre-wrap.
+const mdLite = txt => esc(txt || "").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+
+// ── i18n ────────────────────────────────────────────────────────────────────
+// Copy lives in edu_ai.ui_label and is served by /v1/ui-labels, so adding a
+// language is INSERTs and no edit here (docs/ADDING_A_LANGUAGE.md). FALLBACK is
+// only what the page needs to render at all when the API is unreachable — it is
+// not a second source of truth, so it stays minimal.
+const FALLBACK = { title: "EDU-AI asistent RAG modul", search_button: "Hledat", role_label: "Role",
+                   answer_placeholder: "Odpověď se zobrazí zde.", error: "Chyba",
+                   grade: "Ročník", grade_any: "— neuveden —" };
+let LABELS = {};        // {lang: {key: text}}
+let uiLang = null;
+
+// Kept so a language switch can re-render it: applyLang() only refreshes
+// [data-i18n] elements, and this table's localized parts (the status column) are
+// written as text by the renderer — without this they would keep whatever
+// language they were drawn in.
+let lastTrace = null, lastResult = null;
+
+// Same fallback chain the code lists already use: chosen → en → cs → the key.
+const t = k => LABELS[uiLang]?.[k] ?? LABELS.en?.[k] ?? LABELS.cs?.[k]
+               ?? FALLBACK[k] ?? k;
+
+// Code-list labels follow the UI language, not a hardcoded constant.
+const pickLabel = it => (it.labels?.[uiLang] ?? it.labels?.en ?? it.labels?.cs
+                         ?? it.code ?? it.type_code);
+
+function applyLang(){
+  document.documentElement.lang = uiLang || "cs";
+  for (const el of document.querySelectorAll("[data-i18n]"))
+    el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]"))
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  document.title = t("title");
+  if (!lastResult) $("answer").textContent = t("answer_placeholder");
+  // anything drawn by JS has to be redrawn — see lastResult / lastTrace
+  if (lastResult) renderResult(lastResult);
+  else if (lastTrace) renderFlow(lastTrace);
+}
+
+// The picker is indented by hierarchy: a unit's documents are reachable from the
+// unit and from the legal person above it, so which row is picked changes the
+// result set — a flat list would hide that these are one organisation.
+// per-entity policy from /entities: does this organisation's /search insist on
+// a verified user? Drives whether the user select offers the anonymous option.
+let ENTITY_POLICY = {};
+
+async function loadEntities(){
+  try {
+    const d = await fetch(SEARCH + "/v1/entities", {cache: "no-store"}).then(r => r.json());
+    ENTITY_POLICY = Object.fromEntries(
+      d.entities.map(e => [e.legal_entity_code, e.search_requires_user !== false]));
+    const sel = $("legal_entity");
+    sel.innerHTML = `<option value="">${esc(t("choose_entity"))}</option>` +
+      d.entities.map(e => `<option value="${esc(e.legal_entity_code)}">`
+        + (e.parent_code ? "\u00a0\u00a0└─ " : "") + esc(e.display_name) + `</option>`).join("");
+    await loadUsers();
+  } catch (e){ /* labels already show the placeholder */ }
+}
+
+async function loadGrades(){
+  const ent = $("legal_entity").value;
+  const lbl = $("gradeLbl"), sel = $("school_grade");
+  lbl.style.display = "none"; sel.style.display = "none";
+  sel.innerHTML = "";
+  if (!ent) return;
+  try {
+    // The ENTITY'S resolved grade codebook: a unit resolves to its
+    // organisation's list, an unprovisioned school resolves to nothing —
+    // and with nothing there is no dropdown to show.
+    const d = await fetch(`${SEARCH}/v1/code-lists?legal_entity=${encodeURIComponent(ent)}`,
+                          {cache: "no-store"}).then(r => r.json());
+    // the CALLER's grade is a number — "Pro všechny ročníky" (ALL / 9999) is a
+    // DOCUMENT tag, a person is not in every grade at once. Accept 1–13 on the
+    // unified axis (ZŠ 1–9, SŠ 10–13) — the old /^[1-9]$/ hid the two-digit SŠ
+    // grades, so the SŠ entity offered no ročník at all.
+    const grades = ((d.code_lists?.school_grade) || []).filter(g => /^(?:[1-9]|1[0-3])$/.test(g.code));
+    if (!grades.length) return;
+    sel.innerHTML = `<option value="">${esc(t("grade_any"))}</option>`
+      + grades.map(g =>
+        `<option value="${esc(g.code)}">${esc(g.labels?.[uiLang] ?? g.labels?.cs ?? g.code)}</option>`).join("");
+    lbl.style.display = ""; sel.style.display = "";
+  } catch(e){ /* no dropdown is the correct degraded state */ }
+}
+
+async function loadUsers(){
+  const ent = $("legal_entity").value, sel = $("user_id");
+  sel.innerHTML = `<option value="">${esc(t("choose_user"))}</option>`;
+  if (!ent) return;
+  try {
+    // Users of EXACTLY the selected entity — under a unit the form must not
+    // offer people from the parent (decided after a brief include_ancestors
+    // experiment). /search would accept a verified parent user, but that is a
+    // fact about the API, not something the form should invite.
+    const d = await fetch(`${SEARCH}/v1/staff-users?legal_entity=${encodeURIComponent(ent)}`,
+                          {cache: "no-store"}).then(r => r.json());
+    // The anonymous option exists only where the organisation's policy allows a
+    // userless search (search_requires_user=false) — offering it elsewhere
+    // would offer a guaranteed 403.
+    const anon = ENTITY_POLICY[ent] === false
+      ? `<option value="">${esc(t("anonymous"))}</option>` : "";
+    sel.innerHTML = d.staff_users.length
+      ? (anon || `<option value="">${esc(t("choose_user"))}</option>`)
+        + d.staff_users.map(u =>
+          `<option value="${esc(u.user_id)}">${esc(u.display_name)}</option>`).join("")
+      : (anon || `<option value="">${esc(t("no_users"))}</option>`);
+  } catch (e){ /* the placeholder stays; search() refuses without a user */ }
+}
+
+async function loadLabels(){
+  try {
+    const d = await fetch(`${GW}/v1/ui-labels?scope=${SCOPE}`).then(r => r.json());
+    LABELS = d.labels || {};
+    // The menu offers ONLY languages holding every key of this scope — one the
+    // page cannot fully render is not offered. The server decides that; its
+    // `incomplete` field says what a partial language is missing.
+    const avail = d.available || [];
+    const stored = localStorage.getItem("edu_ai_ui_lang");
+    uiLang = avail.includes(stored) ? stored : d.default;
+    const sel = $("uiLang");
+    sel.innerHTML = "";
+    for (const c of avail) sel.add(new Option(c.toUpperCase(), c));
+    sel.value = uiLang || "";
+    sel.style.display = avail.length > 1 ? "" : "none";
+    sel.onchange = () => {
+      uiLang = sel.value;
+      localStorage.setItem("edu_ai_ui_lang", uiLang);
+      applyLang(); loadLangs(); loadRoles();
+    };
+  } catch(e){
+    uiLang = "cs";
+    $("uiLang").style.display = "none";
+  }
+  applyLang();
+  loadRoles();
+}
+
+async function loadRoles(){
+  const sel = $("roleSel");
+  const keep = sel.value;
+  sel.innerHTML = "";
+  try {
+    const c = await fetch(GW + "/v1/code-lists", {cache:"no-store"}).then(r => r.json());
+    for (const r of (c.code_lists.role || []))
+      sel.add(new Option(pickLabel(r), r.code));   // label only, per UI language
+  } catch(e){ /* leave empty — search will refuse without a role */ }
+  sel.value = keep || sel.options[0]?.value || "";
+}
+
+async function loadLangs(){
+  const sel = $("lang");
+  const keep = sel.value;
+  sel.innerHTML = "";
+  sel.add(new Option(t("filter_all"), ""));
+  try {
+    const c = await fetch(GW + "/v1/code-lists").then(r => r.json());
+    for (const l of c.code_lists.language)
+      sel.add(new Option(`${pickLabel(l)} (${l.code})`, l.code));
+  } catch(e){
+    for (const c of ["cs","en"]) sel.add(new Option(c, c));
+  }
+  sel.value = keep;
+}
+
+async function search(q){
+  q = (q ?? $("q").value).trim();
+  if (!q) return;
+  $("q").value = q;
+  // BOTH required by /search — checked before the button is disabled, so a
+  // refused submit leaves the page usable (the old early return after
+  // disabling left the button dead).
+  if (!$("legal_entity").value){ alert(t("choose_entity")); return; }
+  // a missing user is refused ONLY where the organisation requires one — with
+  // search_requires_user=false the empty value IS the anonymous choice
+  if (!$("user_id").value
+      && ENTITY_POLICY[$("legal_entity").value] !== false){
+    alert(t("choose_user")); return; }
+  $("go").disabled = true;
+  $("answer").textContent = t("searching"); $("answer").className = "";
+  $("meta").innerHTML = ""; $("sug").innerHTML = ""; $("sources").innerHTML = "";
+  $("flow").classList.add("hidden"); $("logrow").classList.add("hidden");
+  lastResult = null; lastTrace = null;
+  // debug:true — the cascade trace is opt-in since 2026-08-13 (it was 72 % of the
+  // response), and this page's whole Search-flow panel is built from it
+  const body = { question: q, session_id: SESSION, debug: true,
+                 legal_entity: $("legal_entity").value,
+                 user_id: $("user_id").value || null };
+  if ($("lang").value) body.language = $("lang").value;
+  // the caller's ročník — optional; the empty option means "not stated" and
+  // the grade may still be derived from the question text server-side
+  if ($("school_grade").value) body.user_school_grade = $("school_grade").value;
+  if ($("roleSel").value) body.user_role = $("roleSel").value;
+  try {
+    const r = await fetch(SEARCH + "/v1/ask", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok){
+      // {"error":{code,message,retryable}} since 2026-08-13; d.detail is the
+      // old shape, kept so this page still says something useful either way
+      const msg = d.error ? `${d.error.code}: ${d.error.message}`
+                          : JSON.stringify(d.detail);
+      $("answer").textContent = `${t("error")} ${r.status}: ${msg}`;
+      $("answer").className = "none"; return;
+    }
+    lastResult = d;
+    renderResult(d);
+    renderLogRow(q);
+  } catch(e){
+    $("answer").textContent = `${t("error")}: ${e.message}`; $("answer").className = "none";
+  } finally { $("go").disabled = false; }
+}
+
+// ── result rendering ────────────────────────────────────────────────────────
+// ONE renderer for the whole result, callable again. Everything localized here
+// is written as text by JS, so a language switch has to redraw it — applyLang()
+// only refreshes [data-i18n] elements. The answer itself is NOT redrawn into a
+// placeholder: it is content, not a label (that is what wiped the answer when
+// the language changed).
+function renderResult(d){
+  if (!d) return;
+  const badges = [
+    `<span class="badge ${d.outcome==='blocked'||d.outcome==='self_harm'?'blocked':''}">${esc(d.outcome)}</span>`,
+    `<span class="badge src">${t("badge_source")}: ${esc(d.answer_source)}</span>`,
+    d.strategies?.length ? `<span class="badge src">${esc(d.strategies.join(" → "))}</span>` : "",
+    `<span class="badge lang">${t("badge_lang")}: ${esc(d.language)}${
+       $("lang").value ? ` (${t("badge_filter")} ${esc($("lang").value)})` : ` (${t("badge_auto")})`}</span>`,
+    `<span class="badge ms">${d.duration_ms} ms</span>`,
+    d.match_score != null ? `<span class="badge">${t("badge_score")} ${d.match_score}</span>` : "",
+  ];
+  $("meta").innerHTML = badges.join("");
+  // answer_parts (search API) gives one entry per paragraph WITH the document it
+  // came from, so the link can sit under the paragraph it belongs to instead of in
+  // one undifferentiated "Sources:" line. Falls back to the whole text when the API
+  // returns no parts (QA answers, guard messages, an older build).
+  $("answer").innerHTML = (d.answer_parts?.length)
+    ? d.answer_parts.map(p => {
+        const link = p.url
+          ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title || p.url)}</a>`
+          : (p.title ? esc(p.title) : "");
+        // excerpt = the source text this paragraph was written from (opt-in via
+        // answer.include_excerpt). <details> so revealing it costs no script and
+        // the page keeps working if the field is absent.
+        const src = p.excerpt
+          ? `<details class="aex"><summary>${esc(t("show_source"))}</summary>`
+            + `<pre>${esc(p.excerpt)}</pre></details>`
+          : "";
+        return `<div class="apart">${mdLite(p.markdown || p.text)}`
+             + (link ? `<div class="asrc">${link}</div>` : "")
+             + src + `</div>`;
+      }).join("")
+    : mdLite(d.answer);
+  $("answer").className = (d.outcome === "answer") ? "ok"
+                        : (d.outcome === "no_answer" ? "none" : "");
+  // The suggestion contract: every item's `question` (and each option's
+  // `question`) is a text that can be sent straight back to /search. kind=qa /
+  // related → one button; kind=clarify → its sentence + one button per option
+  // (render the label, SEND the question — the label's words are display names,
+  // not query terms).
+  $("sug").innerHTML = d.suggestions?.length
+    ? t("suggestions_label") + " " + d.suggestions.map(x =>
+        x.kind === "clarify"
+          ? esc(x.question) + " " + (x.options || []).map(o =>
+              `<button onclick="search(${esc(JSON.stringify(o.question))})">${esc(o.label)}</button>`).join("")
+          : `<button onclick="search(${esc(JSON.stringify(x.question))})">${esc(x.question)}</button>`).join(" ")
+    : "";
+  // sources is an array since 2026-08-13; a string is a pre-cutover service. Without
+  // the Array check JSON.parse throws on the array and the list renders empty.
+  let srcs = [];
+  if (Array.isArray(d.sources)) srcs = d.sources;
+  else try { srcs = JSON.parse(d.sources || "[]"); } catch(e){}
+  $("sources").innerHTML = srcs.length
+    ? t("sources_label") + " " + srcs.map(x =>
+        x.url ? `<a href="${esc(x.url)}" target="_blank">${esc(x.title)}</a>`
+              : esc(x.title || x.file_name)).join(" · ")
+    : "";
+  renderFlow(d.trace);
+}
+
+// ── cascade trace ───────────────────────────────────────────────────────────
+const STATUS_LABEL = { ran: "ran", skipped: "skipped", disabled: "disabled",
+                       error: "error", unknown: "unknown" };
+
+function renderFlow(trace){
+  if (trace) lastTrace = trace;
+  if (!trace || !trace.length){ $("flow").classList.add("hidden"); return; }
+  $("flow").classList.remove("hidden");
+  $("flowBody").innerHTML = trace.map(x => {
+    // the detail column is assembled from whatever the step reported — a step
+    // only reports a decision/score it SET itself (see executor._mark)
+    // The step-result column is ALWAYS English, whatever the interface language:
+    // it is a technical trace whose vocabulary (decision=A, outcome=no_answer,
+    // only_if_empty, cosine_min) is English anyway, and a half-translated
+    // diagnostic is harder to read — and harder to paste into a bug report —
+    // than a consistently English one. Only the chrome around it is localized.
+    const bits = [];
+    const D = x.detail || {};
+    if (D.guard === "pass")      bits.push("profanity + self-harm check: passed");
+    if (D.guard === "blocked")   bits.push(`<b>${esc(D.category || "")}: caught — search stopped</b>`);
+    if (D.guard === "unusable")  bits.push("<b>question unusable — search stopped</b>");
+    if (D.packs != null)         bits.push(`QA packs in scope: ${D.packs}`);
+    if (D.exact_match === false) bits.push("no exact match found");
+    if (D.exact_match === true)  bits.push("exact match found");
+    if (x.outcome)              bits.push(`outcome=${esc(x.outcome)}`);
+    if (x.decision)             bits.push(`decision=${esc(x.decision)}`);
+    if (x.match_score != null)  bits.push(`score=<b>${x.match_score}</b>`);
+    // the bars the score was measured against — "0.5137" alone does not say
+    // whether it nearly answered or was nowhere near
+    if (D.t_answer != null)     bits.push(`needs \u2265${D.t_answer} to answer`);
+    if (D.t_suggest != null)    bits.push(`\u2265${D.t_suggest} to suggest`);
+    if (D.m_margin != null)     bits.push(`margin \u2265${D.m_margin}`);
+    if (D.candidates != null)   bits.push(`candidates: ${D.candidates}`);
+    if (D.pack)                 bits.push(`pack=${esc(D.pack)}`);
+    // A gatherer ADDS to the pool, `answer` CONSUMES it, and a skipped step
+    // neither — there the pool is merely the reason it was skipped, so it is
+    // stated plainly rather than dressed up as something the step did.
+    if (x.pool_added != null)        bits.push(`${x.pool_added >= 0 ? "+" : ""}${x.pool_added} chunks to pool`);
+    else if (D.context_chunks)       bits.push(
+      `context: <b>${D.context_chunks.length}</b> of ${D.pool} chunks in pool`);
+    else if (x.pool != null)         bits.push(`pool=${x.pool}`);
+    if (x.matched_entry_id)     bits.push(`entry=${esc(x.matched_entry_id).slice(0,8)}…`);
+    if (x.max_coverage != null) bits.push(`max_coverage=${x.max_coverage}`);
+    if (x.note)                 bits.push(esc(x.note));
+    if (x.stopped_here)         bits.push("<b>\u2190 cascade ended here</b>");
+    const cls = x.stopped_here ? "stop"
+              : (x.status === "error" || x.status === "unknown") ? "err"
+              : (x.status === "ran") ? "" : "skip";
+    // the chunks that actually reached the prompt, in prompt order
+    const cc = (x.detail || {}).context_chunks;
+    const list = cc ? `<div class="cc">` + cc.map((c, i) =>
+        `<div><span class="n">${i + 1}.</span> doc ${c.doc} · ${esc(c.title || "")}`
+      + ` · <span class="mono">${esc((c.file_item_uuid || "").slice(0, 8))}</span>`
+      + ` · ${c.retrieval_type || ""} · score=${c.score} · ${c.chars} chars`
+      + `<div class="prev">${esc(c.preview || "")}</div></div>`).join("") + `</div>` : "";
+    return `<tr class="${cls}"><td>${esc(x.step)}</td>`
+         + `<td>${STATUS_LABEL[x.status] || esc(x.status)}</td>`
+         + `<td>${bits.join(" · ") || "—"}${list}</td>`
+         + `<td class="ms">${x.ms != null ? x.ms + " ms" : ""}</td></tr>`;
+  }).join("");
+}
+
+// The row is written by a BackgroundTask AFTER the answer is sent, so it is not
+// there yet when the answer renders — poll briefly instead of showing nothing.
+async function renderLogRow(question){
+  $("logrow").classList.remove("hidden");
+  $("logBody").textContent = "waiting for the row…";
+  for (let i = 0; i < 8; i++){
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      const d = await fetch(`${SEARCH}/v1/query-log?limit=1&session_id=${encodeURIComponent(SESSION)}`)
+                      .then(r => r.json());
+      const r0 = (d.rows || [])[0];
+      if (!r0 || r0.raw_query !== question) continue;
+      const F = ["id","created_at","stage","answer_source","strategies_text",
+                 "match_score","matched_entry_id","latency_ms","question_language",
+                 "answer_language","norm_query","lemma_query","stem_query",
+                 "setting_label"];
+      $("logBody").innerHTML = "<table>" + F.map(k =>
+        `<tr><td class="k">${k}</td><td>${esc(r0[k] ?? "—")}</td></tr>`).join("")
+        + `<tr><td class="k">flow_trace</td><td>${
+             r0.flow_trace ? r0.flow_trace.length + " ×" : "—"}</td></tr></table>`;
+      return;
+    } catch(e){ /* keep trying */ }
+  }
+}
+
+$("go").onclick = () => search();
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
+loadLabels().then(loadLangs).then(loadEntities);
+</script>
+</body>
+</html>

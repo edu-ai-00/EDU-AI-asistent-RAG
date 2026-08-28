@@ -1,0 +1,24 @@
+{
+  "pipeline_input": {
+    "processing_uuid": "c861fd5d-2d6e-47fc-afc4-e9fe560a4054",
+    "file_uuid": "765a1950-6138-42c6-b97c-a5d3b2bf28f6",
+    "file_name": "765a1950-6138-42c6-b97c-a5d3b2bf28f6_www.skola-nova-ves.example_index.php?p=o-studiu_P.html",
+    "file_path": "/data/uploads/765a1950-6138-42c6-b97c-a5d3b2bf28f6_www.skola-nova-ves.example_index.php?p=o-studiu_P.html",
+    "original_file_name": null,
+    "source_type": "web",
+    "user_name": "ZŠ učitel 1",
+    "visibility": "entity",
+    "document_type_orig": null,
+    "document_language_orig": null,
+    "school_subject_orig": null,
+    "school_subject_grade_orig": null,
+    "record_type": "document",
+    "source_url": "https://www.skola-nova-ves.example/index.php?p=o-studiu",
+    "ldts_local": "2026-08-04T17:28:36.705699",
+    "ldts_gmt": "2026-08-04T15:28:36.705699+00:00",
+    "markdown_file_path": "/data/uploads/765a1950-6138-42c6-b97c-a5d3b2bf28f6_www.skola-nova-ves.example_index.php?p=o-studiu_P.md",
+    "markdown_file_name": "765a1950-6138-42c6-b97c-a5d3b2bf28f6_www.skola-nova-ves.example_index.php?p=o-studiu_P.md",
+    "legal_entity_code": "SKOLA_NOVA_VES_ZS",
+    "user_id": "066d9206-cfe2-4f60-9f02-79bfea57c2bb"
+  }
+}

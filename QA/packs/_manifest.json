@@ -1,0 +1,197 @@
+{
+  "_about": "Scoping and audience for each pack — /v1/ingest takes these as form fields. Codes, never ids.",
+  "packs": {
+    "pack_provoz-org.csv": {
+      "legal_entity": "SKOLA_NOVA_VES",
+      "user_id": "ded501eb-24b6-4571-8bee-4992f9a77324",
+      "visibility": "organization",
+      "user_defined_pack_id": "provoz-org",
+      "entries": 33,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs"
+    },
+    "pack_prijimacky-org.csv": {
+      "legal_entity": "SKOLA_NOVA_VES",
+      "user_id": "ded501eb-24b6-4571-8bee-4992f9a77324",
+      "visibility": "organization",
+      "user_defined_pack_id": "prijimacky-org",
+      "entries": 32,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs"
+    },
+    "pack_provoz-zs.csv": {
+      "legal_entity": "SKOLA_NOVA_VES_ZS",
+      "user_id": "066d9206-cfe2-4f60-9f02-79bfea57c2bb",
+      "visibility": "entity",
+      "user_defined_pack_id": "provoz-zs",
+      "entries": 33,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs",
+      "domains": [
+        "ATTENDANCE",
+        "GRADING",
+        "CATERING",
+        "BULLYING",
+        "DATA_PROTECTION",
+        "SCHOOL_EVENTS",
+        "SPECIAL_NEEDS"
+      ]
+    },
+    "pack_prijimacky-zs.csv": {
+      "legal_entity": "SKOLA_NOVA_VES_ZS",
+      "user_id": "066d9206-cfe2-4f60-9f02-79bfea57c2bb",
+      "visibility": "organization",
+      "user_defined_pack_id": "prijimacky-zs",
+      "entries": 32,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "5",
+        "7",
+        "9"
+      ],
+      "document_language": "cs",
+      "domains": [
+        "SECONDARY_ADMISSIONS",
+        "MULTIYEAR_GYMNASIUM_ADMISSIONS"
+      ]
+    },
+    "pack_provoz-sos.csv": {
+      "legal_entity": "SKOLA_NOVA_VES_SOS",
+      "user_id": "3cd81a92-957e-4208-90aa-dcf0f7207286",
+      "visibility": "entity",
+      "user_defined_pack_id": "provoz-sos",
+      "entries": 33,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs",
+      "domains": [
+        "ATTENDANCE",
+        "GRADING",
+        "CATERING",
+        "BULLYING",
+        "DATA_PROTECTION",
+        "SCHOOL_EVENTS",
+        "SPECIAL_NEEDS"
+      ]
+    },
+    "pack_prijimacky-sos.csv": {
+      "legal_entity": "SKOLA_NOVA_VES_SOS",
+      "user_id": "3cd81a92-957e-4208-90aa-dcf0f7207286",
+      "visibility": "organization",
+      "user_defined_pack_id": "prijimacky-sos",
+      "entries": 20,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "12",
+        "13"
+      ],
+      "document_language": "cs",
+      "domains": [
+        "GRADUATION_EXAM",
+        "UNIVERSITY_ADMISSIONS"
+      ]
+    },
+    "pack_provoz-bor.csv": {
+      "legal_entity": "ZAKLADNI_SKOLA_BOROVA",
+      "user_id": "c2bedc46-6ad2-4fbc-a49f-ee4f101f0c7b",
+      "visibility": "entity",
+      "user_defined_pack_id": "provoz-bor",
+      "entries": 33,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs"
+    },
+    "pack_prijimacky-bor.csv": {
+      "legal_entity": "ZAKLADNI_SKOLA_BOROVA",
+      "user_id": "c2bedc46-6ad2-4fbc-a49f-ee4f101f0c7b",
+      "visibility": "entity",
+      "user_defined_pack_id": "prijimacky-bor",
+      "entries": 32,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "5",
+        "7",
+        "9"
+      ],
+      "document_language": "cs"
+    },
+    "pack_provoz-lip.csv": {
+      "legal_entity": "ZAKLADNI_SKOLA_LIPOVA",
+      "user_id": "be164723-a616-4a8b-a900-c9c555cb8326",
+      "visibility": "entity",
+      "user_defined_pack_id": "provoz-lip",
+      "entries": 33,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "9999"
+      ],
+      "document_language": "cs"
+    },
+    "pack_prijimacky-lip.csv": {
+      "legal_entity": "ZAKLADNI_SKOLA_LIPOVA",
+      "user_id": "be164723-a616-4a8b-a900-c9c555cb8326",
+      "visibility": "entity",
+      "user_defined_pack_id": "prijimacky-lip",
+      "entries": 32,
+      "audience_roles": [
+        "STUDENT",
+        "PARENT",
+        "TEACHER"
+      ],
+      "school_subject_grades": [
+        "5",
+        "7",
+        "9"
+      ],
+      "document_language": "cs"
+    }
+  }
+}

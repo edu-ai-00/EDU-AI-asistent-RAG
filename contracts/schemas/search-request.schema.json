@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://edu-ai/contracts/schemas/search-request.schema.json",
+  "title": "SearchRequest",
+  "description": "POST /v1/ask body (public: /search/v1/ask). Canonical shape: search/app/server.py (class SearchRequest).",
+  "type": "object",
+  "required": [
+    "question",
+    "legal_entity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "Raw user question. Whitespace-only is rejected with HTTP 400. Over 2000 CHARACTERS (not bytes) is HTTP 422 — never truncated, because an answer to a shortened question would not say that it was shortened. The same cap web_chat applies to its own input."
+    },
+    "legal_entity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "WHOSE search this is — REQUIRED. A missing entity is an error, never 'all of them': a permissive default is a silent cross-tenant leak. May be a unit (SKOLA_NOVA_VES_ZS), which also sees what its legal person issued as `organization`. A request built without this field gets HTTP 422."
+    },
+    "session_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Opaque session grouping. Logged to qa_query_log.session_id."
+    },
+    "user_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Who is asking. Logged. NOTE: currently trusted from the body (not a verified token) — see docs/architecture/decisions.md and a known gap."
+    },
+    "user_school_grade": {
+      "type": [
+        "integer",
+        "string",
+        "null"
+      ],
+      "description": "Ročník on one unified axis (init 120): ZŠ 1..9, SŠ 10..13 (10 = 1st year SŠ … 13 = maturita). A string of digits is accepted and coerced. The caller's UNIT decides which range is real; anything outside it — or non-numeric — is ignored with a log line, never an error, because the grade only ever PREFERS content. Absent → derived from the question text, else it does not participate."
+    },
+    "user_role": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "STUDENT",
+        "TEACHER",
+        "PARENT",
+        null
+      ],
+      "description": "Audience role, validated against code_list('role') — these three codes, NOT zak/ucitel/rodic. A HARD audience filter since init 127. When settings visibility.search_requires_role is true (the default) a missing or unknown value short-circuits before retrieval with HTTP 200, outcome='role_required' and answer_source='guard' — the caller renders that like any answer."
+    },
+    "conversation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Groups turns of one conversation. MUST be a UUID — anything else is HTTP 422, because question_answer_log.conversation_id is a uuid column and a non-UUID used to kill the whole log row silently. Omit the field if there is no conversation to group by. Passthrough otherwise: accepted + logged, NOT used for multi-turn context (see docs/ai/caching.md)."
+    },
+    "turn_seq": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "Client-side position of this question within conversation_id. Recorded, never trusted — the client owns it and the server does not verify or renumber it."
+    },
+    "query_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Client-side id of one question, so a report can be traced from the app's own log to a question_answer_log row without matching on question text. A client is expected to reuse it as Idempotency-Key, but the server treats that header as opaque and does NOT require the two to match."
+    },
+    "selected_answer_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The suggestion the user picked (suggestions[].entry_id from a previous response). ACCEPTED AND STORED BUT NOT HONOURED: the cascade still re-matches on the question text, so sending this changes no answer today. It is logged on arrival and stored beside matched_entry_id so the disagreement can be measured before the behaviour is implemented. To act on a suggestion NOW, send its `question` back as `question` — that contract works and is what suggestions are for."
+    },
+    "query_norm_tokens": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional on-device NORM tokens (lower, no diacritics, tokenized). If present, re-normalized server-side defensively. If absent, the server derives them (prepare)."
+    },
+    "query_lemma_tokens": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional on-device LEMMA tokens (pure simplemma). Must satisfy the parity contract (contracts/parity/)."
+    },
+    "query_stem_tokens": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Optional on-device STEM tokens (pure Dolamic–Savoy light). Must satisfy the parity contract (contracts/parity/)."
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Language filter: a code_list('language') code among the active rows. Restricts BOTH document retrieval (effective doc language = user code, else LLM code) and the QA packs. An unknown code is HTTP 400 with the allowed list. null = no restriction."
+    },
+    "params_override": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Per-request pipeline parameter overrides, merged over the active settings row. Diagnostics and A/B measurement — not something a normal client sends."
+    },
+    "retrieval_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "Run retrieval and return the candidates without spending an LLM call on the answer step."
+    },
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include the per-step cascade trace in the response. Off by default since 2026-08-13: it measured 15.3 kB of a 21.2 kB answer, diagnostics a normal client ignores. The query log keeps the full trace either way — it is stripped on the way out, not before it is recorded."
+    }
+  }
+}
