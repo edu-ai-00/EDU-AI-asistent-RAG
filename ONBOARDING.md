@@ -1,5 +1,9 @@
 # edu_ai — Onboarding: cloning and bringing up the whole stack
 
+> **Scope:** this page is the **local development** onboarding (clone, bring the stack up, understand each step).
+> To install and operate on a Linux server use [docs/OPERATIONS_LINUX.md](docs/OPERATIONS_LINUX.md) (current, lab-verified).
+> Tests and the definition of done: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Release and packaging rules: [docs/RELEASING.md](docs/RELEASING.md).
+
 Goal: from a clean clone to a fully functional local environment — 7 Docker containers
 (nginx, FastAPI, Langflow, Postgres+pgvector, pgAdmin, search, web chat) with imported
 Langflow flows and correctly configured keys and IDs.
@@ -17,6 +21,27 @@ Estimated time: 30–45 minutes (most of it = docker build).
 
 ---
 
+# Optional Cloudflare Tunnel
+
+Cloudflare is optional. The default Compose selection starts the local stack without
+`cloudflared`; no Cloudflare account or token is required. To enable the connector,
+set `COMPOSE_PROFILES=cloudflare` and `CLOUDFLARE_TUNNEL_TOKEN` in the installation's
+`.env`, then use the same bootstrap/Compose project and configuration paths. A token
+alone does not enable it. Bootstrap refuses an enabled connector with a missing or
+placeholder token before starting services. Smoke checks every enabled service;
+an absent or stopped enabled connector is a failure.
+
+Configure the tunnel routes and Cloudflare Access separately before publishing the
+Bifrost UI: Bifrost has no login and the tunnel itself does not authenticate users.
+The local R2 subnet/trust preflight remains required even when the connector is off;
+its private network protects the nginx trust boundary and is allocated locally.
+
+For an existing installation that uses Cloudflare, preserve its enabled state by
+setting the profile explicitly before adopting this Compose change. Removing the
+profile does not stop an already running connector. To deliberately disable it,
+stop and remove only its `cloudflared` container in the same verified project;
+smoke still flags leftover broken containers. Preserve all other services and data.
+
 # The short way
 
 ```bash
@@ -28,7 +53,11 @@ python3 scripts/bootstrap.py
 That is the whole first deployment. It generates `.env` with strong passwords, creates
 the nginx auth files, brings the stack up waiting for each service
 to report *healthy*, creates the Langflow API key over REST, imports the 6 flows, runs
-a smoke test, and prints the URLs and credentials at the end.
+a smoke test, and prints the URLs and the path to `.env` at the end. The passwords and
+keys this run generated are shown once there too, but only at an interactive terminal (never
+in CI, with `--no-input` or with redirected output, and never values that already existed or
+that you supplied); `.env` stays their permanent source, so put them in your password vault
+at that moment.
 
 Every step is idempotent and prints `[ok]` / `[skip]` / `[fail]`; an existing file is
 never overwritten. Re-run it whenever something is missing — after a `git pull` that
@@ -46,6 +75,9 @@ curl -s localhost:8080/health # -> {"status":"ok", "missing_config":[]}
 Useful flags: `--build` (rebuild images after a local code change), `--no-input`
 (never prompt — for CI), `--skip-smoke`, `--langflow-url` (when port 7860 is not
 published on the host).
+
+Exit status: `0` done, `1` a step failed, `3` the Langflow API key in `.env` could not be
+verified (Langflow did not answer normally); nothing was changed, so run it again later.
 
 To check a running stack at any time:
 
@@ -81,7 +113,8 @@ For now fill in **only these** in `.env` (the rest comes in steps 5–6):
 | Variable | Value |
 |---|---|
 | `COMPOSE_PROJECT_NAME` | leave as `edu_ai` — see the warning below |
-| `POSTGRES_PASSWORD` | choose a password |
+| `POSTGRES_PASSWORD` | choose a password (the password of the database role `edu_ai_ingest`) |
+| `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_SEARCH_PASSWORD`, `POSTGRES_LANGFLOW_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` | four more database role passwords, all different (`install.py` and `bootstrap.py` generate them; see `docs/plans/b06-c2-role-contract.md`) |
 | `PGADMIN_DEFAULT_EMAIL` / `_PASSWORD` | pgAdmin login |
 | `LANGFLOW_SUPERUSER` / `_PASSWORD` | Langflow admin account — created automatically on first start |
 | `LANGFLOW_SECRET_KEY` | **must be a Fernet key**, see below |
@@ -118,34 +151,44 @@ Langflow Global Variables, and changing it makes the existing ones undecryptable
 > run `docker compose up -d` (it recreates the changed services) — a mere
 > `docker restart` is not enough.
 
-## 3) Auth for the public API (nginx, outside git)
+## 3) The perimeter — nothing here authenticates a caller
 
-nginx protects `/api/` (Basic auth) and `/search/` (API-key). Both files are
-**gitignored** — create them from the `.example` templates:
+**nginx checks no credentials at all.** There is nothing to create in this step;
+it exists so that nobody mistakes that for an oversight. Until 2026-09-02 `/api/`
+had Basic auth and `/search/` an API key, both mounted from gitignored files.
+Both are gone: the key lived inside a shipped mobile binary, where it was
+extractable and therefore not a secret, and it cost months of `401`s to a
+`Bearer ` prefix drifting between the map and the docs.
 
-> ⚠️ **If they are missing, nginx crash-loops with a misleading error.** A bind mount
-> whose source does not exist on the host is created by Docker as an empty *directory*,
-> and nginx then dies with `pread() "/etc/nginx/auth_keys.conf" failed (21: Is a
-> directory)` — which reads like a bug in `nginx.conf`. The nginx service now runs a
-> preflight check that says what is actually wrong instead.
->
-> Creating the file afterwards is not enough on its own: a container keeps the mount it
-> was created with, so a plain restart changes nothing. You need
-> `docker compose up -d --force-recreate nginx`. `scripts/bootstrap.py` detects the
-> stray directory, replaces it with a real file and recreates the container for you.
+Two things hold the perimeter instead, and **neither is in this repository**:
+
+| Door | Held by | Where it is configured |
+|---|---|---|
+| `rag.edu-ai.eu` → nginx `:81` (tunnel) | Cloudflare Access policy | Cloudflare Zero Trust dashboard |
+| `:80`, `:8443`, `:8444` on the public IP | AWS security group | AWS console |
+
+Both are one click away from being wide open and nothing in the stack would
+notice, so:
 
 ```bash
-# /api/ — Basic auth (admin/content ops): create a user + password
-printf 'admin:%s\n' "$(openssl passwd -apr1 'ZVOL_SI_HESLO')" > nginx/.htpasswd
-
-# /search/ — API key for the mobile app: pick a strong key
-cp nginx/auth_keys.conf.example nginx/auth_keys.conf
-# and in the file replace CHANGE_ME_search_api_key with the real key
+# From OFF-SITE — not on the VPN, or it proves nothing (the script checks).
+python3 scripts/perimeter_check.py --strict --ip <public IPv4>
 ```
 
-The app then calls `/search/` with the header `Authorization: Bearer <key>`.
-`/api/` (upload form) requires Basic auth (`curl -u admin:password …`).
-You rotate the key by adding a new line to the `map` in `auth_keys.conf` (then delete the old one).
+Run it on a schedule from somewhere outside. It verifies that the tunnel refuses
+an unauthenticated caller, that Cloudflare Access is what refuses it, and that
+the admin ports do not answer from the internet. **That schedule is now a
+security control, not a nicety** — treat a red run as an incident.
+
+What nginx still does decide is *which endpoints exist*: the `$search_path_allowed`
+map in `nginx/conf/nginx.conf` publishes seven paths and answers `404` for the rest.
+It is not authentication, and it is the only thing keeping `/v1/query-log`
+(every question ever asked) and `/v1/staff-users` off the edge. Add a line there
+and you publish that endpoint to everyone past the perimeter.
+
+Inside the VPN everything on `:80` is open, `/api/` included — and `/api/`
+**writes**: it ingests documents and has no login of its own, unlike pgAdmin and
+Langflow, which keep theirs. Any WireGuard peer can post to it.
 
 ## 4) Build and first start
 
@@ -199,9 +242,27 @@ actually usable, so nothing downstream needs a `sleep`.
 python3 scripts/create_api_key.py
 ```
 
-Logs in as the superuser from `.env` over REST, creates the key, and writes it into
-`.env`. If the key already there works, it says so and changes nothing; if anything
-fails it falls back to asking you to paste one.
+Asks Langflow about the key already in `.env` first; the answer decides:
+
+- **accepted** → it says so and changes nothing;
+- **rejected** (HTTP 401) or **no key yet** → logs in as the superuser from `.env` over
+  REST, creates a new key, checks that Langflow accepts it and writes it into `.env`
+  (atomically). If a step before the write fails, `.env` and the existing keys are
+  untouched, the new key is deleted again, and it falls back to asking you to paste one.
+  The previous key is **never deleted**: a masked listing cannot identify it reliably.
+  Remove it in Langflow (Settings → API Keys) if it is unused;
+- **cannot be verified** (timeout, 5xx, a redirect, an odd answer, **HTTP 403**) → changes
+  nothing, asks nothing and exits with status `3`. A key that cannot be asked about is not
+  shown to be dead, and a 403 can be a proxy or a lack of rights; run it again when Langflow
+  answers normally, or use `--force` if you know the key is dead. **Langflow 1.10.1 answers 403
+  (not 401) to an unknown key** (verified in a lab), so a key that died with `docker compose
+  down -v` shows up here too: run `python3 scripts/create_api_key.py --force`;
+- the write of `.env` fails in a way that leaves it unclear whether `.env` holds the new key
+  (readback failure, interrupt right after the rename) → exits with status `1`, deletes
+  nothing and says what is known. Check `LANGFLOW_API_KEY` in `.env` and run it again.
+
+`--force` is your explicit choice to skip the check and create a new key (the previous key
+is kept). Calls that carry the key never follow an HTTP redirect.
 
 > **Why not the CLI:** `docker compose exec edu_ai langflow api-key` is the documented
 > route, and it does not work here — with `LANGFLOW_AUTO_LOGIN=false` (our real-auth
@@ -292,7 +353,9 @@ counted as passes — a green run never means "nothing was tested".
 
 | Key / ID | Where it is set | Who reads it |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `.env` | Postgres, pgAdmin; the Postgres components in flows (auto via Global Variables, step 7) |
+| `POSTGRES_PASSWORD` | `.env` | role `edu_ai_ingest`: the Postgres components in flows (auto via Global Variables, step 7) |
+| `POSTGRES_ADMIN_PASSWORD` | `.env` | the `postgres` container (maintenance superuser `edu_ai_admin`); no application receives it |
+| `POSTGRES_SEARCH_PASSWORD` / `POSTGRES_LANGFLOW_PASSWORD` / `POSTGRES_MIGRATOR_PASSWORD` | `.env` | search service / Langflow state database / maintenance migrator |
 | `LANGFLOW_SUPERUSER*` | `.env` | Langflow on first start (UI login) |
 | `LANGFLOW_API_KEY` | `scripts/create_api_key.py` → `.env` (step 5) | FastAPI (calls flows), extraction flows (header component reads env) |
 | `LANGFLOW_SECRET_KEY` | `.env` (Fernet key, set once) | Langflow — encrypts the Global Variables |
@@ -312,7 +375,8 @@ they live as plain constants in `docker-compose.yml`.
 |---|---|
 | something is wrong but I don't know what | `python3 scripts/smoke.py` — it names the failing check |
 | `edu_ai_api` reports `degraded` | `curl localhost:8080/health` lists the missing variables → fill them in `.env`, `docker compose up -d` |
-| nginx: `pread() … (21: Is a directory)` | `nginx/.htpasswd` or `auth_keys.conf` missing → `python3 scripts/bootstrap.py`, then `docker compose up -d --force-recreate nginx` (a plain restart keeps the old mount) |
+| `perimeter_check.py` says a port ANSWERED from the internet | the AWS security group has been widened — close it first, then ask why. nginx authenticates nobody, so that port is genuinely open (step 3) |
+| `perimeter_check.py` exits 2 | it ran from inside the perimeter and refused to give a verdict — run it off-site, not on the VPN |
 | `docker compose down` did nothing, exit 0 | wrong project — `COMPOSE_PROJECT_NAME` missing from `.env`, so the name came from the directory. Check `docker compose ls` |
 | `Fernet key must be 32 url-safe base64-encoded bytes` | `LANGFLOW_SECRET_KEY` is an ordinary password → regenerate it as a Fernet key (step 2) |
 | `langflow api-key` says *auto login is disabled* | expected with `LANGFLOW_AUTO_LOGIN=false` → `python3 scripts/create_api_key.py` |

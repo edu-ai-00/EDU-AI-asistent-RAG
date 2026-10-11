@@ -1,0 +1,87 @@
+{
+  "description": "Logical baseline B216: a clean install of postgres/init_clean 00-03.",
+  "files": [
+    {
+      "path": "postgres/init_clean/00_roles_and_databases.sql",
+      "sha256": "0f726cc5b0c3bdea48249d7794b2729fb533ad253501f60c9f705d06d9be1070"
+    },
+    {
+      "path": "postgres/init_clean/01_schema.sql",
+      "sha256": "51545504c771fa114d0741b6b0cc6a7919e5a2f565e84411a25f9a78be7c7710"
+    },
+    {
+      "path": "postgres/init_clean/02_seed_config.sql",
+      "sha256": "864b3065f2b90589d9a309d19d3bcbb4394f5ee34102c8924f8623eaac8e9eba"
+    },
+    {
+      "path": "postgres/init_clean/03_school_operations_safety_domains.sql",
+      "sha256": "f9005cfb4f76c88120aa25db42e584a1e48703a8e1f68e71f4df3d6b2f2159a2"
+    },
+    {
+      "path": "postgres/init_clean/04_role_contract.sql",
+      "sha256": "fbba1809efc8bc61e8467a0dbfbc7351d7f5d0422caee169ab582811a4dc05f6"
+    }
+  ],
+  "fingerprint": {
+    "algorithm": "edu-ai-fp-v1",
+    "config": "b94e98c43fbc53ee809de41769ed47f0770f7ceae58d3fe2f50d9b01efd232f0",
+    "config_dump_args": [
+      "--data-only",
+      "--column-inserts",
+      "--disable-triggers",
+      "--no-owner",
+      "--no-privileges",
+      "--table=edu_ai.code_list",
+      "--table=edu_ai.taxonomy_rules",
+      "--table=edu_ai.taxonomy_binding",
+      "--table=edu_ai.embedding_registry",
+      "--table=edu_ai.prompt_registry",
+      "--table=edu_ai.system_message",
+      "--table=edu_ai.ui_label",
+      "--table=edu_ai.qa_stopword",
+      "--table=edu_ai.qa_synonym",
+      "--table=edu_ai.qa_blocklist",
+      "--table=edu_ai.chunk_exclusion_rule",
+      "--table=edu_ai.answer_exclusion_rule",
+      "--table=edu_ai.grade_term",
+      "--table=edu_ai.subject_term",
+      "--table=edu_ai.validity_period",
+      "--table=edu_ai.settings",
+      "--table=edu_ai.legal_entity",
+      "--table=edu_ai.staff_user"
+    ],
+    "config_masked_columns": [
+      "created_at",
+      "updated_at"
+    ],
+    "schema": "57d648886a239019cba20bc9b8e837ab0f5bcdb5f0dda0286ce94abc67619a14",
+    "schema_dump_args": [
+      "--schema-only",
+      "--schema=edu_ai",
+      "--no-owner",
+      "--no-privileges",
+      "--exclude-table=edu_ai.langchain_pg_*",
+      "--exclude-table=edu_ai.schema_migration"
+    ]
+  },
+  "format": 1,
+  "generated_by": "scripts/migrate.py v1",
+  "id": "B216",
+  "kind": "baseline",
+  "postgres": {
+    "base_image": "pgvector/pgvector:0.7.4-pg16@sha256:7bbb2558b9b73d23c4a7795d7a016cbb531ef5fb1e231115fa1aeac5129caf10",
+    "extensions": {
+      "pg_search": "0.25.1",
+      "pg_trgm": "1.6",
+      "plpgsql": "1.0",
+      "unaccent": "1.1",
+      "vector": "0.7.4"
+    },
+    "pg_dump_version": "16.3",
+    "server_version": "16.3"
+  },
+  "source": {
+    "base_commit": "7d9484ac10973b35eeeb25cb9f3b8b78dac9fc58",
+    "note": "Commit the inputs were generated from, i.e. the parent of the commit that adds this manifest (a manifest cannot name its own commit). Informational: identity is carried by the file hashes below."
+  }
+}

@@ -19,6 +19,19 @@ What it removes, in order of how much time each used to cost:
   * "log into the UI and copy an API key" — see scripts/create_api_key.py.
   * hand-written passwords, and the CHANGE_ME_* placeholders they replace.
 
+Secrets stay in .env, which remains their permanent source. Progress lines and
+error messages never carry a password, an API key or an encryption key: they are
+written from status codes and fixed phrases, and every line passes through
+redact(). The one exception is the closing overview of a SUCCESSFUL run at an
+interactive terminal, which shows once the local secrets THIS run created, so
+they can be put in a password vault. It never shows values that already existed
+(a re-run), values supplied from outside (OPENAI_API_KEY, tokens, provider keys,
+a pasted key), or anything when output is redirected, in CI or under --no-input;
+there the summary gives only the path to .env.
+
+A key Langflow cannot be asked about (timeout, 5xx, odd answer) is left alone and
+the run stops with exit status 3 — run it again later.
+
 Standard library only; everything else needs just Docker.
 """
 
@@ -26,25 +39,30 @@ from __future__ import annotations
 
 import argparse
 import base64
-import hashlib
 import json
 import os
 import pathlib
+import re
 import secrets
-import shutil
+import stat
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from create_api_key import ensure_api_key  # noqa: E402
-from envfile import is_placeholder, read_env, set_env  # noqa: E402
+from create_api_key import (  # noqa: E402
+    EXIT_RETRY_LATER, KeyUnverifiable, describe_error, display_url, ensure_api_key,
+)
+import eduai_layout  # noqa: E402
+from envfile import create_private, is_placeholder, read_env, set_env  # noqa: E402
+from http_safe import open_url  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 ENV_EXAMPLE = ROOT / ".env.example"
-NGINX = ROOT / "nginx"
+STATE_DIR = ROOT                       # where uploads, langflow_data, ... really live
+_layout: "eduai_layout.Layout | None" = None   # set by main() only when a layout flag or variable was given
 
 # Bind-mount sources that must exist before the first `up`, mapped to the
 # uid:gid of the container user that writes there and the mode it needs. Docker
@@ -84,37 +102,63 @@ def _fernet_key() -> str:
 
 # Secrets bootstrap can invent. OPENAI_API_KEY is deliberately absent — it comes
 # from an external account and cannot be generated, so it stays CHANGE_ME and is
-# reported at the end (and by GET /health on edu_ai_search, the only service that
-# reads it from the environment; edu_ai_api's /health does not, because it never
-# consumes the key).
+# reported at the end of the run. No /health endpoint reports it: edu_ai_search
+# answers a fixed {"status": "ok"}, and edu_ai_api's missing_config lists only the
+# Langflow variables.
 GENERATED_SECRETS: dict[str, "callable"] = {
     "POSTGRES_PASSWORD": _password,
     "PGADMIN_DEFAULT_PASSWORD": _password,
     "LANGFLOW_SUPERUSER_PASSWORD": _password,
     "LANGFLOW_SECRET_KEY": _fernet_key,
+    "POSTGRES_ADMIN_PASSWORD": _password,
+    "POSTGRES_SEARCH_PASSWORD": _password,
+    "POSTGRES_LANGFLOW_PASSWORD": _password,
+    "POSTGRES_MIGRATOR_PASSWORD": _password,
 }
-
-# nginx file mounts. A directory here is the crash-loop signature described above.
-NGINX_FILES = [NGINX / ".htpasswd", NGINX / "auth_keys.conf"]
-
-# nginx's worker drops to this uid/gid and reads the two files above itself, so
-# they are given gid 101 and mode 640 rather than left to the operator's umask.
-NGINX_GID = 101
-NGINX_FILE_MODE = 0o640
-
-_ITOA64 = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 _summary: list[str] = []
 _failed = False
 _needs_recreate = False
+_key_unverifiable = False  # the Langflow key in .env could not be checked: retry later
+# Names (never values) of the local secrets THIS run created, in the order they were
+# made. Only these may appear in the closing overview; values are read back from
+# .env when shown, so .env stays the one source of truth.
+_created_secrets: list[str] = []
 
 
 # ───────────────────────────────────────────────────────────────
 #  Output
 # ───────────────────────────────────────────────────────────────
+# Secrets are kept out of the output twice over: messages are written from status
+# codes and fixed phrases, and everything printed also passes through redact(),
+# which masks any value that .env marks as a secret. The second layer is for the
+# message nobody thought to check.
+
+_SECRET_NAME_PARTS = ("PASSWORD", "SECRET", "TOKEN", "KEY")
+_MIN_SECRET_LEN = 6        # shorter values would mask ordinary words in the output
+_runtime_secrets: set[str] = set()  # e.g. a key just minted or pasted
+_last_env_secrets: set[str] = set()  # every secret value .env has held during this run: kept when .env cannot be read
+_MAX_RELAYED_LINE = 160
+
+
+def redact(text: str) -> str:
+    """`text` with every known secret value replaced by [redacted]."""
+    try:
+        from_env = read_env(ENV_PATH)
+    except (OSError, ValueError):
+        from_env = {}               # unreadable now (a bad byte, a lock): keep masking what was known, never fail open
+    # Only ever added to: a file that vanished or lost a line must not switch the masking off.
+    _last_env_secrets.update(value for name, value in from_env.items()
+                             if any(part in name.upper() for part in _SECRET_NAME_PARTS)
+                             and not is_placeholder(value))
+    values = _last_env_secrets | _runtime_secrets
+    for value in sorted((v for v in values if len(v) >= _MIN_SECRET_LEN), key=len, reverse=True):
+        text = text.replace(value, "[redacted]")
+    return text
+
 
 def report(status: str, message: str) -> None:
-    print(f"  [{status:4s}] {message}")
+    print(f"  [{status:4s}] {redact(message)}")
 
 
 def fail(message: str, hint: str = "") -> None:
@@ -122,7 +166,43 @@ def fail(message: str, hint: str = "") -> None:
     _failed = True
     report("fail", message)
     if hint:
-        print(f"         → {hint}")
+        print(f"         → {redact(hint)}")
+
+
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")                 # terminal escapes, CR, NUL
+_USERINFO = re.compile(r"(://)[^/\s@]+@")                           # user:password@ inside a URL
+_CHILD_MARKER = re.compile(r"^\s*\[(pass|skip|FAIL)\]")                # smoke.py result lines
+_CHILD_LINE = re.compile(r"^\s*(\d+\.\s|\d+ passed|Skipped checks|edu_ai smoke|[+~] |Importing |Done\.)")
+
+
+def relay(text: str) -> None:
+    """Show a child script's report, indented.
+
+    smoke.py and import_flows.py echo up to 300 characters of an HTTP error body
+    on failure, and a message can span lines. Only lines of the child's own shapes
+    (a result marker, a numbered heading, a total, an import line) are shown: the
+    rest of a multi-line message after a marker is a body and is dropped. A [FAIL]
+    line is also cut at its first ':' — the label and status stay, whatever followed
+    does not — control characters become '?', credentials inside a URL are removed,
+    and every line is redacted before it is shortened, so a cut never leaves half a secret.
+    """
+    after_marker = False
+    for raw in text.splitlines():
+        line = _USERINFO.sub(r"\1", _CONTROL.sub("?", raw.rstrip()))
+        if not line.strip():
+            after_marker = False
+            continue
+        if _CHILD_MARKER.match(line):
+            after_marker = True
+        elif after_marker and not _CHILD_LINE.match(line):
+            continue                # the rest of a multi-line message (a body): never relayed
+        else:
+            after_marker = False
+        if "[FAIL]" in line:
+            head, separator, _ = line.partition(":")
+            if separator:
+                line = f"{head} (details withheld)"
+        print(f"         {redact(line)[:_MAX_RELAYED_LINE]}")
 
 
 def phase(title: str) -> None:
@@ -131,6 +211,8 @@ def phase(title: str) -> None:
 
 def run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     """Run a command in the repo root, capturing output."""
+    if _layout is not None and args[:2] == ["docker", "compose"]:
+        args = _layout.compose_prefix() + args[2:]
     return subprocess.run(
         args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
         errors="replace", **kwargs
@@ -138,9 +220,11 @@ def run(args: list[str], **kwargs) -> subprocess.CompletedProcess:
 
 
 def compose(*args: str, stream: bool = False, timeout: int | None = None):
-    """Invoke `docker compose` in the repo root."""
+    """Invoke `docker compose` in the repo root (pinned to the layout when one was given)."""
     command = ["docker", "compose", *args]
     if stream:
+        if _layout is not None:
+            command = _layout.compose_prefix() + list(args)
         print(f"         $ {' '.join(command)}")
         # The child writes straight to the terminal; without flushing first our
         # own buffered output lands after it and the log reads out of order.
@@ -238,8 +322,18 @@ def step_env() -> None:
 
     created = not ENV_PATH.is_file()
     if created:
-        shutil.copyfile(ENV_EXAMPLE, ENV_PATH)
-        report("ok", f"created .env from {ENV_EXAMPLE.name}")
+        # Private from the first byte and complete or not at all: the file is about to
+        # hold every secret, so there is no moment at which it is readable by others.
+        try:
+            create_private(ENV_PATH, ENV_EXAMPLE.read_bytes())
+        except FileExistsError:
+            created = False                    # appeared since the check: fill it, never replace it
+        except OSError as exc:
+            fail(f".env could not be created ({type(exc).__name__}); nothing was written",
+                 "check the permissions of the checkout directory")
+            return
+    if created:
+        report("ok", f"created .env from {ENV_EXAMPLE.name}" + (" (mode 0600)" if os.name == "posix" else ""))
     else:
         report("skip", ".env already exists — filling gaps only")
 
@@ -249,29 +343,68 @@ def step_env() -> None:
 
     # Carry over keys added to .env.example since this .env was written, so an
     # upgrade never needs a manual diff of the two files.
-    for key, value in example.items():
-        if key not in current:
-            updates[key] = value
-            report("ok", f"added missing key {key}")
+    added = [key for key in example if key not in current]
+    for key in added:
+        updates[key] = example[key]
 
+    generated: list[str] = []
     for key, generate in GENERATED_SECRETS.items():
         if is_placeholder(updates.get(key, current.get(key))):
             updates[key] = generate()
+            generated.append(key)
+
+    if updates:
+        # Atomic: if this fails .env is exactly as it was, and nothing generated above
+        # is reported or offered to the operator, because it was never stored.
+        try:
+            set_env(ENV_PATH, updates)
+        except OSError as exc:
+            fail(f".env could not be updated ({type(exc).__name__}); it was left unchanged",
+                 "check the file's permissions and the free space, then re-run")
+            return
+    for key in added:
+        report("ok", f"added missing key {key}")
+    for key in GENERATED_SECRETS:
+        if key in generated:
             report("ok", f"generated {key}")
         else:
             report("skip", f"{key} already set")
+    # Recorded only once .env holds them: a value that never reached the file must
+    # not be offered to the operator as something to keep.
+    _created_secrets.extend(generated)
 
-    if updates:
-        set_env(ENV_PATH, updates)
+    if os.name == "posix" and stat.S_IMODE(ENV_PATH.stat().st_mode) & 0o077:
+        report("warn", f".env is accessible to other users (mode {stat.S_IMODE(ENV_PATH.stat().st_mode):04o}) "
+                       "and holds every secret — run `chmod 600 .env`")
 
     final = read_env(ENV_PATH)
     if is_placeholder(final.get("OPENAI_API_KEY")):
         report("warn", "OPENAI_API_KEY is still CHANGE_ME — containers will start, "
                        "but ingestion cannot reach OpenAI")
         _summary.append(
-            "OPENAI_API_KEY is not set. Put a real key in .env, then "
-            "`docker compose up -d`. GET /health reports it under missing_config."
+            "OPENAI_API_KEY is not set. Put a real key in .env, then `docker compose up -d`. "
+            "No /health endpoint reports a missing OPENAI_API_KEY (the search service answers a "
+            "fixed status and the API's missing_config lists only Langflow variables), so "
+            "this line is the only warning."
         )
+
+    if is_placeholder(final.get("CHAT_LEGAL_ENTITY")):
+        if (final.get("CHAT_ENTITY_PICKER") or "").strip().lower() in {"1", "true", "yes", "on"}:
+            # Browser selection: no school is configured on purpose. Nothing to do
+            # in .env, SQL or a CLI — the visitor picks it in the chat.
+            report("ok", "no fixed school: the visitor chooses it in the chat (CHAT_ENTITY_PICKER is on)")
+            _summary.append(
+                "Web chat: open it, choose the school from the menu and start writing. "
+                "Nothing needs to be configured first."
+            )
+        else:
+            report("warn", "CHAT_LEGAL_ENTITY is still CHANGE_ME — the chat cannot search until it names "
+                           "one of your legal entities")
+            _summary.append(
+                "CHAT_LEGAL_ENTITY is not set. Put the code of one of your legal entities into .env "
+                "(SELECT legal_entity_code FROM edu_ai.legal_entity WHERE is_active), then "
+                "`docker compose up -d edu_ai_web_chat`. The smoke test fails until it is a valid active entity."
+            )
 
 
 # ───────────────────────────────────────────────────────────────
@@ -281,13 +414,18 @@ def step_env() -> None:
 def step_dirs() -> None:
     phase("3. directories")
     for name in DATA_DIRS:
-        path = ROOT / name
+        path = _data_path(name)
         if path.is_dir():
             report("skip", f"{name}/")
         else:
             path.mkdir(parents=True, exist_ok=True)
             report("ok", f"created {name}/")
     _fix_data_dir_ownership()
+
+
+def _data_path(name: str) -> pathlib.Path:
+    """The real directory behind a bind-mount name: STATE_DIR for the state dirs, else the checkout."""
+    return (STATE_DIR if name in eduai_layout.STATE_DIRS else ROOT) / name
 
 
 def _fix_data_dir_ownership() -> None:
@@ -305,188 +443,59 @@ def _fix_data_dir_ownership() -> None:
         report("skip", "ownership (Docker Desktop maps uids itself)")
         return
 
-    wrong = []
+    # One throwaway container per base directory: a symlink out of ROOT would not resolve inside the mount.
+    wrong: dict[pathlib.Path, list[str]] = {}
     for name, (uid, gid, mode) in DATA_DIRS.items():
-        info = (ROOT / name).stat()
+        path = _data_path(name)
+        info = path.stat()
         if info.st_uid != uid or info.st_gid != gid or (info.st_mode & 0o7777) != mode:
-            wrong.append(f"chown {uid}:{gid} '/mnt/{name}' && chmod {mode:o} '/mnt/{name}'")
+            wrong.setdefault(path.parent, []).append(
+                f"chown {uid}:{gid} '/mnt/{name}' && chmod {mode:o} '/mnt/{name}'")
 
     if not wrong:
         report("skip", "ownership (already correct)")
         return
 
-    result = run(["docker", "run", "--rm", "-v", f"{ROOT}:/mnt",
-                  "alpine:3", "sh", "-c", " && ".join(wrong)])
-    if result.returncode == 0:
-        report("ok", f"set ownership on {len(wrong)} director{'y' if len(wrong) == 1 else 'ies'}")
-    else:
-        fail(f"could not set ownership: {(result.stderr or result.stdout).strip()[:200]}",
-             "the containers will start but cannot write to their bind mounts. "
-             f"Fix by hand: sudo chown <uid>:<gid> {' '.join(DATA_DIRS)}")
+    for base, commands in wrong.items():
+        result = run(["docker", "run", "--rm", "-v", f"{base}:/mnt",
+                      "alpine:3", "sh", "-c", " && ".join(commands)])
+        if result.returncode == 0:
+            report("ok", f"set ownership on {len(commands)} director{'y' if len(commands) == 1 else 'ies'}")
+        else:
+            fail(f"could not set ownership: {(result.stderr or result.stdout).strip()[:200]}",
+                 "the containers will start but cannot write to their bind mounts. "
+                 f"Fix by hand: sudo chown <uid>:<gid> {' '.join(DATA_DIRS)}")
 
 
 # ───────────────────────────────────────────────────────────────
-#  4. nginx secrets
+#  4./6. Bringing the stack up
 # ───────────────────────────────────────────────────────────────
 
-def apr1(password: str, salt: str) -> str:
-    """Apache's MD5 crypt ($apr1$), the format nginx's auth_basic_user_file wants.
-
-    Implemented here rather than shelling out to `openssl passwd -apr1` so that
-    generating .htpasswd needs nothing but Python — one less thing to be missing
-    on the machine doing the deployment.
-    """
-    pw = password.encode()
-    sb = salt.encode()
-
-    ctx = hashlib.md5(pw + b"$apr1$" + sb)
-    final = hashlib.md5(pw + sb + pw).digest()
-
-    length = len(pw)
-    while length > 0:
-        ctx.update(final[: min(length, 16)])
-        length -= 16
-
-    length = len(pw)
-    while length:
-        ctx.update(b"\0" if length & 1 else pw[:1])
-        length >>= 1
-    final = ctx.digest()
-
-    for i in range(1000):
-        round_ctx = hashlib.md5()
-        round_ctx.update(pw if i & 1 else final)
-        if i % 3:
-            round_ctx.update(sb)
-        if i % 7:
-            round_ctx.update(pw)
-        round_ctx.update(final if i & 1 else pw)
-        final = round_ctx.digest()
-
-    encoded = ""
-    for a, b, c in ((0, 6, 12), (1, 7, 13), (2, 8, 14), (3, 9, 15), (4, 10, 5)):
-        value = (final[a] << 16) | (final[b] << 8) | final[c]
-        for _ in range(4):
-            encoded += _ITOA64[value & 0x3F]
-            value >>= 6
-    value = final[11]
-    for _ in range(2):
-        encoded += _ITOA64[value & 0x3F]
-        value >>= 6
-
-    return f"$apr1${salt}${encoded}"
-
-
-def _clear_stale_directory(path: pathlib.Path) -> bool:
-    """Remove the empty directory Docker leaves where a missing file mount was.
-
-    Returns True if something was removed — the caller then needs
-    --force-recreate, because a container keeps the mount it was created with.
-    """
-    if not path.is_dir():
-        return False
+def _check_optional_cloudflare() -> bool:
+    """Use the effective Compose model: inactive profiles need no provider token."""
     try:
-        path.rmdir()
-    except OSError:
-        fail(f"{path} is a non-empty directory where a file belongs",
-             "inspect and remove it by hand, then re-run")
+        result = run(["docker", "compose", "config", "--format", "json"])
+        if result.returncode != 0:
+            raise ValueError("config failed")
+        model = json.loads(result.stdout)
+        services = model["services"]
+        if not isinstance(services, dict) or not services:
+            raise ValueError("invalid services")
+        if "cloudflared" not in services:
+            report("skip", "Cloudflare Tunnel disabled (Compose profile)")
+            return True
+        token = services["cloudflared"]["environment"].get("TUNNEL_TOKEN")
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
+        fail("could not verify optional Cloudflare configuration",
+             "check docker compose config; no services were started by this step")
         return False
-    report("ok", f"removed the empty directory Docker created at {path.name}")
+    if not isinstance(token, str) or is_placeholder(token.strip()):
+        fail("Cloudflare Tunnel enabled without a usable token",
+             "set CLOUDFLARE_TUNNEL_TOKEN or disable the cloudflare Compose profile")
+        return False
+    report("ok", "Cloudflare Tunnel explicitly enabled; token configured")
     return True
 
-
-def step_nginx() -> None:
-    global _needs_recreate
-    phase("4. nginx secrets")
-
-    NGINX.mkdir(parents=True, exist_ok=True)
-
-    for path in NGINX_FILES:
-        if _clear_stale_directory(path):
-            _needs_recreate = True
-
-    # .htpasswd — Basic auth on /api/
-    htpasswd = NGINX / ".htpasswd"
-    if htpasswd.is_file():
-        report("skip", ".htpasswd already exists")
-        # The stored value is a one-way hash, so a re-run cannot tell the
-        # operator what the password is. Say so, rather than letting the
-        # summary's silence read as "nothing to write down".
-        _summary.append(
-            "nginx /api/ Basic auth  →  kept the existing nginx/.htpasswd; its "
-            "password is hashed and cannot be recovered. Delete the file and "
-            "re-run to issue a new one."
-        )
-    else:
-        password = secrets.token_urlsafe(18)
-        salt = "".join(secrets.choice(_ITOA64) for _ in range(8))
-        htpasswd.write_text(f"admin:{apr1(password, salt)}\n", encoding="utf-8", newline="\n")
-        report("ok", "generated .htpasswd (user: admin)")
-        _summary.append(f"nginx /api/ Basic auth  →  admin : {password}")
-
-    # auth_keys.conf — Bearer key map for /search/
-    auth_keys = NGINX / "auth_keys.conf"
-    if auth_keys.is_file():
-        report("skip", "auth_keys.conf already exists")
-        _summary.append(
-            "/search/ API key        →  kept the existing nginx/auth_keys.conf "
-            "(the key is readable in that file)."
-        )
-    else:
-        search_key = secrets.token_urlsafe(32)
-        auth_keys.write_text(
-            "# Generated by scripts/bootstrap.py. NOT committed.\n"
-            "# Rotate by adding a new line, then removing the old one.\n"
-            "map $http_authorization $search_authorized {\n"
-            "    default                    0;\n"
-            f'    "Bearer {search_key}"    1;\n'
-            "}\n",
-            encoding="utf-8", newline="\n",
-        )
-        report("ok", "generated auth_keys.conf")
-        _summary.append(f"/search/ API key        →  Authorization: Bearer {search_key}")
-
-    _ensure_nginx_readable()
-
-
-def _ensure_nginx_readable() -> None:
-    """Let nginx's worker read the two mounted secret files.
-
-    It runs as uid/gid 101, not root, so mode 600 — the natural instinct for a
-    file holding a password — earns EACCES. nginx then answers 500 for /api/ and
-    401 for every /search/ key, logging a crit that reads like a config error.
-    """
-    global _needs_recreate
-
-    if sys.platform != "linux":
-        report("skip", "nginx file modes (Docker Desktop maps uids itself)")
-        return
-
-    wrong = [p for p in NGINX_FILES
-             if p.stat().st_gid != NGINX_GID
-             or (p.stat().st_mode & 0o777) != NGINX_FILE_MODE]
-    if not wrong:
-        report("skip", "nginx files readable by the worker")
-        return
-
-    script = " && ".join(
-        f"chown :{NGINX_GID} '/n/{p.name}' && chmod {NGINX_FILE_MODE:o} '/n/{p.name}'"
-        for p in wrong)
-    result = run(["docker", "run", "--rm", "-v", f"{NGINX}:/n",
-                  "alpine:3", "sh", "-c", script])
-    if result.returncode == 0:
-        report("ok", f"made {len(wrong)} nginx file(s) readable by gid {NGINX_GID}")
-        _needs_recreate = True
-    else:
-        fail(f"could not fix nginx file modes: {(result.stderr or result.stdout).strip()[:200]}",
-             f"nginx will 500 on /api/. Fix by hand: sudo chgrp {NGINX_GID} "
-             f"nginx/.htpasswd nginx/auth_keys.conf && sudo chmod 640 nginx/.htpasswd "
-             f"nginx/auth_keys.conf")
-
-
-# ───────────────────────────────────────────────────────────────
-#  5./7. Bringing the stack up
-# ───────────────────────────────────────────────────────────────
 
 def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = False,
             apply_pending_recreate: bool = False) -> bool:
@@ -501,6 +510,8 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
     """
     global _needs_recreate
     phase(label)
+    if not _check_optional_cloudflare():
+        return False
 
     args = ["up", "-d", "--wait", "--wait-timeout", "900"]
     if build:
@@ -530,7 +541,7 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
 
 
 # ───────────────────────────────────────────────────────────────
-#  6. Langflow API key
+#  5. Langflow API key
 # ───────────────────────────────────────────────────────────────
 
 def langflow_url(override: str | None) -> str | None:
@@ -565,38 +576,57 @@ def langflow_url(override: str | None) -> str | None:
 
 
 def step_api_key(url_override: str | None, allow_prompt: bool) -> str | None:
-    phase("6. Langflow API key")
+    """Make sure .env holds a key Langflow accepts; return it for the later steps.
+
+    None means "stop here". `_key_unverifiable` then says whether that is a plain
+    failure or a key Langflow could not be asked about — the second changed
+    nothing and is worth repeating later. No `force`: replacing a key Langflow
+    has not rejected is the operator's call (create_api_key.py --force), never
+    this script's.
+    """
+    global _needs_recreate, _key_unverifiable
+    phase("5. Langflow API key")
 
     base_url = langflow_url(url_override)
     if base_url is None:
         fail("Langflow is not reachable from the host",
              "7860 is published only by docker-compose.override.yml (dev). Where "
              "that override is not loaded, set LANGFLOW_URL=http://127.0.0.1:8444 "
-             "in .env — nginx proxies the same API — or pass --langflow-url.")
+             "in .env — nginx proxies the same API — or pass --langflow-url. A redirect "
+             "is never followed (the API key must not leave that address): use the final one.")
         return None
-    report("ok", f"Langflow reachable at {base_url}")
+    report("ok", f"Langflow reachable at {display_url(base_url)}")
 
     try:
         api_key, outcome = ensure_api_key(base_url, ENV_PATH, allow_prompt=allow_prompt)
+    except KeyUnverifiable as exc:
+        _key_unverifiable = True
+        fail(str(exc), "re-run scripts/bootstrap.py later; every step is idempotent "
+                       "(exit status 3 means \"try again\", not \"broken\").")
+        return None
     except RuntimeError as exc:
         fail(str(exc))
         return None
 
+    _runtime_secrets.add(api_key)
     report({"skip": "skip"}.get(outcome, "ok"), {
         "skip": "LANGFLOW_API_KEY in .env already works",
-        "created": f"created a new API key ({api_key[:8]}…) and wrote it to .env",
+        "created": "created a new API key and wrote it to .env",
+        "replaced": "Langflow rejected the API key in .env — created a new one and wrote it to .env",
         "manual": "stored the pasted key in .env",
     }[outcome])
 
     if outcome != "skip":
         # env is read at container creation, so the API must be recreated to see it.
-        global _needs_recreate
         _needs_recreate = True
+    # "manual" is the operator's own key, not something this run made.
+    if outcome in ("created", "replaced") and "LANGFLOW_API_KEY" not in _created_secrets:
+        _created_secrets.append("LANGFLOW_API_KEY")
     return api_key
 
 
 # ───────────────────────────────────────────────────────────────
-#  7b. Langflow connectivity variables
+#  6b. Langflow connectivity variables
 # ───────────────────────────────────────────────────────────────
 # WHY THIS EXISTS: the ingestion flows bind their pg_* fields to Langflow
 # variables by name (load_from_db). Langflow resolves such a field as
@@ -630,7 +660,7 @@ CONNECTIVITY_VARS = (
 
 
 def step_langflow_vars(base_url: str, api_key: str) -> None:
-    phase("7b. Langflow connectivity variables")
+    phase("6b. Langflow connectivity variables")
 
     values = read_env(ENV_PATH)
     headers = {"x-api-key": api_key, "Content-Type": "application/json"}
@@ -638,15 +668,29 @@ def step_langflow_vars(base_url: str, api_key: str) -> None:
     try:
         request = urllib.request.Request(f"{base_url}/api/v1/variables/",
                                          headers={"x-api-key": api_key})
-        with urllib.request.urlopen(request, timeout=15) as response:
-            existing = {item["name"] for item in json.loads(response.read())}
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        fail("could not list Langflow variables", str(exc)[:200])
+        with open_url(request, timeout=15) as response:
+            items = {item["name"]: item for item in json.loads(response.read())}
+            existing = set(items)
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+        fail("could not list Langflow variables", describe_error(exc))
         return
 
-    created, skipped, missing = [], [], []
+    created, skipped, missing, updated = [], [], [], []
     for name in CONNECTIVITY_VARS:
         if name in existing:
+            # An existing Generic variable wins over .env, so a changed .env value (the DB role after the
+            # role contract) has to be carried over here, or the flows keep connecting as the old one.
+            item, wanted = items[name], values.get(name)
+            if item.get("type") == "Generic" and "value" in item and item.get("id") and wanted and not is_placeholder(wanted) and item["value"] != wanted:
+                payload = json.dumps({"id": item["id"], "name": name, "value": wanted, "type": "Generic", "default_fields": []}).encode()
+                try:
+                    request = urllib.request.Request(f"{base_url}/api/v1/variables/{item['id']}", data=payload, headers=headers, method="PATCH")
+                    with open_url(request, timeout=15):
+                        updated.append(name)
+                except (urllib.error.URLError, OSError) as exc:
+                    fail(f"could not update Langflow variable {name}", describe_error(exc))
+                    return
+                continue
             skipped.append(name)
             continue
         value = values.get(name)
@@ -658,14 +702,16 @@ def step_langflow_vars(base_url: str, api_key: str) -> None:
         try:
             request = urllib.request.Request(f"{base_url}/api/v1/variables/",
                                              data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(request, timeout=15):
+            with open_url(request, timeout=15):
                 created.append(name)
         except (urllib.error.URLError, OSError) as exc:
-            fail(f"could not create Langflow variable {name}", str(exc)[:200])
+            fail(f"could not create Langflow variable {name}", describe_error(exc))
             return
 
     if created:
         report("ok", f"created {len(created)} Generic variable(s): {', '.join(created)}")
+    if updated:
+        report("ok", f"updated {len(updated)} Generic variable(s) to the .env value: {', '.join(updated)}")
     if skipped:
         report("skip", f"{len(skipped)} already present")
     if missing:
@@ -673,50 +719,89 @@ def step_langflow_vars(base_url: str, api_key: str) -> None:
 
 
 # ───────────────────────────────────────────────────────────────
-#  8. Flows
+#  7. Flows
 # ───────────────────────────────────────────────────────────────
 
 def step_flows(base_url: str, api_key: str) -> None:
-    phase("8. import flows")
+    phase("7. fill missing flow aliases")
     environment = {**os.environ, "LANGFLOW_URL": base_url, "LANGFLOW_API_KEY": api_key}
-    result = run([sys.executable, "scripts/import_flows.py"], env=environment)
+    result = run([sys.executable, "scripts/import_flows.py", "--missing-only"], env=environment)
     if result.returncode != 0:
-        fail("import_flows.py failed", (result.stderr or result.stdout).strip()[:300])
+        # import_flows.py puts the HTTP error body into its exit message, so its
+        # output is not echoed here.
+        fail(f"import_flows.py failed (exit {result.returncode})",
+             "its output is not echoed (it can carry an HTTP response body); "
+             "run `python3 scripts/import_flows.py --missing-only` to see it")
         return
-    for line in result.stdout.strip().splitlines():
-        if line.strip():
-            print(f"         {line}")
-    report("ok", "flows imported")
+    relay(result.stdout)
+    report("ok", "required flow aliases present; existing flows preserved")
 
 
 # ───────────────────────────────────────────────────────────────
-#  9. Smoke test
+#  8. Smoke test
 # ───────────────────────────────────────────────────────────────
 
 def step_smoke(base_url: str) -> None:
-    phase("9. smoke test")
-    result = run([sys.executable, "scripts/smoke.py", "--langflow-url", base_url])
-    for line in result.stdout.strip().splitlines():
-        print(f"         {line}")
+    phase("8. smoke test")
+    result = run([sys.executable, "scripts/smoke.py", "--langflow-url", base_url,
+                  *(_layout.argv() if _layout is not None else [])])
+    relay(result.stdout)
     if result.returncode != 0:
-        fail("smoke test reported failures", (result.stderr or "").strip()[:300])
+        fail("smoke test reported failures",
+             "failure details are not echoed (they can carry an HTTP response body); "
+             "run `python3 scripts/smoke.py` to see them")
     else:
         report("ok", "smoke test passed")
 
 
 # ───────────────────────────────────────────────────────────────
-#  10. Summary
+#  9. Summary
 # ───────────────────────────────────────────────────────────────
 
-def step_summary(base_url: str | None) -> None:
+_CI_VARS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "BUILDKITE", "TF_BUILD")
+
+
+def interactive_terminal(no_input: bool) -> bool:
+    """True only for a person sitting at a terminal.
+
+    Not under --no-input, not in CI, and not when either end is redirected: a log
+    file or a pipe keeps whatever is printed, a terminal's scrollback is the
+    operator's own.
+    """
+    if no_input:
+        return False
+    for name in _CI_VARS:
+        if os.environ.get(name, "").strip().lower() not in ("", "0", "false", "no"):
+            return False
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except (AttributeError, ValueError):  # a closed or replaced stream
+        return False
+
+
+def _secrets_to_show(env: dict[str, str]) -> list[tuple[str, str]]:
+    """(name, value) of what THIS run created and .env still holds, in creation order.
+
+    The allow-list is _created_secrets and nothing else: values that existed
+    before, tokens and provider keys from outside, and a pasted key never get here.
+    """
+    return [(name, env[name]) for name in _created_secrets
+            if not is_placeholder(env.get(name))]
+
+
+def step_summary(base_url: str | None, no_input: bool = False) -> None:
+    """Closing overview. Whether it may show the secrets this run created is decided
+    here and nowhere else: an interactive terminal AND a run without errors."""
     env = read_env(ENV_PATH)
+    reveal = interactive_terminal(no_input) and not _failed
+    to_show = _secrets_to_show(env) if reveal else []
     print("\n" + "─" * 70)
     print("edu_ai is up." if not _failed else "bootstrap finished WITH ERRORS.")
     print("─" * 70)
 
     print("\nURLs")
     for label, url in [
-        ("Langflow UI", base_url or "http://127.0.0.1:7860"),
+        ("Langflow UI", display_url(base_url or "http://127.0.0.1:7860")),
         ("Ingestion API", "http://127.0.0.1:8080/"),
         ("API health", "http://127.0.0.1:8080/health"),
         ("pgAdmin", "http://localhost:8443/pgadmin/"),
@@ -724,25 +809,71 @@ def step_summary(base_url: str | None) -> None:
     ]:
         print(f"  {label:16s} {url}")
 
-    print("\nCredentials")
-    print(f"  {'Langflow':16s} {env.get('LANGFLOW_SUPERUSER', 'admin')} : "
-          f"{env.get('LANGFLOW_SUPERUSER_PASSWORD', '?')}")
-    print(f"  {'pgAdmin':16s} {env.get('PGADMIN_DEFAULT_EMAIL', '?')} : "
-          f"{env.get('PGADMIN_DEFAULT_PASSWORD', '?')}")
+    # Logins are names, not secrets. Names of what this run created are not either.
+    print("\nConfiguration")
+    print(f"  {'File':16s} {ENV_PATH}")
+    print(f"  {'Langflow login':16s} {env.get('LANGFLOW_SUPERUSER', 'admin')}"
+          "   (LANGFLOW_SUPERUSER_PASSWORD)")
+    print(f"  {'pgAdmin login':16s} {env.get('PGADMIN_DEFAULT_EMAIL', '?')}"
+          "   (PGADMIN_DEFAULT_PASSWORD)")
+    if _created_secrets:
+        print(f"  {'Created now':16s} {', '.join(_created_secrets)}")
+    if to_show:
+        print("  The same values stay in that file, the permanent source; they are "
+              "not printed again.")
+    elif _created_secrets:
+        print("  The values are in that file only: this output is not an interactive "
+              "terminal (CI, --no-input or redirected) or the run had errors, so "
+              "they are not printed.")
+    else:
+        print("  The passwords and keys are in that file only; a re-run never prints them.")
 
-    if _summary:
-        print("\nShown once — store these now")
-        for line in _summary:
-            print(f"  {line}")
+    print("\nNext steps")
+    for line in _summary:
+        print(f"  - {line}")
+    print("  - Keep .env (gitignored) off shared storage and back it up apart from "
+          "database backups. LANGFLOW_SECRET_KEY in it must never change.")
 
-    print("\nThese values live in .env, which is gitignored and never leaves this machine.")
+    # Last on purpose, and printed directly: redact() would mask exactly these.
+    if to_show:
+        print("\nShown once — put these in your password vault now")
+        for name, value in to_show:
+            print(f"  {name:30s} {value}")
+        print("  Clear this terminal's scrollback afterwards.")
 
 
 # ───────────────────────────────────────────────────────────────
 
+def _apply_layout(args) -> bool:
+    """Take the external layout (flags or EDU_AI_* variables) or keep the legacy in-checkout one.
+
+    The checkout must already carry the links (.env and the state dirs): bootstrap creates none and never
+    an external .env, and a conflicting, wrong or unreadable name stops the run before anything else.
+    """
+    global ROOT, ENV_PATH, ENV_EXAMPLE, STATE_DIR, _layout
+    try:
+        chosen = eduai_layout.resolve(args, os.environ, ROOT)
+    except eduai_layout.LayoutError as exc:
+        fail(f"invalid layout ({exc.code}: {exc.field})")
+        return False
+    if all(origin == "default" for origin in chosen.origin.values()):
+        return True
+    findings = eduai_layout.validate(chosen, links="require")
+    for finding in findings:
+        fail(f"layout: {finding.code} ({finding.level}) {finding.detail}")
+    if findings:
+        return False
+    ROOT, ENV_PATH, STATE_DIR = chosen.source_root, chosen.env_path, chosen.state_dir
+    ENV_EXAMPLE = ROOT / ".env.example"
+    _layout = chosen
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bring a clean edu_ai checkout up to a running stack.")
+        description="Bring a clean edu_ai checkout up to a running stack.",
+        epilog="Exit status: 0 done, 1 error, 3 the Langflow API key in .env could not be verified "
+               "(it was left as it is; run again later: every step is idempotent).")
     parser.add_argument("--langflow-url", default=None,
                         help="Langflow base URL, when 7860 is not published on the host")
     parser.add_argument("--no-input", action="store_true",
@@ -750,7 +881,11 @@ def main() -> int:
     parser.add_argument("--skip-smoke", action="store_true", help="skip the smoke test")
     parser.add_argument("--build", action="store_true",
                         help="rebuild images even if they already exist (after a local code change)")
+    eduai_layout.add_arguments(parser)
     args = parser.parse_args()
+
+    if not _apply_layout(args):
+        return 1
 
     print("edu_ai bootstrap")
     print(f"repo: {ROOT}")
@@ -761,7 +896,6 @@ def main() -> int:
 
     step_env()
     step_dirs()
-    step_nginx()
     if _failed:
         print("\nFix the errors above and re-run — every step is idempotent.")
         return 1
@@ -774,16 +908,16 @@ def main() -> int:
     # on it either way, so spelling it out makes the failure legible. It needs
     # working internet to boot at all — it exits on its pricing fetch otherwise.
     if not step_up(["postgres", "bifrost", "edu_ai", "nginx"],
-                   "5. start postgres + bifrost + langflow + nginx", build=args.build):
+                   "4. start postgres + bifrost + langflow + nginx", build=args.build):
         return 1
 
     api_key = step_api_key(args.langflow_url, allow_prompt=not args.no_input)
     if api_key is None:
-        return 1
+        return EXIT_RETRY_LATER if _key_unverifiable else 1
 
     # The only `up` that names every service, so it is where a pending
     # --force-recreate can actually reach nginx and edu_ai_api.
-    if not step_up([], "7. start the remaining services", build=args.build,
+    if not step_up([], "6. start the remaining services", build=args.build,
                    apply_pending_recreate=True):
         return 1
 
@@ -794,7 +928,7 @@ def main() -> int:
     if not args.skip_smoke:
         step_smoke(base_url)
 
-    step_summary(base_url)
+    step_summary(base_url, no_input=args.no_input)
     return 1 if _failed else 0
 
 

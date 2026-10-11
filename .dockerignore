@@ -1,7 +1,8 @@
 # Keep the root build context (edu_ai / Langflow image) lean — exclude data,
 # caches, and VCS. Source dirs (api/, search/, langflow_flows/, postgres/, …) are
-# NOT excluded. The Dockerfile only COPYs requirements-langflow.txt +
-# search/eduai_normalize, so nothing here is needed by the build.
+# NOT excluded. Root-context builds COPY only requirements-langflow.txt,
+# search/eduai_normalize (Dockerfile) and langgraph_entrypoint.sh
+# (Dockerfile.langgraph); Dockerfile.postgres COPYs nothing.
 .git
 .gitignore
 **/__pycache__
@@ -18,3 +19,42 @@ db_export/
 Ingestion testing documents/
 Podklady pro testy/
 *.dump
+
+# Secrets — never sent to the daemon (build needs none of them)
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*
+**/.env~
+**/*.env~
+nginx/.htpasswd
+nginx/auth_keys.conf
+nginx/certs/
+# Bifrost runtime state — config.db holds the provider API keys
+bifrost_data/
+weaviate_data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Local backups, archives and private data
+backup_*/
+backup/
+archive/
+langflow_data_backup*/
+QA/
+eval/
+tests/eval_out/
+EMAILS/
+RFP/
+nalezy z testování/
+.claude/
+**/*.zip
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+**/*.7z
+**/*.bak
+**/*.bak-*
+**/*.bkp
+**/*.log

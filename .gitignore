@@ -2,16 +2,26 @@
 edu_ai.env
 .env
 *.env
+# backup copies hold the same secrets (.env.bak-20260928, edu_ai.env.old, .env~)
+.env.*
+*.env.*
+.env~
+*.env~
 !.env.example
 
-# LangFlow runtime data (DB, secret keys, uploads)
-langflow_data/
+# Private school input data and machine-local Compose configuration.
+# Existing QA history is retained; these files stay on disk when untracked.
+/QA/
+/docker-compose.local.yml
+
+# Runtime state paths can be directories or symlinks into an external layout.
+langflow_data
 langflow_data_1_8/
 langgraph_data/
-uploads/
+uploads
 
 # Bifrost gateway state — config.db holds the provider API keys
-bifrost_data/
+bifrost_data
 
 # Database files
 postgres_data/
@@ -58,17 +68,18 @@ docs/architecture_qa.svg
 langflow_data_backup*/
 
 # Generated QA packs
-sqllite_export/
+sqllite_export
 
 # Raw email / WhatsApp exports — private; keep only the design doc
 EMAILS/*
 !EMAILS/edu-ai-rag-redesign.md
 
-# nginx auth secrets (mounted, not committed)
+# nginx auth secrets — nginx stopped authenticating anything on 2026-09-02 and
+# neither file is mounted any more. The rules stay: existing checkouts and
+# deployments still have these files on disk, they hold a password hash and a
+# live API key, and without the rules a `git add .` would commit them.
 nginx/.htpasswd
 nginx/auth_keys.conf
-!nginx/.htpasswd.example
-!nginx/auth_keys.conf.example
 
 # Test / ingestion sample documents — local only (binaries: PDF/sqlite/xlsx), keep out of git
 Podklady pro testy/
@@ -94,3 +105,10 @@ eval/
 tests/eval_out/
 Instructions for documentation/
 scratchpad_server_flow_backup/
+
+# Lokální archiv — revertovaná práce a binárky, které se nesmí dostat
+# do repa ani na server. Viz archive/README.md.
+/archive/
+
+# lokální zálohy tabulek — data, ne zdroják; regenerovatelné skripty v tools/stopwords/
+/backup/

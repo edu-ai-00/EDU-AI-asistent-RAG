@@ -16,15 +16,29 @@ The 17 self_harm phrases seeded by init_clean are what this matcher revives —
 before it, no multi-word row could fire at all. Widening that list is separate.
 """
 
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.nodes.route import token_forms, _phrase_hit  # noqa: E402
 
+# The stoplist AND the engines are DATA since eduai_normalize 3.0.0 — there
+# are no built-in tables and stopwords_of()/engine_name() raise without them. These tests stay pure (no DB), so they
+# read the same snapshot the parity vectors use.
+def _cfg() -> dict:
+    _p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "contracts", "parity", "stoplist.json")
+    with open(_p, encoding="utf-8") as fh:
+        _d = json.load(fh)
+        return {"normalization": _d["normalization"], "engines": _d["engines"]}
+
+
+CFG = _cfg()
+
 
 def _hit(term: str, question: str, lang: str = "cs") -> bool:
-    return _phrase_hit(token_forms(term, lang), token_forms(question, lang))
+    return _phrase_hit(token_forms(term, lang, CFG), token_forms(question, lang, CFG))
 
 
 # ── what the old substring matcher already caught (must not regress) ──

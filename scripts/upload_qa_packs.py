@@ -106,7 +106,7 @@ def to_csv(path: str) -> bytes:
         raise ValueError("expected a flat array of QA objects")
 
     buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";", quoting=csv.QUOTE_MINIMAL,
+    w = csv.writer(buf, delimiter=",", quoting=csv.QUOTE_MINIMAL,
                    lineterminator="\r\n")
     w.writerow(CSV_COLUMNS)
     rows = 0

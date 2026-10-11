@@ -21,14 +21,27 @@ AND after (drift there means the stored index needs re-ingesting).
 """
 
 from .normalize import (  # noqa: F401
-    normalize_tokens, STOPWORDS, STOPWORDS_EN, detect_lang, fold, tokenize,
+    normalize_tokens, detect_lang, langdetect_scores, fold, tokenize,
     strip_diacritics, surface_cfg, stopwords_of, stem_min_len, drop,
     require_lang, engine_for, engine_name,
 )
 from .stemmer import stem_tokens, cz_stem_light, stem_word  # noqa: F401
 from .lemmatizer import lemma_tokens, lemma_word  # noqa: F401
 
-__version__ = "1.5.0"
+# In step with pyproject on purpose. This said 1.5.0 while pyproject said
+# 2.2.0, so the one number a RUNNING process can read was three releases
+# stale -- and the point of the version is that different code must not
+# appear under the same one. Nothing reads it today, which is exactly why
+# it drifted (found 2026-09-04).
+# 3.0.0 BREAKING (2026-09-05): both in-code fallback tables are gone.
+#   STOPWORDS / STOPWORDS_EN  -> stopwords_of() raises without stopwords_by_lang
+#   _DEFAULT_ENGINE           -> engine_name() raises without engines
+# Both HAPPENED to equal the configuration for cs/en, so a caller that omitted
+# cfg looked correct, and both were absent for de/es, so that caller silently
+# dropped nothing and stemmed nothing. Language->reducer and the stoplist are
+# DATA (settings.config.engines, edu_ai.qa_stopword); the IMPLEMENTATIONS stay
+# in code (_STEMMERS, snowball_<lang>) — that is the line.
+__version__ = "3.0.0"
 
 
 def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dict[str, list[str]]:
@@ -50,7 +63,7 @@ def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dic
 __all__ = [
     "build_forms",
     "normalize_tokens", "lemma_tokens", "stem_tokens",
-    "STOPWORDS", "STOPWORDS_EN", "detect_lang", "fold", "tokenize", "strip_diacritics",
+    "detect_lang", "langdetect_scores", "fold", "tokenize", "strip_diacritics",
     "cz_stem_light", "stem_word", "lemma_word",
     "surface_cfg", "stopwords_of", "stem_min_len", "drop",
     "require_lang", "engine_for", "engine_name",

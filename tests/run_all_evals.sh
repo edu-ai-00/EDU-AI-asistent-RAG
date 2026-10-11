@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run all three real-question eval sets (from produktový vlastník's e-mails) through /search,
+# Run all three synthetic public question sets through /search,
 # print each set's outcome distribution, then export the combined per-query table
 # from qa_query_log to eval_search_report.csv.
 #

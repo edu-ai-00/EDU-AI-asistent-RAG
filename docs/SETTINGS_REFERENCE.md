@@ -6,9 +6,12 @@ sources:
   - search/app/settings.py
   - search/app/executor.py
   - search/app/nodes/answer.py
+  - search/app/nodes/document_lexical.py
+  - search/app/nodes/qa_common.py
+  - search/app/scope.py
   - search/app/rerank.py
   - postgres/init_clean/02_seed_config.sql
-last_verified: 2026-08-28
+last_verified: 2026-09-06
 ---
 
 # Settings reference — the `edu_ai.settings` row
@@ -141,6 +144,15 @@ present. The stop-word list itself is a code list, not code and not config.
 
 Both tighten when set to `false`. Cross-tenant isolation is not configurable.
 
+**The thematic-area filter has NO setting, deliberately.** It arrives per
+request as `domains` (see `spec.search-domain-scope`) and there is nothing about
+it to configure: it cannot be switched on or off platform-wide, has no
+threshold, and no default other than "the caller did not ask for one". A flag
+would have to be written to every active organisation's row and would only
+create a state in which a client's explicit request is silently ignored — the
+one behaviour the contract forbids. What *is* data is the catalog it validates
+against (`edu_ai.taxonomy_rules`, per school) and the labels on the content.
+
 ---
 
 ## 3. The pipeline
@@ -184,10 +196,18 @@ language.
 
 ### 3.2 `qa_exact` — curated pairs, exact match
 
-No parameters beyond `on_hit: stop`. A normalized exact question match answers
-immediately.
+A normalized exact question match answers immediately.
+
+| Parameter | Reference | Meaning |
+|---|---|---|
+| `related_suggestions` | `true` | Offer related curated questions beside the exact answer. They are ranked by `qa_lexical` with **its** configured thresholds (§3.3), so they are the same questions it would have offered next to its own answer; off, and an exact hit offers nothing (the behaviour before 2026-09-03). Costs the fast path the lexical stage's queries. |
+| `suggest_top_n` | `3` | How many of them are shown. Falls back to the `qa_lexical` value. |
 
 ### 3.3 `qa_lexical` — curated pairs, lexical match
+
+For one inventory of QA rules, formulas, current verified settings and what the offline pack
+actually carries, see [QA rules and offline requirements](integrations/offline-qa-rules.md).
+Reference values below are not a substitute for the resolved organisation profile.
 
 | Parameter | Reference | Meaning |
 |---|---|---|
@@ -198,6 +218,10 @@ immediately.
 | `trgm_suggest_min` | `0.4` | Trigram similarity floor for a near miss to be offered — typo tolerance. |
 | `other_grade_top_n` | `2` | Safety net: how many matches from a *different* grade may be shown when the asker's own grade has none. |
 | `other_grade_min_ratio` | `0.5` | How good such an other-grade match must be, relative to the best match, to be worth showing. |
+| `related_cross_pack_min` | `0.7` | Coverage a related chip must reach when it comes from a DIFFERENT pack than the answer. A school holds two FAQs (operations, JPZ) and shared phrasing jumped between them — "Co mají žáci dělat, když učitel nepřijde na hodinu?" was offered "Co dělat, když pozvánka k JPZ nepřijde?". Banning cross-pack chips outright was measured and rejected: it also cut chips scoring 1.00, which are genuinely the best answer to an ambiguous question. The junk sits at 0.34-0.41 and the good at 1.00. |
+| `related_category_topup` | `true` | Fill a SHORT row too, not only an empty one: a chip that cleared `t_suggest` keeps its place and category siblings take the remaining slots. Measured over 77 recent questions — +21 chips, and the two it removed were the asked question offering itself back. Lives on the `qa_exact` step, because that is where the answer is. |
+| `related_category_fill` | `true` | When no related chip clears `t_suggest`, offer entries from the same curated category as the answered one. Fills only an EMPTY list and never displaces a scored chip — see [ai/qa-fastpath.md](ai/qa-fastpath.md). |
+| `related_admission` | `off` | Extra gate on the related chips beside an answer. `rare` = the chip must share a concept rare enough to be the reason for the match. Off by default because it was measured to remove almost nothing at the default df share and to cost good chips when tightened — see [ai/qa-fastpath.md](ai/qa-fastpath.md). |
 
 ### 3.4 `document_lexical` — full-text over chunks
 
@@ -302,12 +326,31 @@ already separates the chunks.
 | `focus_gate` | `true` | Restrict the pool to the document that best matches the question. |
 | `focus_max_df` | `0.05` | Only rare terms may drive that focus. |
 | `focus_require` | `all` | All focus terms must be present. |
-| `domain_match` | `true` | Prefer chunks whose domain matches the question's. |
+| `domain_match` | `true` | Prefer chunks whose domain matches the question's. **Ordering only** — see the note below. |
 | `domain_kw_max_df_share` | `0.25` | Document-frequency cut for domain keywords. |
 | `binding_fallback` | `true` | Fall back to the domain × school-level binding when the question names no grade. |
 | `source_min_ratio` | `0.5` | Score floor for a chunk to be cited as a source. |
 | `source_ratio_anchor` | `tier_first` | That ratio is measured against the best chunk **in the same tier**, not against the global best. |
 | `max_chunks_per_document` | `6` | Cap per document, so one long document cannot crowd out the rest. |
+
+**`domain_match` is not the area filter, and the two must not be confused.**
+`domain_match` *detects* a likely domain from the question's wording and uses it
+to **order** chunks that are already candidates — it has never been able to add
+one, and it still cannot. The request's `domains` decides which rows become
+candidates at all, in SQL, before any ranking. So: `domain_match` reorders
+inside what the filter admitted; switching it off is not a way to widen a scope,
+and it needs no change for the filter to work.
+
+**Two df thresholds are measured on the caller's whole visible corpus, NOT on
+the chosen areas** — `bm25_max_df_share` and `heading_max_df_share`. They ask
+"is this word generic in *this school's* language", which is a property of the
+school and not of the area a user picked. Narrowing them with the candidates was
+tried and measured worse: a three-chunk area made every query token exceed the
+share, the gate marked them all generic, and the topical admission then rejected
+the very document the area was about — a correct filter turned into a
+`no_answer` by a moved threshold. The same reasoning applies to the QA side's
+IDF denominator (`qa_common.concept_idf_weights`). A denominator cannot make a
+row eligible; it only weighs rows the filter already admitted.
 
 **Reranking** — a two-stage arrangement: a hosted cross-encoder selects *which*
 candidates reach the judge; an LLM judge then grades them.
@@ -371,6 +414,32 @@ answer anything.
 | `clarify_max_match_score` | `1.0` | Above this score the answer is given rather than a clarifying question. |
 | `related_suggestions_top_n` | `3` | Related questions offered afterwards. |
 | `log_candidates_n` | `20` | Candidates written to the query log for later analysis. |
+
+**`llm_variants` — the suggestion call on the no-answer path**
+
+An empty chunk pool has nothing to answer from, so the step spends one small
+completion on question variants instead ("ask it this way and the corpus can
+answer"). It is the only LLM call in the search that used to run purely on code
+defaults; the block makes it visible, switchable and costable.
+
+| Parameter | Reference | Meaning |
+|---|---|---|
+| `llm_variants.enabled` | `true` | Off means the no-answer carries only the parked suggestions — and costs no call. |
+| `llm_variants.max_tokens` | `200` | Output cap. Deliberately not the step's own 2000: this is four lines, not an answer. |
+| `llm_variants.temperature` | `0` | Empty inherits the step's `temperature`. Ignored whenever an effort is set — see below. |
+| `llm_variants.reasoning_effort` | `medium` | Empty inherits the step's `reasoning_effort`; `""` sends none at all. |
+| `llm_variants.model` | *(unset)* | Unset inherits the step's `model`. Set it only to run suggestions on a cheaper model than the answer. |
+
+One trap worth knowing: `llm.py` **drops `temperature` whenever an effort is
+passed** (the reasoning tiers reject it), so on a GPT-5.6 model the temperature
+above does nothing until `reasoning_effort` is set to `""`.
+
+The effort is set explicitly so the call does not inherit the vendor's own
+default, which nobody can see and which can change without us — **not** for
+speed. Measured 2026-09-03 on three empty-pool questions (gpt-5.6-luna): no
+effort 2.5 / 1.5 / 1.8 s, `medium` 3.8 / 1.4 / 1.7 s, both returning 3-4
+variants. The warning in `llm.py` about a default effort spending minutes was
+measured on a grounded answer and does not carry over to this 200-token call.
 
 The prompt itself is **not** here. All LLM prompts live versioned in
 `edu_ai.prompt_registry` and are fetched by a technical key.

@@ -34,13 +34,23 @@ python3 tests/test_resilience.py r4        # one targeted case
 make docs-check
 
 # parity: assert the committed vectors still describe live behaviour
+# (-w: the scripts read stoplist.json from the working dir when piped;
+#  PYTHONPATH keeps `app` importable outside /app)
 docker cp contracts/parity/. edu_ai_search:/tmp/parity/
-docker exec -i edu_ai_search python - /tmp/parity < contracts/parity/check_vectors.py
+docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search \
+  python - /tmp/parity < contracts/parity/check_vectors.py
 
 # regenerate the CZ vectors after a deliberate normalization/stemming change
-docker exec -i edu_ai_search python - \
+docker cp contracts/parity/. edu_ai_search:/tmp/parity/
+docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search python - \
   < contracts/parity/gen_vectors.py \
   > contracts/parity/cs-normalization-vectors.json
+
+# migration registry and runner (isolated synthetic databases only; spec.migration-registry)
+python3 scripts/migrate.py status --container <name>        # read-only; plan likewise
+python3 tests/test_migrate_lint.py && python3 tests/test_migrate_fingerprint.py
+python3 tests/migrate_test_env.py up b03e_pg_a              # own container, then:
+EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py
 ```
 
 ## Repository map
@@ -63,6 +73,7 @@ docker exec -i edu_ai_search python - \
 | Normalization | `search/app/text_norm.py`, `search/eduai_normalize/` |
 | Contracts | `contracts/` (openapi, errors, schemas, parity) |
 | Clean database install | `postgres/init_clean/` |
+| Migration registry, runner, manifests | `scripts/migrate.py`, `scripts/eduai_migrate/`, `postgres/baseline/`, `postgres/releases/`, `postgres/migrations/` |
 
 ## Source precedence
 
@@ -108,8 +119,13 @@ docker exec -i edu_ai_search python - \
 - Copy executable prompt text into documentation. Prompts live versioned in
   `prompt_registry` and are fetched by key.
 - Bypass the scope or active-document filters to make a test pass.
-- Edit generated files (the parity vectors, the clean-install dumps) by hand —
-  regenerate them.
+- Edit generated files (the parity vectors, the clean-install dumps, the baseline
+  and release manifests) by hand — regenerate them.
+- Put transaction control (`BEGIN`, `COMMIT`, `END`, `ROLLBACK`), `CONCURRENTLY`,
+  `VACUUM` or psql `\` commands in a migration from 217 on: the runner owns the
+  transaction. A migration that changes data carries its own self-check.
+- Use the migration runner on production or a school installation, or claim a
+  supported upgrade: B03e-1 is approved for isolated synthetic databases only.
 - Hard-code a legal entity, a language or a threshold. All three are data.
 
 ## Expected patterns

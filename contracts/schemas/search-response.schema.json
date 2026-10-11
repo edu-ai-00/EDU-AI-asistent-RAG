@@ -39,7 +39,7 @@
         "rag",
         "none"
       ],
-      "description": "Coarse origin of the answer. Finer than this: `strategies`. 'meta' is the capabilities answer (\"co umíš?\"), built from the corpus's own headings without retrieval or an LLM call."
+      "description": "Coarse origin of the answer. Finer than this: `strategies`. 'meta' covers both deterministic answers the route guard gives about the assistant or the school itself, without retrieval or an LLM call: the capabilities answer (\"co umíš?\"), built from the corpus's own headings, and since 2026-09-18 the school-identity answer (\"jak se jmenuje naše škola?\"), read from legal_entity.display_name. The enum is deliberately unchanged — the two are told apart in flow_trace, where trace_detail.guard is 'meta' or 'identity'."
     },
     "strategies": {
       "type": "array",
@@ -51,7 +51,7 @@
     },
     "suggestions": {
       "type": "array",
-      "description": "ALWAYS present. What the user could ask next; how (and whether) to render it is entirely the client's decision. THE CONTRACT: every item's `question` (and every string in `options`) is a text that can be sent straight back to /v1/ask as the next question — render, tap, resend, no other semantics needed. Populated on every outcome except the guards (blocked/self_harm/unusable, which deliberately offer nothing) and qa_exact (the user asked the exact curated question — there is nothing to disambiguate). May still be empty when the system genuinely has nothing to offer (e.g. an empty corpus).",
+      "description": "ALWAYS present. What the user could ask next; how (and whether) to render it is entirely the client's decision. THE CONTRACT: every item's `question` (and every string in `options`) is a text that can be sent straight back to /v1/ask as the next question — render, tap, resend, no other semantics needed. Populated on every outcome except the guards (blocked/self_harm/unusable, which deliberately offer nothing). An exact QA hit carries RELATED curated questions (there is nothing to disambiguate, but there is something to ask next); before 2026-09-03 it offered nothing. May still be empty when the system genuinely has nothing to offer (e.g. an empty corpus).",
       "items": {
         "type": "object",
         "required": [
@@ -153,6 +153,11 @@
         "role": { "type": ["string", "null"], "description": "code_list('role') code as validated. Null when the request carried none and the policy allows it — or on outcome=role_required, where null IS the finding." },
         "school_grade": { "type": ["string", "null"], "description": "The ročník the cascade USED — may be derived from the question text when the request sent none." },
         "language": { "type": ["string", "null"], "description": "Language filter that restricted retrieval; null = no restriction." },
+        "domains": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "The THEMATIC AREAS the search was restricted to, canonical (trimmed, upper-cased, deduplicated, sorted) — or null for no restriction. Codes, never the internal taxonomy_rules ids: those are per-entity and no client has a use for them. ONLY EVER A VALIDATED VALUE, including on the early return outcome=role_required, where the domain resolver has deliberately already run — a response never presents an unchecked filter as the one that applied. A client compares this with what it selected to detect that its stored choice no longer matches. Additive: a response from before this field existed simply omits it, which reads as no restriction."
+        },
         "identified": { "type": "boolean", "description": "Whether the caller was identified. The private branch of the visibility predicate depends on it, so it answers 'why do I not see my own document'." }
       }
     },

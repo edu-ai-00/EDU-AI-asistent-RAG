@@ -120,7 +120,19 @@
         "string",
         "null"
       ],
-      "description": "Language filter: a code_list('language') code among the active rows. Restricts BOTH document retrieval (effective doc language = user code, else LLM code) and the QA packs. An unknown code is HTTP 400 with the allowed list. null = no restriction."
+      "description": "Language filter: a code_list('language') code among the active rows. Restricts BOTH document retrieval (effective doc language = user code, else LLM code) and the QA packs. An unknown code is HTTP 422 VALIDATION_ERROR with fields pointing at language. Allowed codes are available from GET /v1/code-lists. null = no restriction."
+    },
+    "domains": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "description": "THEMATIC AREAS the search is restricted to: DOMAIN codes from GET /v1/domains for THIS legal_entity. Absent or null = the search that ran before this field existed (no thematic restriction) — a client that never sends it is unaffected. A non-empty set is OR between the areas and AND with every existing filter. The server normalises (trim, upper-case, deduplicate, sort) and echoes the result in effective_scope.domains; order and duplicates therefore carry no meaning, including for the Idempotency-Key digest. REJECTED with HTTP 422 and `fields` pointing at `domains` or at the offending element: [], an empty or whitespace-only element, an unknown or inactive code for this school, and a wrong type. One bad code fails the WHOLE request — the set is never silently narrowed. A valid code that labels no content is a successful request that may answer no_answer; the search never widens itself back to every area. Membership is validated against edu_ai.resolved_taxonomy_rules(legal_entity, 'DOMAIN'), which is nearest-owner-exclusive: a code from another school's catalog is unknown here even though it exists in the database. NOT A PERMISSION — it can only remove sources; entity, role, visibility and validity are unchanged behind it. If the catalog cannot be read while an explicit filter is being validated the answer is 503 UNAVAILABLE (retryable), never an unfiltered search."
     },
     "params_override": {
       "type": [

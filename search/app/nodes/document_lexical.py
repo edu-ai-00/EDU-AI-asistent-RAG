@@ -175,6 +175,10 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
     if state.get("resolved"):
         return {}
     params = params or {}
+    # Declared here, not where it is computed: that block sits behind several
+    # early returns, and an unbound name in a node that must never crash is a
+    # worse bug than a missing signal.
+    _subject_here = None
     fetch_k = int(params.get("fetch_k", config.RAG_LEXICAL_FETCH_K))
     # coverage floor: keep a chunk only if it covers at least this fraction of the
     # query's content concepts. 0 / absent = no floor (previous behaviour).
@@ -275,6 +279,47 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
         "t", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)
+    # THE CHOSEN AREAS, on the CHUNK row (document_chunks.document_domain_id,
+    # the effective label the ingest propagated from the document: user
+    # declaration if any, else the classifier's — see spec §6). Appended to
+    # scope_cond because every query in this node interpolates that one string,
+    # so the candidate query, the trgm fallback AND the two df/statistics
+    # queries below all get it — a df counted over a wider corpus than the
+    # candidates it weighs is the denominator bug the spec warns about.
+    #
+    # A LONG DOCUMENT IS NOT SPLIT for this. It carries all of its areas and
+    # every one of its chunks inherits them, so the whole document is reachable
+    # in each area and the existing ranking picks the passage the question is
+    # about. There is no per-chunk topical label and this change does not invent
+    # one.
+    dom_cond, dom_params = scope.domain_where("t", "document_domain_id",
+                                              state.get("domain_ids"))
+    # TWO PREDICATES, and the split is the whole subtlety of this step.
+    #
+    #   cand_cond  identity + area. WHICH ROWS MAY ANSWER. Every candidate query
+    #              and the trgm fallback use it, so nothing outside the chosen
+    #              areas can reach the pool.
+    #   scope_cond identity ONLY, exactly as before. The df/IDF STATISTICS use
+    #              it, and they must: `bm25_max_df_share` (0.25) asks "is this
+    #              word generic in this school's language" — "škola" sits in
+    #              54 % of the corpus — and that is a property of the school, not
+    #              of the area the user happens to have picked.
+    #
+    # Measured while building the fixture, and this is why the split exists: with
+    # the statistics narrowed too, a three-chunk area made EVERY query token
+    # exceed 0.25 df, the gate marked them all generic, and the topical
+    # admission in `answer` then rejected the very document the area was about —
+    # a correct filter turned into a no_answer by a moved threshold. Narrowing
+    # eligibility is the feature; moving a calibrated bar with it is not, and
+    # spec §5 says as much ("aby se po zúžení nezměnily nechtěně prahy a
+    # denominátory"). Inventing a new threshold instead was the alternative, and
+    # a new production number needs a measurement and an owner's decision.
+    #
+    # This costs nothing in correctness: a denominator cannot make a row
+    # eligible. It only decides weights and genericity among rows cand_cond has
+    # already admitted.
+    cand_cond = scope_cond + dom_cond
+    cand_params = [*scope_params, *dom_params]
 
     # weights are config, not code: A/B by default (heading over body), and
     # w_head == w_body turns the preference off without a rebuild
@@ -407,6 +452,23 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
                         f"FROM unnest(%s::text[]) AS tok",
                         [*lang_params, *scope_params, _toks])
                     _df = {r[0]: r[1] for r in cur.fetchall()}
+                    # ARE THE MISSING WORDS MISSING HERE TOO? Only the concepts
+                    # qa_lexical found absent (df 0 in the packs) are asked about.
+                    # Asked about the whole query this answers "present" on any
+                    # content-ish word the bigger corpus happens to hold —
+                    # "jmenuje" is in the school documents, "školník" is in
+                    # neither, and the question is about the caretaker. The df
+                    # scan already ran, so this costs nothing (2026-09-04).
+                    # EVERY missing word has to turn up here, not just one. With
+                    # `any`, "Jak se jmenuje školník?" was rescued by `jmenuje`
+                    # (absent from 210 curated questions, ordinary in the school's
+                    # documents) while `školník` is in neither — and the question
+                    # is about the caretaker. A word that exists in NO index is the
+                    # subject far more often than it is noise, and no rephrasing
+                    # that keeps it can succeed.
+                    _miss = _fold_token_set(state.get("query_absent_concepts") or [])
+                    _subject_here = (all(_df.get(t, 0) > 0 for t in _miss)
+                                     if (_ntot and _miss) else None)
                     _keep = [t for t in _toks
                              if t not in _bm25_stop
                              and _ntot and (_df.get(t, 0) / _ntot) <= bm25_max_df_share]
@@ -527,7 +589,7 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
                      AND t.processing_uuid = m.processing_uuid
                      AND m.is_active = true
                  {_NOEXCL}
-                    WHERE {_where_sql}{lang_cond}{scope_cond}{_grade_cond}
+                    WHERE {_where_sql}{lang_cond}{cand_cond}{_grade_cond}
                     ORDER BY {_order_sql}
                     LIMIT %s
                 """
@@ -536,7 +598,7 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
                 _round_bm25 = _bm25_q_grade if _round_label == "grade" else _bm25_q
                 _where_param = _round_bm25 if _bm25_on else tsq
                 cur.execute(sql, [tsq, *concept_qs, *concept_qs, _where_param,
-                                  *lang_params, *scope_params, *_grade_params, fetch_k])
+                                  *lang_params, *cand_params, *_grade_params, fetch_k])
                 rows = cur.fetchall()
                 _rows_total += len(rows)
                 # rows come ordered bm25 DESC — the first row carries this
@@ -673,7 +735,7 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
                      AND t.processing_uuid = m.processing_uuid
                      AND m.is_active = true
                  {_NOEXCL}
-                    WHERE ({' OR '.join(conds)}){lang_cond}{scope_cond}
+                    WHERE ({' OR '.join(conds)}){lang_cond}{cand_cond}
                     ORDER BY sim DESC
                     LIMIT %s
                 """
@@ -683,8 +745,17 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
                     # so the pooled connection hands it back clean
                     cur.execute("SELECT set_config('pg_trgm.word_similarity_threshold', %s, true)",
                                 (str(trgm_min_sim),))
+                    # cand_params, NOT scope_params — the SQL above interpolates
+                    # cand_cond, which carries the AREA fragment and therefore an
+                    # extra placeholder. Passing the identity params alone left
+                    # the statement one argument short, so under an explicit
+                    # filter this branch raised `list index out of range`, the
+                    # step's own except swallowed it, and the WHOLE document
+                    # branch was silently lost — worse than the wrong rows,
+                    # because nothing said so. Found 2026-09-06 in review; the
+                    # tests had never driven the typo fallback with a scope.
                     cur.execute(tsql, [*_pair, *_pair, *lang_params,
-                                       *scope_params, trgm_fetch_k])
+                                       *cand_params, trgm_fetch_k])
                     trows = cur.fetchall()
                 t_kept = 0
                 for _pos, (chunk_id, file_uuid, file_item_uuid, chunk_index, output_row_number,
@@ -759,4 +830,5 @@ def document_lexical(state: SearchState, params: dict | None = None) -> dict:
     # (BM25 is applied as the RETRIEVER + ranker inside the SELECT above when
     # bm25_lexical is on — no separate post-hoc re-rank step is needed here.)
     return {"rag_chunks": chunks, "topical_ctx": _tctx,
+            "query_in_documents": _subject_here,
             "synonym_hint": _syn_hint}

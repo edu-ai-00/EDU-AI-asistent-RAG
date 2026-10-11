@@ -1,0 +1,5 @@
+# Synthetic public examples, not the private regression benchmark.
+# Copy to a local ignored file and replace ENTITY_CODE with an active entity; prepare matching synthetic corpus.
+{"id": "PUBLIC01", "question": "Kde najdu pravidla omlouvání absence?", "entity": "ENTITY_CODE", "role": "PARENT", "domains": ["ATTENDANCE"]}
+{"id": "PUBLIC02", "question": "Jak se přihlásím na školní obědy?", "entity": "ENTITY_CODE", "role": "STUDENT", "grade": 7, "domains": ["CATERING"]}
+{"id": "PUBLIC03", "question": "Kde škola zveřejňuje termíny konzultací?", "entity": "ENTITY_CODE", "role": "PARENT"}

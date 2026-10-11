@@ -63,6 +63,16 @@ def rag_vector(state: SearchState, params: dict | None = None) -> dict:
         "t", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)
+    # BEFORE the LIMIT, which for an ANN scan is the only place it can go: the
+    # query below is `ORDER BY embedding <=> query LIMIT fetch_k`, so a filter
+    # applied to the returned rows would narrow an already-chosen top-k instead
+    # of choosing a top-k within the area. On a corpus where one area is a small
+    # fraction of the whole that is the difference between an answer and an
+    # empty pool.
+    dom_cond, dom_params = scope.domain_where("t", "document_domain_id",
+                                              state.get("domain_ids"))
+    scope_cond += dom_cond
+    scope_params = [*scope_params, *dom_params]
     # TOPICAL LABELS (see topical.py): the gates in `answer` read heading_match
     # and concepts_covered, and this step used to set neither — so a pool whose
     # top chunk came from the vector left the focus gate without an anchor. The

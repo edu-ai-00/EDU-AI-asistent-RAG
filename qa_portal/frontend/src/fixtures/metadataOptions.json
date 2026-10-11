@@ -1,0 +1,13 @@
+{
+  "visibility": ["entity", "organization"],
+  "audience_roles": [
+    { "code": "TEACHER", "label": "Učitel" },
+    { "code": "PARENT", "label": "Rodič" },
+    { "code": "STUDENT", "label": "Žák" }
+  ],
+  "school_grades": [
+    { "code": "1", "label": "1. ročník" },
+    { "code": "2", "label": "2. ročník" },
+    { "code": "3", "label": "3. ročník" }
+  ]
+}

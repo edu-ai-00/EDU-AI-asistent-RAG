@@ -1,0 +1,40 @@
+flowchart TB
+  accTitle: Zapojení komponent EDU-AI
+  accDescr: Nginx předává provoz samostatným službám. Ingest API volá Langflow a search; Langflow a search přistupují k PostgreSQL a Bifrostu. Cloudflare je volitelný.
+  client["HTTP klient / prohlížeč<br/>přístup dle perimetru"] --> ng["nginx<br/>vstup a směrování"]
+  subgraph apps["Aplikační služby"]
+    direction LR
+    api["edu_ai_api :8080<br/>ingesce a exporty"]
+    chat["edu_ai_web_chat :8081<br/>chat a BFF"]
+    qa["edu_ai_qa_admin :8082<br/>QA portál"]
+    search["edu_ai_search :8090<br/>QA / RAG + validace"]
+    lf["edu_ai :7860<br/>Langflow ingest + UI"]
+    pa["pgadmin :80<br/>správa databází"]
+  end
+  ng -->|"80 /api/"| api
+  ng -->|"80 /chat/"| chat
+  ng -->|"80 /qa/ + /qa-api/v1/"| qa
+  ng -->|"80 nebo 81 /search/"| search
+  ng -->|"8444 /"| lf
+  ng -->|"8443 /pgadmin/"| pa
+  api -->|"HTTP: validace a číselníky"| search
+  api -->|"HTTP: typ souboru → flow"| lf
+  chat -->|"HTTP /v1/ask"| search
+  qa -->|"HTTP: čtení a export"| search
+  qa -->|"HTTP: publikace packu"| api
+  lf -->|"SQL: zápis obsahu + stav Langflow"| pg[("postgres :5432<br/>EDU-AI + Langflow DB")]
+  search -->|"SQL: retrieval, log, idempotence"| pg
+  pa -->|"SQL: správa"| pg
+  lf -->|"OpenAI kompatibilní API"| bi["bifrost :8080<br/>LLM gateway"]
+  search -->|"embedding / generování"| bi
+  bi --> provider["Poskytovatel LLM<br/>klíče v Bifrostu"]
+  cf["cloudflared<br/>volitelný profil"] -.->|"tunnel → nginx :81"| ng
+  cf -.->|"hostname dle externí konfigurace"| bi
+  classDef edge fill:#e6f5f5,stroke:#16868b,color:#16364a;
+  classDef core fill:#edf2fa,stroke:#466489,color:#16364a;
+  classDef data fill:#fff3da,stroke:#ac812d,color:#46360e;
+  classDef optional fill:#f3f3f3,stroke:#777,color:#333,stroke-dasharray:5 4;
+  class ng,api,chat,qa edge;
+  class search,lf,pa,bi core;
+  class pg,provider data;
+  class cf optional;

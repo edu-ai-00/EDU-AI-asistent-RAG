@@ -15,7 +15,9 @@ psycopg2-binary
 langdetect
 trafilatura
 validators
-simplemma          # Czech lemmatization at ingest (chunk_lemma_text, §4.5)
+simplemma==2.0.0   # Czech lemmatization at ingest (chunk_lemma_text, §4.5)
+                   # PIN drzi paritu s search image — eduai_normalize se sem
+                   # instaluje --no-deps, takze jeho vlastni pin sem nedosahne.
 
 # ── legacy (Lakebridge-era leftovers, kept for parity) ──
 sqlglot

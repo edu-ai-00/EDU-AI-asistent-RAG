@@ -1,0 +1,544 @@
+/* Base layout only — component-level styles (list/editor/dialogs) land here
+   as those components are built. Colours/spacing come from tokens.css,
+   never hardcoded (CONTRACT.md §10). */
+:root {
+  color: var(--qa-text);
+  background: var(--qa-bg);
+  font-family: var(--qa-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--qa-focus);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  max-width: 1024px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--qa-surface);
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-lg);
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--qa-bg);
+  border-bottom: 1px solid var(--qa-border);
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.app-brand-mark {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  color: var(--qa-accent);
+  white-space: nowrap;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.app-header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.qa-muted {
+  color: var(--qa-muted);
+}
+
+.admin-badge {
+  background: var(--qa-admin-bg);
+  color: var(--qa-admin-text);
+  border-radius: var(--qa-radius-pill);
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--qa-bg);
+  border-bottom: 1px solid var(--qa-border);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--qa-muted);
+}
+
+.field select,
+.field input,
+.field textarea {
+  min-height: 38px;
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  background: var(--qa-surface);
+  color: var(--qa-text);
+  padding: 7px 10px;
+}
+
+.work-area {
+  padding: 22px 24px;
+}
+
+.work-area-note {
+  padding: 0 24px;
+  margin: 0;
+}
+
+.two-pane {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.entry-list,
+.entry-editor {
+  display: grid;
+  gap: 12px;
+  background: var(--qa-surface);
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-md);
+  padding: 16px;
+}
+
+.entry-list h2,
+.entry-editor legend {
+  margin: 0;
+  font-size: 15px;
+}
+
+.entry-list-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.entry-list-item {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  background: var(--qa-surface);
+}
+
+.entry-list-item.is-selected {
+  border-color: var(--qa-accent);
+  background: var(--qa-accent-tint);
+}
+
+.entry-list-item-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.badge {
+  border-radius: var(--qa-radius-pill);
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.badge-inactive {
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+}
+
+.entry-editor-areas {
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.entry-editor-details {
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.entry-editor-column {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.entry-editor-status {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge-new {
+  background: var(--qa-accent-tint);
+  color: var(--qa-focus);
+}
+
+.publish-panel {
+  display: grid;
+  gap: 12px;
+  background: var(--qa-surface);
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-md);
+  padding: 16px;
+}
+
+.publish-panel button {
+  background: var(--qa-accent);
+  color: var(--qa-accent-text);
+  border: 1px solid var(--qa-accent);
+  border-radius: var(--qa-radius-sm);
+  padding: 8px 14px;
+}
+
+.publish-preview-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.publish-conflict {
+  border: 1px solid var(--qa-error-border);
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+  border-radius: var(--qa-radius-sm);
+  padding: 12px;
+}
+
+.diff-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.diff-summary-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diff-summary-group ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.diff-summary-fields {
+  font-size: 12px;
+  color: var(--qa-muted);
+}
+
+.markdown-preview {
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  background: var(--qa-bg);
+  padding: 10px 12px;
+  min-height: 120px;
+}
+
+/* Uses the existing warning/error tokens, not a new colour: the notice must
+   read as a caution, matching other error surfaces in this app. */
+.markdown-preview-notice {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border: 1px solid var(--qa-error-border);
+  border-radius: var(--qa-radius-sm);
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+  font-size: 13px;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.toolbar-actions button {
+  background: var(--qa-accent);
+  color: var(--qa-accent-text);
+  border: 1px solid var(--qa-accent);
+  border-radius: var(--qa-radius-sm);
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 20, 16, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 560px;
+  background: var(--qa-surface);
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-lg);
+  padding: 0;
+  display: grid;
+  /* Three explicit rows — header, scrollable body, footer — so the middle
+     track can shrink below its content (see .dialog-body below for why an
+     implicit "auto" row can't). */
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--qa-border);
+}
+
+.dialog-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.dialog-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.dialog-body {
+  padding: 16px 20px;
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  /* Without this, a grid item's default min-height:auto keeps it as tall as
+     its content and overflow-y:auto never engages, even though .dialog has
+     a max-height and overflow:hidden — the bottom of the form (grades,
+     confirm/cancel) becomes unreachable on a short viewport. min-height:0
+     is necessary but not sufficient on its own: .dialog's row for this item
+     was implicitly "auto", which never shrinks below its content either. The
+     explicit grid-template-rows above (minmax(0, 1fr) for this row) is the
+     actual fix — this min-height:0 just lets the item follow that track. */
+  min-height: 0;
+}
+
+.dialog-body:focus-visible {
+  outline: 2px solid var(--qa-focus);
+  outline-offset: -2px;
+}
+
+.dialog-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--qa-border);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Dense multi-column checkbox set (grades etc.) instead of one long column —
+   keeps the dialog body short enough to need less scrolling on a small
+   screen. Existing tokens only. */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 4px 10px;
+}
+
+.checkbox-grid .checkbox-row {
+  font-size: 12px;
+}
+
+.dialog-actions button:first-child,
+.dialog-body > .dialog-actions:last-child button:first-child {
+  background: var(--qa-accent);
+  color: var(--qa-accent-text);
+  border: 1px solid var(--qa-accent);
+  border-radius: var(--qa-radius-sm);
+  padding: 8px 14px;
+}
+
+.import-pack-result,
+.import-replace-confirm,
+.export-ready {
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.import-errors,
+.import-legacy-cat {
+  border: 1px solid var(--qa-error-border);
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+  border-radius: var(--qa-radius-sm);
+  padding: 8px 10px;
+}
+
+.import-invalid {
+  border: 1px solid var(--qa-error-border);
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+  border-radius: var(--qa-radius-sm);
+  padding: 10px 12px;
+}
+
+/* Per-pack publish outcome list (§6 IMPORT_PACKS_FAILED): a failed pack must
+   read as visibly different from an ok one, never just a plain list item. */
+.import-publish-packs {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.import-publish-pack {
+  border: 1px solid var(--qa-border);
+  border-radius: var(--qa-radius-sm);
+  padding: 6px 10px;
+}
+
+.import-publish-pack-failed {
+  border: 1px solid var(--qa-error-border);
+  background: var(--qa-error-bg);
+  color: var(--qa-error-text);
+}
+
+@media (max-width: 700px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .two-pane {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Down to the narrowest phones the brief targets (360px): nothing may push
+   the page into horizontal scroll, and every toolbar/dialog control must
+   still be reachable and legible. */
+@media (max-width: 400px) {
+  .app-shell {
+    border-radius: 0;
+  }
+
+  .app-header,
+  .toolbar,
+  .work-area {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .toolbar-actions button {
+    flex: 1 1 auto;
+  }
+
+  .source-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-backdrop {
+    padding: 0;
+  }
+
+  .dialog {
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+}

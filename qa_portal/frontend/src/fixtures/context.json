@@ -1,0 +1,11 @@
+{
+  "mode": "vpn_admin",
+  "contract_version": "qa-portal/1.0.0",
+  "portal_version": "0.1.0-fixtures",
+  "capabilities": {
+    "may_publish": true,
+    "may_replace": true,
+    "may_manage_categories": true
+  },
+  "ui_default_lang": "cs"
+}

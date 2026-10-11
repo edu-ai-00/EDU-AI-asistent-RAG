@@ -1,0 +1,51 @@
+{
+  "entries": [
+    {
+      "entry_key": "druzina-cas",
+      "entry_id": "1c1a1a1a-0000-4000-8000-000000000001",
+      "canonical_q": "Do kolika hodin je otevřená družina?",
+      "answer_md": "Ranní družina je od 6:30, odpolední do 16:30.",
+      "variants": [],
+      "sources": [],
+      "domains": ["SCHOOL_OPERATIONS"],
+      "category_code": "AFTER_SCHOOL_CARE",
+      "category_label": "Družina",
+      "category_is_active": true,
+      "cat_legacy": "Družina",
+      "is_active": true,
+      "owner_user_id": "qa_portal__ZS_JEDOVNICE",
+      "visibility": "public",
+      "audience_roles": null,
+      "school_grade_ids": [1, 2, 3],
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "entry_key": "druzina-prihlaska",
+      "entry_id": "1c1a1a1a-0000-4000-8000-000000000002",
+      "canonical_q": "Jak přihlásím dítě do družiny?",
+      "answer_md": "Přihlášku odevzdejte vychovatelce do konce srpna.",
+      "variants": [],
+      "sources": [],
+      "domains": ["SCHOOL_OPERATIONS"],
+      "category_code": "AFTER_SCHOOL_CARE",
+      "category_label": "Družina",
+      "category_is_active": true,
+      "cat_legacy": "Družina",
+      "is_active": true,
+      "owner_user_id": "qa_portal__ZS_JEDOVNICE",
+      "visibility": "staff_only",
+      "audience_roles": ["ucitel"],
+      "school_grade_ids": null,
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    }
+  ],
+  "next_cursor": null,
+  "total": 2,
+  "pack_etag": "sha256:mockpack2bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "pack_version": 1,
+  "metadata_uniform": false
+}

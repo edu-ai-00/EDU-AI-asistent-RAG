@@ -1,0 +1,50 @@
+/* Design tokens only — no component rules here (see styles.css).
+   Palette verified against https://edu-ai.eu/ per CONTRACT.md §10.
+   Light cream is the default and does NOT follow prefers-color-scheme:
+   the brief requires the light look regardless of the OS setting. Dark is
+   opt-in only, via [data-theme="dark"] set by an explicit future toggle. */
+:root {
+  --qa-bg: #fdf6ec;
+  --qa-surface: #fffdf9;
+  --qa-text: #1a1410;
+  --qa-muted: #6d6356;
+  --qa-border: #e8dfd2;
+  --qa-accent: #aea2f5;
+  --qa-accent-text: #1a1410;
+  --qa-accent-tint: #eee8f8;
+  --qa-focus: #6554a8;
+  --qa-admin-bg: #e3eedf;
+  --qa-admin-text: #386350;
+  --qa-error-bg: #fbe9e4;
+  --qa-error-text: #9c3b1f;
+  --qa-error-border: #e3a98a;
+  --qa-success-bg: #e7f3e4;
+  --qa-success-text: #316b3f;
+
+  --qa-font: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --qa-radius-sm: 8px;
+  --qa-radius-md: 12px;
+  --qa-radius-lg: 20px;
+  --qa-radius-pill: 999px;
+}
+
+/* Opt-in dark variant. Nothing in this file activates it automatically —
+   a future explicit toggle must set data-theme on <html>. */
+[data-theme="dark"] {
+  --qa-bg: #14100b;
+  --qa-surface: #211b14;
+  --qa-text: #f3ebdd;
+  --qa-muted: #c0b5a4;
+  --qa-border: #44392d;
+  --qa-accent: #bfb2ff;
+  --qa-accent-text: #14100b;
+  --qa-accent-tint: #332b40;
+  --qa-focus: #bfb2ff;
+  --qa-admin-bg: #1a3026;
+  --qa-admin-text: #a6d8bc;
+  --qa-error-bg: #3a2018;
+  --qa-error-text: #f0b6a0;
+  --qa-error-border: #7a4a34;
+  --qa-success-bg: #17301d;
+  --qa-success-text: #a8d8b3;
+}

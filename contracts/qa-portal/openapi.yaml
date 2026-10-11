@@ -1,0 +1,1010 @@
+openapi: 3.1.0
+# Track: contract. Canonical owner of the QA portal HTTP surface.
+# Contract version: qa-portal/1.2.1 — narrative and rationale in ./CONTRACT.md.
+# Error envelope and retryable semantics follow ../errors.yaml; portal-specific
+# codes are listed in CONTRACT.md §7 and in the Error schema below.
+info:
+  title: EDU-AI QA portál — administrační API
+  version: "1.2.1"
+  description: >
+    JSON REST API nového kontejneru edu_ai_qa_admin. Obsluhuje všechny
+    frontendy portálu. Neautentizuje: vstupním omezením je VPN a nginx.
+    Identita se NIKDY nečte z těla ani z klientských hlaviček — server si
+    vytváří interní kontext administrátora a rozhoduje policy.
+
+servers:
+  - url: /qa-api/v1
+    description: Za nginx na VPN listeneru 80. Stejný origin jako SPA na /qa/.
+  - url: http://edu_ai_qa_admin:8082/qa-api/v1
+    description: Vnitřní origin (app síť). Bez portu na hostu.
+
+tags:
+  - name: context
+  - name: catalog
+  - name: entries
+  - name: publish
+  - name: import
+  - name: export
+  - name: operations
+
+paths:
+  /health:
+    get:
+      tags: [context]
+      operationId: getHealth
+      summary: Liveness kontejneru
+      description: >
+        Nesahá na search ani na ingest — odpovídá i když jsou nedostupné, aby
+        kontejner uměl říct „jsem naživu, závislost je mimo" místo aby padal
+        v restart smyčce. Tuto cestu používá HEALTHCHECK v qa_portal/Dockerfile.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  contract_version: { type: string }
+
+  /context:
+    get:
+      tags: [context]
+      operationId: getContext
+      summary: Režim portálu a dostupné akce
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Context" }
+
+  /schools:
+    get:
+      tags: [catalog]
+      operationId: listSchools
+      summary: Aktivní školy, které policy dovolí
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [schools]
+                properties:
+                  schools:
+                    type: array
+                    items: { $ref: "#/components/schemas/School" }
+
+  /schools/{school}/domains:
+    get:
+      tags: [catalog]
+      operationId: listSchoolDomains
+      summary: Účinný doménový katalog školy
+      parameters: [{ $ref: "#/components/parameters/School" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [domains]
+                properties:
+                  domains:
+                    type: array
+                    items: { $ref: "#/components/schemas/Domain" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /categories:
+    get:
+      tags: [catalog]
+      operationId: listCategories
+      summary: Globální vícejazyčný katalog qa_category
+      parameters:
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string }
+          description: >
+            Jazyk popisků. Fallback: požadovaný jazyk → výchozí jazyk rozhraní →
+            stabilní kód; v takovém případě je label_fallback=true.
+        - name: include_inactive
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories:
+                    type: array
+                    items: { $ref: "#/components/schemas/Category" }
+    post:
+      tags: [catalog]
+      operationId: createCategory
+      summary: Založení nové globální kategorie
+      description: >
+        Kategorie je globální pro celou platformu. code/list_code/id jsou po
+        vytvoření neměnné; přejmenování se dělá výhradně v labels.
+      parameters: [{ $ref: "#/components/parameters/CsrfHeader" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, labels]
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+                  pattern: "^[A-Z][A-Z0-9_]{1,62}$"
+                  description: Stabilní jazykově nezávislý kód, např. AFTER_SCHOOL_CARE.
+                labels:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: '{ "cs": "Družina", "en": "After-school care" }'
+                sort_order: { type: integer }
+                notes:
+                  type: string
+                  description: Vysvětlení významu pro správce. NIKDY ne vykonávaný prompt.
+      responses:
+        "201":
+          description: Vytvořeno
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: Kód už existuje (včetně neaktivního záznamu — kód se nerecykluje)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /schools/{school}/packs:
+    get:
+      tags: [catalog]
+      operationId: listPacks
+      parameters: [{ $ref: "#/components/parameters/School" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [packs]
+                properties:
+                  packs:
+                    type: array
+                    items: { $ref: "#/components/schemas/Pack" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [catalog]
+      operationId: createPack
+      summary: Ověří, že pack_id je volný; pack vznikne až první publikací
+      description: >
+        Nezakládá řádek v qa_pack_manifest. Manifest vytváří ingest při první
+        publikaci — portál si nevymýšlí prázdný pack, který by v katalogu
+        vypadal jako existující obsah.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pack_id, lang]
+              additionalProperties: false
+              properties:
+                pack_id: { type: string, pattern: "^[a-z0-9][a-z0-9._-]{0,62}$" }
+                lang: { type: string }
+                metadata:
+                  allOf: [{ $ref: "#/components/schemas/PackMetadataIn" }]
+                  description: >
+                    Volitelné. Slouží jen k okamžité kontrole proti číselníkům
+                    v dialogu; NIC se neukládá. Závazná je až kopie poslaná
+                    do /preview (CONTRACT.md §2.4a).
+      responses:
+        "200":
+          description: pack_id je volný a použitelný
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pack_id, available]
+                properties:
+                  pack_id: { type: string }
+                  available: { type: boolean }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: pack_id už ve škole existuje
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /schools/{school}/metadata-options:
+    get:
+      tags: [catalog]
+      operationId: getPackMetadataOptions
+      summary: Číselníky pro metadata nového packu (CONTRACT.md §2.4a)
+      description: >
+        Kódy z edu_ai.code_list rozlišené pro danou entitu (role, school_grade)
+        + povolené hodnoty viditelnosti. Popisky mají fallback jazyk → výchozí
+        jazyk → kód; popisky viditelnosti si drží frontend jako token.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [visibility, audience_roles, school_grades]
+                properties:
+                  visibility:
+                    type: array
+                    items: { type: string, enum: [entity, organization] }
+                  audience_roles:
+                    type: array
+                    items: { $ref: "#/components/schemas/CodeOption" }
+                  school_grades:
+                    type: array
+                    items: { $ref: "#/components/schemas/CodeOption" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/packs/{pack}/entries:
+    get:
+      tags: [entries]
+      operationId: listEntries
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Fulltext přes otázku i odpověď (jednoduchý filtr seznamu).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntryPage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /schools/{school}/packs/{pack}/entries/{entry_key}:
+    get:
+      tags: [entries]
+      operationId: getEntry
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - name: entry_key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entry, pack_etag, pack_version]
+                properties:
+                  entry: { $ref: "#/components/schemas/Entry" }
+                  pack_etag: { type: string }
+                  pack_version: { type: integer }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /schools/{school}/packs/{pack}/preview:
+    post:
+      tags: [publish]
+      operationId: previewPackChanges
+      summary: Validace a rozdíl změn editoru proti konkrétní verzi
+      description: >
+        Uloží PŘESNĚ zkontrolovaný obsah pod preview_id. Publikace pak použije
+        tento uložený obsah, nikoli tělo poslané při publikaci.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [base_etag, entries]
+              additionalProperties: false
+              properties:
+                base_etag:
+                  type: string
+                  description: pack_etag, který uživatel viděl při načtení.
+                entries:
+                  type: array
+                  description: >
+                    JEN změněné/nové/deaktivované položky. Vynechaná položka se
+                    nemění (merge); k deaktivaci slouží is_active=false.
+                  items: { $ref: "#/components/schemas/EntryWrite" }
+                pack_metadata:
+                  allOf: [{ $ref: "#/components/schemas/PackMetadataIn" }]
+                  description: >
+                    POVINNÉ pro pack, který ještě neexistuje; ZAKÁZANÉ pro
+                    existující pack (422) — ten si metadata zachovává
+                    (CONTRACT.md §2.4 a §2.4a). Uloží se do náhledu a publikace
+                    bere jen tuto uloženou kopii.
+      responses:
+        "200":
+          description: Náhled připraven
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Preview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /schools/{school}/packs/{pack}/publish:
+    post:
+      tags: [publish]
+      operationId: publishPackChanges
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preview_id, expected_etag]
+              additionalProperties: false
+              properties:
+                preview_id: { type: string, format: uuid }
+                expected_etag: { type: string }
+      responses:
+        "202":
+          description: Přijato ke zpracování
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Operation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503":
+          description: >
+            PUBLISH_UPLOADER_UNAVAILABLE — škola nemá ověřitelný technický
+            uploader; čtení funguje, publikace ne (retryable=false).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schools/{school}/imports/preview:
+    post:
+      tags: [import]
+      operationId: previewImport
+      summary: CSV/ZIP → mapování, chyby a rozdíly PŘED zápisem
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV jednoho packu, nebo ZIP exportovaný portálem.
+                pack_id:
+                  type: string
+                  description: Povinné u CSV (potvrzení cílového packu). U ZIPu se ignoruje.
+                mode:
+                  type: string
+                  enum: [merge, replace]
+                  default: merge
+                pack_metadata_by_pack:
+                  type: string
+                  description: >
+                    JSON objekt {"<pack_id>": PackMetadataIn} — potvrzená
+                    metadata pro packy, které v této škole ještě neexistují
+                    (CONTRACT.md §2.4c). Klíčem je VŽDY pack_id, takže u ZIPu
+                    jsou metadata přiřazená ke konkrétnímu packu. Metadata pro
+                    existující pack nebo pro pack mimo tento import = 422.
+      responses:
+        "200":
+          description: Náhled importu
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportPreview" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMedia" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /schools/{school}/imports/{preview}/publish:
+    post:
+      tags: [import]
+      operationId: publishImport
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: preview
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_etags]
+              additionalProperties: false
+              properties:
+                expected_etags:
+                  type: object
+                  additionalProperties: { type: string }
+                  description: >
+                    { pack_id: pack_etag } pro každý pack náhledu. Nový pack má "".
+                confirm_replace:
+                  type: boolean
+                  default: false
+                  description: Povinně true, pokud je režim replace.
+      responses:
+        "202":
+          description: Přijato
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Operation" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /operations/{operation}:
+    get:
+      tags: [operations]
+      operationId: getOperation
+      summary: Stav KONKRÉTNÍ operace tohoto kontextu
+      description: >
+        Vrací výhradně uloženou korelaci portálu. Nikdy neodvozuje stav
+        z globálního hledání posledních běhů podle since_seconds.
+      parameters:
+        - name: operation
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Operation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /schools/{school}/exports:
+    post:
+      tags: [export]
+      operationId: createExport
+      summary: Export vybraných packů jako CSV (jeden) nebo ZIP (více)
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pack_ids]
+              additionalProperties: false
+              properties:
+                pack_ids:
+                  type: array
+                  minItems: 1
+                  items: { type: string }
+                format:
+                  type: string
+                  enum: [csv, zip]
+                  default: zip
+                  description: csv je přípustné jen pro právě jeden pack.
+                lang:
+                  type: string
+                  description: Jazyk popisků v legacy sloupci cat.
+      responses:
+        "201":
+          description: Export připraven
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Export" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+
+  /exports/{export}/download:
+    get:
+      tags: [export]
+      operationId: downloadExport
+      parameters:
+        - name: export
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Soubor
+          content:
+            text/csv: { schema: { type: string, format: binary } }
+            application/zip: { schema: { type: string, format: binary } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  parameters:
+    School:
+      name: school
+      in: path
+      required: true
+      schema: { type: string }
+      description: legal_entity_code. Vždy validován proti policy.
+    Pack:
+      name: pack
+      in: path
+      required: true
+      schema: { type: string }
+    CsrfHeader:
+      name: X-QA-Portal
+      in: header
+      required: true
+      schema: { type: string, enum: ["1"] }
+      description: >
+        Vynucuje nejednoduchý požadavek i bez loginu. Chybí-li, server odpoví 403.
+        Server navíc ověřuje Origin/Referer proti povolenému seznamu.
+
+  responses:
+    Forbidden:
+      description: Policy nepovolila
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Neznámý zdroj
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: >
+        PACK_VERSION_CONFLICT (data se změnila — nutný nový náhled),
+        PACK_METADATA_DIVERGENT nebo PUBLISH_IN_PROGRESS.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Validation:
+      description: Obsahová validace; `fields` ukazuje na konkrétní pole
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    TooLarge:
+      description: Soubor nad limit
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    UnsupportedMedia:
+      description: Není CSV ani ZIP
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unavailable:
+      description: Závislost dočasně nedostupná
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    CodeOption:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        label_fallback: { type: boolean }
+
+    PackMetadataIn:
+      type: object
+      description: >
+        Metadata, která ingest aplikuje na VŠECHNY řádky packu. Portál je
+        nevymýšlí: u nového packu je potvrzuje administrátor, u existujícího
+        se čtou ze stavu packu (CONTRACT.md §2.4, §2.4a).
+      required: [visibility, audience_roles]
+      additionalProperties: false
+      properties:
+        visibility:
+          type: string
+          enum: [entity, organization]
+          description: private portál nenabízí — pack by nikdo neviděl.
+        audience_roles:
+          type: array
+          minItems: 1
+          items: { type: string }
+          description: Kódy číselníku 'role'.
+        school_grade_codes:
+          type: array
+          default: []
+          items: { type: string }
+          description: Kódy číselníku 'school_grade'. Prázdné pole je platné.
+        valid_from: { type: [string, "null"], format: date }
+        valid_to: { type: [string, "null"], format: date }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable: { type: boolean }
+            fields:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+                  file: { type: string }
+                  row: { type: integer }
+
+    Context:
+      type: object
+      required: [mode, contract_version, capabilities]
+      properties:
+        mode: { type: string, enum: [vpn_admin] }
+        contract_version: { type: string, example: "qa-portal/1.0.0" }
+        portal_version: { type: string }
+        capabilities:
+          type: object
+          properties:
+            may_publish: { type: boolean }
+            may_replace: { type: boolean }
+            may_manage_categories: { type: boolean }
+        ui_default_lang: { type: string }
+
+    School:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        level: { type: [string, "null"] }
+        parent_code: { type: [string, "null"] }
+
+    Domain:
+      type: object
+      required: [code, label]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        label_fallback: { type: boolean, default: false }
+        sort_order: { type: integer }
+
+    Category:
+      type: object
+      required: [code, label, is_active]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        label_fallback:
+          type: boolean
+          default: false
+          description: true = popisek chybí v požadovaném jazyce; ukázat správci.
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        is_active: { type: boolean }
+        sort_order: { type: integer }
+        notes: { type: [string, "null"] }
+
+    Pack:
+      type: object
+      required: [pack_id, version, pack_etag, entry_count]
+      properties:
+        pack_id: { type: string }
+        version: { type: integer }
+        pack_etag: { type: string }
+        lang: { type: string }
+        built_at: { type: [string, "null"], format: date-time }
+        entry_count: { type: integer }
+        metadata_uniform:
+          type: boolean
+          description: false = položky mají různá metadata, publikace je odmítnuta.
+        publishable:
+          type: boolean
+          description: false při chybějícím uploaderu nebo divergentních metadatech.
+
+    Entry:
+      type: object
+      required: [entry_key, canonical_q, answer_md, domains, is_active]
+      properties:
+        entry_key: { type: string }
+        entry_id: { type: string, format: uuid, readOnly: true }
+        canonical_q: { type: string }
+        answer_md: { type: string }
+        variants:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              url: { type: string }
+        domains:
+          type: array
+          description: Kódy domén. Prázdné pole = výslovně bez oblastí.
+          items: { type: string }
+        category_code: { type: [string, "null"] }
+        category_label: { type: [string, "null"], readOnly: true }
+        category_is_active: { type: [boolean, "null"], readOnly: true }
+        cat_legacy:
+          type: [string, "null"]
+          readOnly: true
+          description: Původní textový cat. Informativní, o přiřazení nerozhoduje.
+        is_active: { type: boolean }
+        owner_user_id:
+          type: [string, "null"]
+          readOnly: true
+          description: Vlastník obsahu. Editace jej NIKDY nemění.
+        visibility: { type: string, readOnly: true }
+        audience_roles: { type: [array, "null"], items: { type: string }, readOnly: true }
+        school_grade_ids: { type: [array, "null"], items: { type: integer }, readOnly: true }
+        school_subject_ids: { type: [array, "null"], items: { type: integer }, readOnly: true }
+        valid_from: { type: [string, "null"], format: date, readOnly: true }
+        valid_to: { type: [string, "null"], format: date, readOnly: true }
+
+    EntryWrite:
+      type: object
+      required: [canonical_q, answer_md, domains, is_active]
+      additionalProperties: false
+      description: >
+        Zapisovatelná podmnožina. Metadata (visibility, role, ročníky, předměty,
+        platnost) ani vlastník se z klienta NEPŘIJÍMAJÍ — server je načte
+        z aktuálního stavu a zachová.
+      properties:
+        entry_key:
+          type: [string, "null"]
+          description: >
+            Prázdné/null jen u NOVÉ položky — server vygeneruje jedinečný stabilní
+            klíč v rámci packu. U existující položky se klíč NIKDY nepřegeneruje.
+        canonical_q: { type: string, minLength: 1 }
+        answer_md: { type: string, minLength: 1 }
+        variants:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: { type: string }
+              url: { type: string }
+        domains:
+          type: array
+          items: { type: string }
+          description: VŽDY explicitní. Prázdné pole znamená prázdnou sadu.
+        category_code:
+          type: [string, "null"]
+          description: Kód, nebo výslovné null = bez kategorie.
+        is_active: { type: boolean }
+
+    EntryPage:
+      type: object
+      required: [entries, pack_etag, pack_version]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/Entry" }
+        next_cursor: { type: [string, "null"] }
+        total: { type: integer }
+        pack_etag: { type: string }
+        pack_version: { type: integer }
+        metadata_uniform: { type: boolean }
+
+    Diff:
+      type: object
+      required: [added, changed, unchanged, deactivated]
+      properties:
+        added:
+          type: array
+          items: { type: object, properties: { entry_key: { type: string }, canonical_q: { type: string } } }
+        changed:
+          type: array
+          items:
+            type: object
+            properties:
+              entry_key: { type: string }
+              fields:
+                type: array
+                items:
+                  type: object
+                  required: [field, old, new]
+                  properties:
+                    field: { type: string }
+                    old: {}
+                    new: {}
+        unchanged:
+          type: array
+          description: >
+            entry_key položek, které po potvrzení zůstanou beze změny — jak ty,
+            kterých se vstup vůbec nedotkl, tak ty, které vstup obsahuje ve
+            shodném znění. Součet added+changed+unchanged+deactivated proto
+            pokrývá celý pack a prázdný výčet znamená prázdný pack.
+          items: { type: string }
+        deactivated:
+          type: array
+          items: { type: object, properties: { entry_key: { type: string }, canonical_q: { type: string } } }
+
+    Preview:
+      type: object
+      required: [preview_id, base_etag, diff, expires_at]
+      properties:
+        preview_id: { type: string, format: uuid }
+        base_etag: { type: string }
+        diff: { $ref: "#/components/schemas/Diff" }
+        warnings:
+          type: array
+          items: { type: object, properties: { code: { type: string }, message: { type: string } } }
+        expires_at: { type: string, format: date-time }
+
+    ImportPreview:
+      type: object
+      required: [preview_id, source_kind, packs, expires_at]
+      properties:
+        preview_id: { type: string, format: uuid }
+        source_kind: { type: string, enum: [csv, zip] }
+        mode: { type: string, enum: [merge, replace] }
+        packs:
+          type: array
+          items:
+            type: object
+            required: [pack_id, file, base_etag, diff, ok]
+            properties:
+              pack_id: { type: string }
+              file: { type: string, description: Název souboru v ZIPu, nebo nahraný CSV. }
+              base_etag: { type: string, description: '"" pro dosud neexistující pack.' }
+              is_new_pack: { type: boolean }
+              row_count:
+                type: integer
+                description: >
+                  Počet datových řádků přečtených z tohoto souboru. Odlišuje
+                  „nahrál jsi prázdný soubor" od „nahrál jsi soubor, který nic
+                  nemění"; bez něj vypadají obě situace v UI stejně.
+              diff: { $ref: "#/components/schemas/Diff" }
+              ok: { type: boolean, description: false = tento pack se nebude publikovat }
+              metadata_required:
+                type: boolean
+                description: >
+                  true = pack v této škole neexistuje a nemá potvrzená metadata
+                  (§2.4c). Náhled je čitelný, publikace tohoto packu se odmítne.
+              publishable:
+                type: boolean
+                description: ok && !metadata_required.
+              suggested_metadata:
+                allOf: [{ $ref: "#/components/schemas/PackMetadataIn" }]
+                description: >
+                  Jen návrh z manifestu ZIPu pro předvyplnění formuláře.
+                  NENÍ potvrzení — závazná je hodnota z pack_metadata_by_pack.
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    file: { type: string }
+                    row: { type: integer }
+                    field: { type: string }
+                    code: { type: string }
+                    message: { type: string }
+              legacy_cat_unresolved:
+                type: array
+                description: >
+                  Starý formát bez sloupce category_code: položky, u nichž cat
+                  nelze jednoznačně namapovat. Ingest nikdy nehádá a nezakládá
+                  kategorie — uživatel musí vybrat, nebo zůstanou bez kategorie.
+                items:
+                  type: object
+                  properties:
+                    entry_key: { type: string }
+                    cat: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    Operation:
+      type: object
+      required: [operation_id, status, school]
+      properties:
+        operation_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [validating, accepted, processing, completed, failed, unknown]
+          description: >
+            unknown = služba se restartovala během operace. Nejdřív se dohledá,
+            NIKDY se nespouští naslepo znovu.
+        school: { type: string }
+        pack_id: { type: [string, "null"] }
+        preview_id: { type: [string, "null"], format: uuid }
+        processing_uuid: { type: [string, "null"], format: uuid }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        result_etag: { type: [string, "null"] }
+        packs:
+          type: array
+          description: >
+            U hromadného importu stav každého packu zvlášť. AUTORITATIVNÍ detail:
+            top-level status je `completed` jen když žádný pack není `failed`
+            (CONTRACT.md §6), jinak `failed` s kódem IMPORT_PACKS_FAILED.
+          items:
+            type: object
+            properties:
+              pack_id: { type: string }
+              status: { type: string, enum: [pending, ok, failed, skipped] }
+              message: { type: string }
+        summary:
+          type: object
+          properties:
+            added: { type: integer }
+            updated: { type: integer }
+            deactivated: { type: integer }
+            untouched: { type: integer }
+        error:
+          # NOT the HTTP error envelope: an operation record carries the error
+          # itself, flat. Nesting it as {"error": {...}} inside a field already
+          # called `error` cost a real SPA crash (the client read error.error).
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable: { type: boolean }
+
+    Export:
+      type: object
+      required: [export_id, format, download_url, expires_at]
+      properties:
+        export_id: { type: string, format: uuid }
+        format: { type: string, enum: [csv, zip] }
+        download_url: { type: string }
+        filename: { type: string }
+        bytes: { type: integer }
+        expires_at: { type: string, format: date-time }
+        note:
+          type: string
+          description: >
+            CSV export není úplná záloha packu — neobsahuje všechna packová
+            metadata. Úplný přenos zajišťuje ZIP s manifestem.

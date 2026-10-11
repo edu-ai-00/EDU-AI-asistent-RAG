@@ -1,8 +1,10 @@
 # Stable error codes — edu_ai Search Service
 # Track: contract. Canonical owner of HTTP error semantics for the RAG module.
 # Source of truth: search/app/server.py (_ERROR_CODES, _RETRYABLE, _error_body)
-# and nginx/nginx.conf (the statuses the edge raises before the app is reached).
+# and nginx/conf/nginx.conf (the statuses the edge raises before the app is reached).
 # Do not define error codes elsewhere.
+# Channel-local school-selection errors and config readiness are scoped separately
+# below; they do not add or rename Search Service error codes.
 #
 # Two layers must not be confused:
 #   * HTTP errors  — the request could not be processed (this file).
@@ -45,15 +47,10 @@ http_errors:
     source: search/app/server.py
     client_action: Fix the field named in the message.
 
-  - status: 401
-    code: UNAUTHORIZED
-    when: >
-      Missing or wrong API key on /search/. Raised by NGINX, before the app — so
-      it happens for every path under /search/, including /search/health. The
-      key is BARE, no "Bearer " prefix.
-    retryable: false
-    source: nginx/nginx.conf
-    client_action: Fix the Authorization header. Do not retry as-is.
+# 401 / UNAUTHORIZED is deliberately absent. nginx checked an API key on
+# /search/ until 2026-09-02; nothing at any layer authenticates a caller now, so
+# no 401 can be raised and a client that branches on one is handling a status
+# that cannot arrive. See the Authentication note in ./openapi.yaml.
 
   - status: 403
     code: FORBIDDEN
@@ -79,7 +76,7 @@ http_errors:
       path under /search/), or a named resource does not exist — an inactive QA
       pack on /v1/qa-export, an entity/user pair on /v1/ingest-principal.
     retryable: false
-    source: search/app/server.py + nginx/nginx.conf
+    source: search/app/server.py + nginx/conf/nginx.conf
     client_action: Check the path and the identifiers.
 
   - status: 405
@@ -115,7 +112,7 @@ http_errors:
       Request body over 1 MB on /search/ (nginx). A question is capped at 2000
       characters, so this is a guard rail rather than a limit anyone reaches.
     retryable: false
-    source: nginx/nginx.conf
+    source: nginx/conf/nginx.conf
     client_action: Send a smaller body.
 
   - status: 415
@@ -134,14 +131,35 @@ http_errors:
       (additionalProperties false, enforced in the model since 2026-08-21), so a
       misspelled field name is an error rather than a silent no-op. Also a
       `language` outside the active code list (2026-08-23; it was a 400 before).
+
+      Since 2026-09-06 also `domains`, the thematic AREA filter, in five ways:
+      an empty array (omit the field or send null to search every area — an
+      empty selection is a client-side bug and answering it with the whole
+      corpus would hide it); an empty or whitespace-only element; a code that
+      is unknown or inactive IN THIS SCHOOL'S catalog
+      (resolved_taxonomy_rules is nearest-owner-exclusive, so a code another
+      school defines is unknown here); a wrong type; and ONE bad code among
+      several good ones, which fails the WHOLE request rather than silently
+      searching a smaller set of areas than the user chose.
+      `fields[].field` is `domains` or the indexed element (`domains[1]`), so a
+      client can mark the offending choice rather than the whole picker.
+      Validated BEFORE the role gate and BEFORE any idempotency claim, so a
+      rejected request leaves no claim for its retry to collide with, and the
+      early `role_required` answer can report a filter that really was checked.
+      A valid code that labels no content is NOT an error: that is a successful
+      request which may answer no_answer.
     retryable: false
     source: >
       search/app/server.py (_validation_exception_handler; _validate_language
-      raises the same envelope by hand, and the HTTPException handler passes
+      and _resolve_domains raise the same envelope by hand — the latter from
+      search/app/domain_scope.py — and the HTTPException handler passes
       `fields` through)
     client_action: >
       Read `fields`: it names the offending field and the reason. A typo in a
-      field NAME shows up here rather than as a puzzling 200.
+      field NAME shows up here rather than as a puzzling 200. For a rejected
+      `domains` code, refresh the catalog (GET /v1/domains?legal_entity=…) and
+      ask the user to choose again — do NOT retry with `domains` omitted, which
+      would answer a different question than the one they asked.
 
   - status: 429
     code: RATE_LIMITED
@@ -149,7 +167,7 @@ http_errors:
       Over 10 req/s per IP with a burst of 20 (nginx). limit_req_status is set to
       429 explicitly — the nginx default is 503, which read as an outage.
     retryable: true
-    source: nginx/nginx.conf
+    source: nginx/conf/nginx.conf
     client_action: Back off and retry.
 
   - status: 500
@@ -171,15 +189,33 @@ http_errors:
     code: UPSTREAM_ERROR
     when: nginx was reached but the search service was not.
     retryable: true
-    source: nginx/nginx.conf
+    source: nginx/conf/nginx.conf
     client_action: Retry with backoff.
 
   - status: 503
     code: UNAVAILABLE
-    when: The search service is not accepting connections (nginx).
+    when: >
+      TWO causes, and they are reported with the same code because the client's
+      action is the same for both.
+
+      (1) The search service is not accepting connections (nginx).
+
+      (2) Since 2026-09-06: the DOMAIN catalog could not be read while an
+      EXPLICIT `domains` filter was being validated. Deliberately not a
+      fall-through to an unfiltered search — the caller asked for a narrower
+      one, and a wider answer is a different answer presented as the one they
+      requested. Raised before any retrieval and before the SSE stream opens,
+      so it is an ordinary HTTP error rather than an `error` event, and before
+      the idempotency claim, so it leaves no claim behind. A request WITHOUT
+      `domains` never reads the catalog and so never sees this.
     retryable: true
-    source: nginx/nginx.conf
-    client_action: Retry with backoff.
+    source: >
+      nginx/conf/nginx.conf; search/app/server.py (_resolve_domains, raised by
+      search/app/domain_scope.DomainCatalogUnavailable)
+    client_action: >
+      Retry with backoff, with the SAME `domains`. Never retry by dropping the
+      filter: the scoped answer and the unscoped one are different answers, and
+      only the user may choose to widen the search.
 
   - status: 504
     code: TIMEOUT
@@ -190,7 +226,7 @@ http_errors:
       1187 production questions — p50 under a second, p95 18.3 s, max 27.6 s —
       so 120 s is a wide margin, not a routine boundary.
     retryable: true
-    source: nginx/nginx.conf
+    source: nginx/conf/nginx.conf
     client_action: Retry with the same Idempotency-Key.
 
 notes:
@@ -209,3 +245,41 @@ notes:
     HTTP 200 with outcome=llm_unavailable (init 139). It does not raise, and the
     client must NOT tell the user to rephrase — the corpus was fine, the model
     was not.
+
+# Browser-school selection belongs to the web-chat BFF, not /v1/ask. The BFF
+# uses the envelope above but keeps its existing lowercase channel-local codes.
+web_chat_school_errors:
+  surface: [/chat/api/message, /chat/api/domains]
+  source: web_chat/web_chat.py
+  errors:
+    - status: 422
+      code: school_required
+      when: The picker is enabled and neither the request nor deployment supplies a school.
+      retryable: false
+      validation_field: legal_entity
+      client_action: Choose an active school before sending again.
+    - status: 422
+      code: invalid_school
+      when: The selected school is a placeholder, unknown or inactive in the current registry.
+      retryable: false
+      validation_field: legal_entity
+      client_action: Refresh the active-school list and choose a school again.
+    - status: 503
+      code: entities_unavailable
+      when: The upstream school registry cannot be read or has a malformed object, list or row.
+      retryable: true
+      client_action: Retry without falling back to another school.
+
+# These are HTTP-200 configuration states, not error-envelope codes or Search
+# outcomes. The browser also validates its remembered school against this list.
+web_chat_config_readiness:
+  surface: /chat/api/config
+  status: 200
+  source: web_chat/web_chat.py
+  field: setup
+  states:
+    ready: A fixed school is configured, or the picker has a valid explicit deployment default.
+    awaiting_selection: The picker has active schools but no usable deployment default.
+    entities_unavailable: The registry cannot be read or its payload is malformed; offer retry.
+    no_entities: The registry is well formed and contains no active schools.
+    unconfigured: The picker is disabled and no fixed school is configured.

@@ -1,4 +1,4 @@
-# last change in code by Martin Safranek (2026-08-02).
+# last change in code by Martin Safranek (2026-09-04).
 """Regenerate <lang>-normalization-vectors.json from the live Python normalizer.
 
 This is the canonical source of the parity vectors: it runs the SAME
@@ -9,12 +9,16 @@ reproduce the same outputs (see README.md in this directory).
 Run it inside the search container (the app package + simplemma dicts live
 there), piping this file in via stdin, with the language as the argument:
 
-    docker exec -i edu_ai_search python - cs \
+    docker cp contracts/parity/. edu_ai_search:/tmp/parity/
+    docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search python - cs \
       < contracts/parity/gen_vectors.py \
       > contracts/parity/cs-normalization-vectors.json
 
-cfg is None → the settings v1 defaults (lowercase + strip_diacritics +
-drop_stopwords) and the library's BUILT-IN stoplist rather than the qa_stopword
+When piped via stdin, parity_cfg() reads stoplist.json from the working
+directory; the copy and -w provide it. PYTHONPATH keeps app importable.
+
+cfg = parity_cfg() (stoplist.json) + the v1 defaults (lowercase + strip_diacritics +
+drop_stopwords) and the SNAPSHOT stoplist rather than the qa_stopword
 číselník. That is deliberate: these vectors pin the LIBRARY's behaviour, so they
 remain a valid guard for a code refactor even when the číselník changes.
 
@@ -22,6 +26,7 @@ Inputs are synthetic edge cases only — no learner content, no real school name
 """
 
 import json
+import os
 import sys
 from app.text_norm import build_forms
 
@@ -42,6 +47,10 @@ LANGS = {
             "do školy",
             "2. kolo přijímaček",
             "němčina",
+            # stopword whose three reductions differ: norm `jsou`, stem `jso`.
+            # Without a case like this the vectors could not see a change to
+            # per-column stoplist derivation at all (found 2026-09-04).
+            "Kdy jsou přijímačky?",
         ],
     },
     "en": {
@@ -73,6 +82,18 @@ LANGS = {
 }
 
 
+
+# The stoplist and the engines are DATA, not code: eduai_normalize 3.0.0 has no
+# built-in tables and stopwords_of()/engine_name() raise without them. These vectors stay deliberately pinned to
+# LIBRARY behaviour, not to whatever edu_ai.qa_stopword holds today, so they read
+# the snapshot in stoplist.json next to them — no database, still deterministic.
+def parity_cfg() -> dict:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "stoplist.json"), encoding="utf-8") as fh:
+        _d = json.load(fh)
+        return {"normalization": _d["normalization"], "engines": _d["engines"]}
+
+
 def main() -> None:
     lang = (sys.argv[1] if len(sys.argv) > 1 else "cs").strip().lower()
     if lang not in LANGS:
@@ -92,7 +113,7 @@ def main() -> None:
         "vectors": [],
     }
     for c in spec["cases"]:
-        f = build_forms(c, None, lang)
+        f = build_forms(c, parity_cfg(), lang)
         out["vectors"].append(
             {"input": c, "norm": f["norm"], "lemma": f["lemma"], "stem": f["stem"]}
         )

@@ -1,0 +1,19 @@
+# Build context hygiene. Without this the context carries the host's
+# frontend/node_modules — megabytes of files the image never uses, and the
+# .bin/* symlinks make `docker build` fail outright with
+# "invalid file request frontend/node_modules/.bin/esbuild".
+# The image installs its own dependencies from the lockfile instead.
+
+frontend/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+frontend/.env
+frontend/.env.*
+
+# Backend dev leftovers: the image installs from requirements.txt and never
+# runs the test suite, so none of this belongs in the layer.
+backend/.venv
+backend/tests
+backend/.pytest_cache
+**/__pycache__
+**/*.pyc

@@ -18,6 +18,7 @@ import sys
 
 # the search package sits next to this directory inside the image (/app/app)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from app.nodes import resolve_context as rc  # noqa: E402
 from app.nodes.resolve_context import _needs_context, resolve_context  # noqa: E402
 
 
@@ -62,6 +63,69 @@ def test_standalone_question_skips_the_lookup():
     assert resolve_context(state, {}) == {}
 
 
+# ── the exact-match probe (a short question can still be complete) ──
+def _with_probe(result: bool):
+    """Swap the DB probe for a stub; returns a restore callable."""
+    original = rc._has_exact_variant
+    rc._has_exact_variant = lambda question, cfg, state: result
+    return lambda: setattr(rc, "_has_exact_variant", original)
+
+
+def test_exact_match_skips_the_rewrite():
+    """A ≤4-word query that IS a curated variant must not be rewritten.
+
+    A suggestion button is a canonical_q verbatim, so rewriting it destroys the
+    very match it was offered for.
+    """
+    restore = _with_probe(True)
+    try:
+        state = {"user_question": "V kolik začíná JPZ?",
+                 "conversation_id": "00000000-0000-0000-0000-000000000001",
+                 "legal_entity": "ANY_ENTITY"}
+        out = resolve_context(state, {})
+        assert "user_question" not in out, f"must not rewrite: {out}"
+        assert out.get("context_skip_reason"), f"skip must say why: {out}"
+    finally:
+        restore()
+
+
+def test_real_followup_still_rewrites():
+    """With no exact match the node proceeds — the probe must not swallow follow-ups."""
+    restore = _with_probe(False)
+    try:
+        seen = []
+        state = {"user_question": "a hodiny?",
+                 "conversation_id": "00000000-0000-0000-0000-000000000001",
+                 "legal_entity": "ANY_ENTITY"}
+        original_turns = rc._load_turns
+        rc._load_turns = lambda *a, **k: seen.append(1) or []
+        try:
+            assert resolve_context(state, {}) == {}
+        finally:
+            rc._load_turns = original_turns
+        assert seen, "the node must go on to load the conversation turns"
+    finally:
+        restore()
+
+
+def test_probe_swallows_a_db_failure():
+    """An unreachable DB must make the probe say 'no', never raise.
+
+    Tests the guard inside _has_exact_variant itself: the caller has none, so a
+    leaking exception here would cost the user their answer.
+    """
+    def boom(*a, **k):
+        raise RuntimeError("db down")
+
+    original = rc.get_cursor
+    rc.get_cursor = boom
+    try:
+        assert rc._has_exact_variant("V kolik začíná JPZ?", {},
+                                     {"legal_entity": "ANY_ENTITY"}) is False
+    finally:
+        rc.get_cursor = original
+
+
 TESTS = {
     "followup": test_followups_need_context,
     "standalone": test_standalone_questions_are_left_alone,
@@ -69,6 +133,9 @@ TESTS = {
     "disabled": test_disabled_is_a_noop,
     "noconv": test_no_conversation_id_is_a_noop,
     "skip": test_standalone_question_skips_the_lookup,
+    "exact": test_exact_match_skips_the_rewrite,
+    "rewrite": test_real_followup_still_rewrites,
+    "probefail": test_probe_swallows_a_db_failure,
 }
 
 

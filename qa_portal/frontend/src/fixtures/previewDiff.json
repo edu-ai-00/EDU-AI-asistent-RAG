@@ -1,0 +1,24 @@
+{
+  "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+  "base_etag": "sha256:mockpack1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "diff": {
+    "added": [{ "entry_key": "nova-otazka-obedy", "canonical_q": "Kolik stojí školní obědy?" }],
+    "changed": [
+      {
+        "entry_key": "omluva-lhuta",
+        "fields": [
+          {
+            "field": "answer_md",
+            "old": "Nejpozději do 3 dnů od začátku nepřítomnosti.",
+            "new": "Nejpozději do 3 pracovních dnů od začátku nepřítomnosti."
+          },
+          { "field": "domains", "old": ["ATTENDANCE"], "new": ["ATTENDANCE", "GRADING"] }
+        ]
+      }
+    ],
+    "unchanged": ["druzina-poplatek", "zkouseni-po-nemoci"],
+    "deactivated": [{ "entry_key": "stara-otazka-neaktivni", "canonical_q": "Platí ještě starý rozvrh zvonění z roku 2019?" }]
+  },
+  "warnings": [],
+  "expires_at": "2026-09-11T12:30:00Z"
+}

@@ -5,16 +5,28 @@ components: [evaluation, retrieval, qa]
 sources:
   - tests/eval_rag.py
   - tests/eval_rag_regression.jsonl
+  - tests/eval_rag_domains.jsonl
   - tests/eval_search.py
   - tests/run_all_evals.sh
   - tests/test_resilience.py
   - tests/test_route_guard.py
   - tests/test_resolve_context.py
+  - tests/test_domain_scope.py
+  - tests/test_domain_scope_api.py
+  - tests/test_eval_payload.py
+  - tests/domain_scope_fixture.py
   - contracts/parity/check_vectors.py
-last_verified: 2026-08-28
+last_verified: 2026-09-06
 ---
 
 # Evaluations
+
+**Public examples:** the shipped JSONL and flat question files contain synthetic
+examples, not the historical private regression benchmark. Copy the JSONL to an
+ignored local file, replace `ENTITY_CODE` with an active entity and prepare matching
+synthetic data. Pass that file with `--questions`. Do not compare its scores with
+private or historical snapshots. The legacy flat harness sends no required
+`legal_entity`; use the metadata harness for the current API.
 
 **Track:** human (AI-relevant). How search quality, behaviour and resilience are
 checked, and where the gaps are. Control types as in [routing.md](routing.md).
@@ -53,6 +65,56 @@ printed separately instead of being mixed into the verdict.
 This is the difference between measuring and guessing: without the repeat, a
 one-case "improvement" is indistinguishable from the model changing its mind.
 
+**What `--repeat` cannot do.** It measures the model's variance, not the
+corpus's. A regression set must be calibrated against a specific document and pack corpus, so
+a snapshot is only comparable with another snapshot taken **on the same data**.
+Two consequences worth stating because both have been assumed away before:
+measuring a code change and measuring a data change are separate runs, and a
+run against a database whose corpus differs (a stale restore, a fresh install
+with only fixtures) produces `no_answer` almost everywhere — a number, but not a
+measurement.
+
+#### Scoped cases (`evaluated`)
+
+A case may carry `domains`, a list of DOMAIN codes, which restricts the search
+to those thematic areas. They live in **their own file** so the default
+measurement keeps its meaning:
+
+```bash
+python3 tests/eval_rag.py --questions tests/eval_rag_domains.jsonl --repeat 3
+```
+
+The unrestricted set stays unrestricted, and that is what makes it the
+compatibility measurement — a client that sends no `domains` must behave exactly
+as before. `tests/test_eval_payload.py` asserts that property of the file
+itself.
+
+**The harness had to be extended, not just the JSONL.** `eval_rag.py` builds
+its request body from a handful of named case fields, so a field added to the
+JSONL and not to the builder is accepted, ignored and **never sent** — and the
+run then measures the unrestricted cascade while the report says otherwise.
+Every number in such a report is wrong and nothing about it looks wrong. So:
+
+- `build_payload` is a separate function, and `tests/test_eval_payload.py`
+  asserts against it directly (pure, no stack, milliseconds);
+- each result records `domains_sent` **and** `domains_effective` (read from the
+  response's `effective_scope`), and the run prints a **scope failure** when the
+  two disagree, rather than a set of outcomes;
+- `domains` is **omitted** from the body when a case does not name it, so an
+  unrestricted body is byte-identical to the pre-feature one and an older
+  baseline stays comparable;
+- a 4xx is recorded with its `http_status` and `error_code` instead of collapsing
+  into one `ERROR` string — a retired code (422) is a different finding from a
+  timeout.
+
+**`expect` on a scoped case is a pair, not a phrasing:** the outcome *and which
+source answered*. A case that answers the right sentence from a source outside
+the chosen area is the defect the whole filter exists to prevent, and only the
+source identity shows it. Do **not** use the majority eval for the 422 and
+failure cases — those are deterministic and belong in
+`tests/test_domain_scope_api.py`; the scoped set keeps one of each only so that
+the harness is shown to surface them.
+
 ### Flat question sets (`evaluated`)
 
 `tests/eval_*_questions.txt` — one question per line, blank lines and `#`
@@ -89,6 +151,45 @@ thresholds are themselves uncalibrated (see [qa-fastpath.md](qa-fastpath.md)).
 | `tests/test_route_guard.py` | the guard admits and blocks the right questions, and a self-harm hit answers with support rather than a refusal |
 | `tests/test_resolve_context.py` | follow-up rewriting, including that it stays off when disabled |
 | `tests/test_flow_invariants.py` | the ingestion flows keep the invariants their components rely on |
+| `tests/test_domain_scope.py` | which ROWS the area filter admits, against a real database |
+| `tests/test_domain_scope_api.py` | the area contract over three real HTTP origins |
+| `tests/test_eval_payload.py` | the eval harness sends what the case files say |
+
+### Thematic area scope (`evaluated`)
+
+Two files, and the split is the point.
+
+`tests/test_domain_scope.py` runs **inside the search image** against a
+synthetic fixture (`tests/domain_scope_fixture.py`) and asserts **which rows
+become candidates** — which entry answered, which chunk texts are in the pool,
+which chips were offered. It deliberately never asserts on the shape of a SQL
+string: a test that greps for `domain_ids &&` passes when the fragment is built
+and its parameters are interpolated in the wrong order, which is exactly how
+this kind of change breaks.
+
+The fixture is built and dropped in a `finally`, including after a failure, and
+everything in it is invented — the seed's fictional schools, questions about a
+school that does not exist, every row prefixed `ds-` so teardown is exact. Its
+QA rows are built with the **same** `eduai_normalize` and the same active
+settings the cascade uses, because `qa_exact` compares stored reduced forms for
+equality and a hand-written guess would silently never match the branch the test
+claims to cover. Its vectors are hand-made unit vectors, so the ANN steps are
+exercised with no embedding API call and an order that is arithmetic.
+
+`tests/test_domain_scope_api.py` runs **on the host** against three different
+origins — internal `:8090`, the nginx edge `:80/search/…`, and the BFF `:8081` —
+because an in-process TestClient is no evidence that a path is publicly
+reachable. `/search/v1/domains` answered 404 at the edge while being perfectly
+correct in the app, which is the whole reason this file exists separately. It
+asserts what only a real request shows: status, `Content-Type`, the error
+envelope, `effective_scope`, SSE event order, the `Idempotency-Replayed` header,
+and **the row that reaches `question_answer_log`** — `log_search` swallows every
+exception by design, so a wrong column count would otherwise be invisible.
+
+Fault injection covers the cases where a filter would be most tempting to drop:
+an unreadable catalog with an explicit filter is a declared 503 and never an
+unfiltered search; a failing retrieval step falls through to the next
+*restricted* step; a lost history costs the history and not the filter.
 
 ## Parity contract (`enforced`)
 
@@ -100,8 +201,12 @@ behaviour-neutral and no re-ingest is needed).
 
 ```bash
 docker cp contracts/parity/. edu_ai_search:/tmp/parity/
-docker exec -i edu_ai_search python - /tmp/parity < contracts/parity/check_vectors.py
+docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search \
+  python - /tmp/parity < contracts/parity/check_vectors.py
 ```
+
+Piped via stdin, the script finds `stoplist.json` in its working directory, so
+`-w /tmp/parity` is required; `PYTHONPATH=/app` keeps the `app` package importable.
 
 A failure is not cosmetic: the stored index and what a query builds have diverged,
 so either the change is reverted or every affected language is re-ingested.

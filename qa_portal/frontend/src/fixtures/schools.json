@@ -1,0 +1,6 @@
+{
+  "schools": [
+    { "code": "ZS_KAVCI_HORY", "name": "ZŠ Kavčí hory", "kind": "ZS", "level": null, "parent_code": null },
+    { "code": "ZS_JEDOVNICE", "name": "ZŠ Jedovnice", "kind": "ZS", "level": null, "parent_code": null }
+  ]
+}

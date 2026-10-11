@@ -1,0 +1,36 @@
+{
+  "preview_id": "c1a1a1a1-0000-4000-8000-000000000002",
+  "source_kind": "csv",
+  "mode": "merge",
+  "packs": [
+    {
+      "pack_id": "faq-provoz",
+      "file": "faq-provoz.csv",
+      "base_etag": "sha256:mockpack1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "is_new_pack": false,
+      "diff": {
+        "added": [],
+        "changed": [
+          {
+            "entry_key": "omluva-lhuta",
+            "fields": [{ "field": "domains", "old": ["ATTENDANCE"], "new": ["ATTENDANCE", "GRADING"] }]
+          }
+        ],
+        "unchanged": ["druzina-poplatek"],
+        "deactivated": []
+      },
+      "ok": false,
+      "errors": [
+        {
+          "file": "faq-provoz.csv",
+          "row": 5,
+          "field": "domains",
+          "code": "UNKNOWN_DOMAIN",
+          "message": "Doména 'STRAVOVANI' není v katalogu školy. Opravte kód domény, nebo řádek odeberte."
+        }
+      ],
+      "legacy_cat_unresolved": [{ "entry_key": "jidelna-cena", "cat": "Jídelna" }]
+    }
+  ],
+  "expires_at": "2026-09-11T12:30:00Z"
+}

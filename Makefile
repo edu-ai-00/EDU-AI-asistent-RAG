@@ -8,9 +8,11 @@ docs-check:
 	python3 docs/tools/docs_check.py
 
 # Regenerate the CZ parity vectors from the live Python normalizer.
-# Requires the edu_ai_search container to be running.
+# Requires the edu_ai_search container to be running. The piped script reads
+# stoplist.json from its working dir, hence the copy and -w (see contracts/parity).
 parity-vectors:
-	docker exec -i edu_ai_search python - \
+	docker cp contracts/parity/. edu_ai_search:/tmp/parity/
+	docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search python - \
 	  < contracts/parity/gen_vectors.py \
 	  > contracts/parity/cs-normalization-vectors.json
 	@echo "regenerated contracts/parity/cs-normalization-vectors.json"

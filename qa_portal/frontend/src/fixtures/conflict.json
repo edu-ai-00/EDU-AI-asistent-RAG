@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "PACK_VERSION_CONFLICT",
+    "message": "Balíček od načtení změnil jiný uživatel. Načtěte prosím aktuální stav a porovnejte rozdíly.",
+    "retryable": false
+  }
+}

@@ -68,6 +68,48 @@ def not_excluded(alias_m: str, schema: str = "edu_ai") -> str:
             f"                                                  {alias_m}.document_type_llm))")
 
 
+def domain_where(alias: str, column: str,
+                 domain_ids: list[int] | None) -> tuple[str, list]:
+    """AND-fragment restricting a scanned row to the caller's chosen AREAS.
+
+    The thematic filter, kept here for the same reason `where()` is: eleven SQL
+    strings across seven nodes have to apply it identically, and the one that
+    forgets is not a worse ranking but an answer from an area the user excluded.
+    It is a SEPARATE function from `where()` on purpose — that one is identity
+    and permission, this one is a user preference that grants nothing. Both are
+    ANDed; neither can widen the other.
+
+    THREE STATES, and the difference between the last two is the whole point:
+
+        None          no thematic restriction — the fragment is EMPTY, so the
+                      query is byte-for-byte the one that ran before this
+                      feature existed
+        [ids…]        the row must carry at least one of them (array overlap;
+                      the GIN indexes on domain_ids / document_domain_id are
+                      what makes this cheap)
+        []            the codes were valid and resolved to NO active id in this
+                      caller's reach → `AND false`. NEVER an omitted filter:
+                      `ids or None` would turn "you may see nothing in this
+                      area" into "you may see everything", which is the exact
+                      shape of the private_public_flag failure this module
+                      exists to prevent.
+
+    An explicit filter also excludes NULL and empty labels — array overlap is
+    false for both — and that is intended: an untagged source is not "in every
+    area", it is a source nobody has classified yet (spec §4).
+
+    `alias`/`column` are INTERNAL CONSTANTS chosen by the calling node, never
+    values from a request: the QA tables call the column domain_ids and
+    document_chunks calls it document_domain_id, so one name could not serve
+    both, and interpolating a caller-supplied one would be an injection.
+    """
+    if domain_ids is None:
+        return "", []
+    if not domain_ids:
+        return " AND false", []
+    return f" AND {alias}.{column} && %s::bigint[]", [list(domain_ids)]
+
+
 def where(alias: str, entity_scope: list[str], org_entities: list[str],
           user_id: str | None, audience_role: str | None = None,
           validity: bool = False) -> tuple[str, list]:

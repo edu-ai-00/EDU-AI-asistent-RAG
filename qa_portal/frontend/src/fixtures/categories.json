@@ -1,0 +1,31 @@
+{
+  "categories": [
+    {
+      "code": "AFTER_SCHOOL_CARE",
+      "label": "Družina",
+      "label_fallback": false,
+      "labels": { "cs": "Družina", "en": "After-school care" },
+      "is_active": true,
+      "sort_order": 1,
+      "notes": null
+    },
+    {
+      "code": "SCHOOL_SUPPLIES",
+      "label": "SCHOOL_SUPPLIES",
+      "label_fallback": true,
+      "labels": { "en": "School supplies" },
+      "is_active": true,
+      "sort_order": 2,
+      "notes": "Chybí český popisek — doplňte přes založení/úpravu kategorie."
+    },
+    {
+      "code": "LEGACY_CANTEEN",
+      "label": "Jídelna (neaktivní)",
+      "label_fallback": false,
+      "labels": { "cs": "Jídelna (neaktivní)" },
+      "is_active": false,
+      "sort_order": 99,
+      "notes": "Nahrazeno kategorií SCHOOL_OPERATIONS. Zůstává jen u dřívějších přiřazení."
+    }
+  ]
+}

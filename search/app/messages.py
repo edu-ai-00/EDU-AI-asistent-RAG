@@ -71,6 +71,21 @@ def system_message(key: str, lang: str | None = None) -> str:
     return _CODE_FALLBACK.get(key, "")
 
 
+def subject_absent(state) -> bool:
+    """Did BOTH indexes look for the question's subject and both come up empty?
+
+    Only then may the answer say "we do not have this". Either half alone is a
+    claim about half the corpus: the QA packs hold ~210 curated questions while
+    the school documents hold far more, so a subject missing from QA is routinely
+    present in the documents. Unknown (the step did not run, or had no corpus
+    statistics) is NOT absence — the older "try rephrasing" stands, because
+    telling a parent the school never published something it did publish is worse
+    than sending them round one more loop.
+    """
+    return (state.get("query_in_corpus") is False
+            and state.get("query_in_documents") is False)
+
+
 def resolve_unanswered(state) -> dict:
     """The terminal result for a cascade that produced NO answer.
 
@@ -86,7 +101,14 @@ def resolve_unanswered(state) -> dict:
         return dict(ds)
     return {
         "resolved": True, "outcome": "no_answer", "answer_source": "none",
-        "answer": system_message("no_answer", state.get("query_language")),
+        # WHICH no-answer this is. "Try rephrasing" is right when the words
+        # missed and wrong when the subject is absent from the materials: the
+        # asker then rephrases, fails again, and rephrases again (reported
+        # 2026-09-04). qa_lexical says which case it is; None means it could not
+        # tell, and the older, safer message stands.
+        "answer": system_message(
+            "no_answer_missing_topic" if subject_absent(state) else "no_answer",
+            state.get("query_language")),
         # best-effort: qa_lexical parks its nearest entries even when they fell
         # below every threshold (decision C), so a dead end still ends with an
         # offer instead of an empty hand. The outcome stays no_answer — these

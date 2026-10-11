@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eduai_normalize"
-version = "1.5.0"
+version = "3.0.0"
 description = "Shared CS+EN normalization / lemma / stem for edu_ai — query↔index parity by construction (used by the search service and the Langflow ChunkLemmatizer ingestion component)."
 requires-python = ">=3.11"
 # langdetect is the PRIMARY language detector (seed pinned in normalize.py).
 # Declaring it HERE, not per image, is what guarantees the ingest side and the
 # query side detect with the same engine — the parity requirement.
-dependencies = ["simplemma>=1.1.2", "snowballstemmer>=2.2", "langdetect==1.0.9"]
+dependencies = ["simplemma==2.0.0", "snowballstemmer>=2.2", "langdetect==1.0.9"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -11,10 +11,11 @@ sources:
   - search/app/nodes/qa_common.py
   - search/app/rerank.py
   - search/app/scope.py
+  - search/app/domain_scope.py
   - search/app/topical.py
   - search/app/text_norm.py
   - search/app/config.py
-last_verified: 2026-08-28
+last_verified: 2026-09-06
 ---
 
 # Retrieval
@@ -76,6 +77,78 @@ which is the single enforcement point:
 
 Role-based narrowing (`audience_roles`) is applied in the same clause when the
 caller carries a role.
+
+### Thematic areas (`enforced`)
+
+A separate predicate, from a separate helper (`scope.domain_where`), ANDed onto
+the one above. It is a **user preference and never a permission**: it can only
+remove documents the rules above already admitted. Absent or `null` = no
+restriction, and the fragment is then empty, so the SQL is byte-identical to the
+pre-feature query. The three states and the code→ids resolution are described in
+[routing.md](routing.md).
+
+The column is `document_chunks.document_domain_id` — the **chunk**, not the
+metadata row — for the same reason every other predicate lives there: the vector
+scan orders by distance and takes a `LIMIT` before any join, so a filter on the
+joined metadata would narrow an already-chosen top-k. Applied by all four
+document retrievers, including `rag_keywords` and `document_siblings`, which are
+off in every active setting today; a step that is off is a step somebody will
+switch on, and they are tested with the step forced on in an isolated fixture
+rather than by changing a production setting.
+
+`document_siblings` matters more than it looks: it widens a hit to its
+neighbouring chunks by `file_item_uuid`, and a neighbour reached that way would
+otherwise skip the filter entirely.
+
+**A LONG DOCUMENT IS NOT SPLIT.** A document may carry several areas, and its
+chunks inherit the document's effective set (user declaration if any, else the
+classifier's — the precedence the ingest applies). So a school rules document
+covering attendance, catering and grading is reachable in each of those areas as
+a whole, and the existing ranking picks the passage the question is about. There
+is **no per-chunk topical classification** in this version and none is implied:
+admissibility of the source and relevance of the passage are two different
+judgements, and only the first is what the area filter makes. A consequence
+worth stating plainly: an attendance question asked inside "catering" can still
+reach that document's attendance passage, because the document really is about
+catering too.
+
+### Statistics are NOT narrowed with the candidates
+
+`document_lexical` builds two predicates rather than one:
+
+| | contents | used by |
+|---|---|---|
+| candidate predicate | identity **+ area** | the candidate query and the trgm fallback |
+| statistics predicate | identity only | the IDF/df aggregates |
+
+`bm25_max_df_share` (0.25) asks "is this word generic in **this school's**
+language" — measured, "škola" sits in 54 % of the corpus — and that is a
+property of the school, not of the area a user has picked. With the statistics
+narrowed too, a three-chunk area made *every* query token exceed the share, the
+gate marked them all generic and the topical admission then rejected the very
+document the area was about: a correct filter turned into a `no_answer` by a
+moved threshold. Measured while building the test fixture, which is why the two
+predicates are separate and named.
+
+This costs nothing in correctness — a denominator cannot make a row eligible. It
+only decides weights and genericity **among rows the candidate predicate has
+already admitted**. `_heading_df_share` remains corpus-wide and unscoped, which
+is pre-existing and unchanged.
+
+**The cost of having two predicates**, stated because it has already been paid
+once: every `cur.execute` must pair the fragment it interpolated with the
+matching parameter list. The trigram typo fallback interpolated `cand_cond` and
+passed `scope_params`, so under an explicit filter the statement was one
+argument short, raised, and the step's own `except` swallowed it — the WHOLE
+document branch vanished with nothing in the response to say so. Found in
+review, 2026-09-06.
+
+`tests/test_domain_scope.py` guards the class rather than the line: a log
+watcher fails the test if any step reports catching its own exception while a
+scoped query runs, driven over the branches the ordinary assertions do not
+reach (both typo fallbacks, the empty-pool paths, the category top-up). A
+"no out-of-area rows" assertion cannot catch this on its own — it passes
+triumphantly when there are no rows at all.
 
 ## Full text (document_lexical)
 

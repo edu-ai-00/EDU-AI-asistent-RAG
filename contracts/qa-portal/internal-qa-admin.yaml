@@ -1,0 +1,257 @@
+openapi: 3.1.0
+# Track: contract. Interní router search služby pro QA portál.
+# Contract version: qa-portal/1.0.0 — narrative in ./CONTRACT.md §9.
+#
+# NENÍ VEŘEJNÉ. Tyto cesty nesmí být v nginx $search_path_allowed a nesmí je
+# publikovat žádný gateway route. Dosažitelné jen z app sítě
+# (http://edu_ai_search:8090). Volá je výhradně edu_ai_qa_admin.
+#
+# Všechny dotazy nadále procházejí search/app/scope.py. Administrátorská
+# potřeba se řeší ZDE explicitně, nikdy obcházením filtru v portálu:
+# admin smí spravovat školy, ale při čtení packu musí souhlasit jeho
+# vlastnická entita (legal_entity_code).
+info:
+  title: edu_ai search — internal QA admin API
+  version: "1.0.0"
+
+servers:
+  - url: http://edu_ai_search:8090/internal/qa-admin
+
+paths:
+  /pack-state:
+    get:
+      operationId: getPackState
+      summary: Verze, etag a packová metadata jednoho packu
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: pack_id, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PackState" }
+        "404":
+          description: Pack pro tuto entitu neexistuje nebo není aktivní
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /entries:
+    get:
+      operationId: listInternalEntries
+      summary: Úplný strukturovaný detail položek včetně metadat
+      description: >
+        Jediné místo, kde portál získává metadata, která nesmí vymýšlet
+        z formuláře. Stránkované; cursor je entry_key poslední vrácené položky.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: pack_id, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: lang, in: query, schema: { type: string }, description: Jazyk popisku kategorie. }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, pack_etag, pack_version]
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/InternalEntry" }
+                  next_cursor: { type: [string, "null"] }
+                  pack_etag: { type: string }
+                  pack_version: { type: integer }
+                  metadata_uniform: { type: boolean }
+        "404":
+          description: Neznámý pack pro tuto entitu
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /uploader:
+    get:
+      operationId: getTechnicalUploader
+      summary: Technický uploader školy (get-or-create)
+      description: >
+        Vrátí staff_user, pod kterým portál provádí ingest dané školy. Pokud
+        neexistuje, založí ho idempotentně podle pevné konvence
+        user_id = "qa_portal__{legal_entity_code}" (CONTRACT.md §2.2).
+        Zakládá VÝHRADNĚ tato služba — portál nemá DB přístup a žádné user_id
+        si nevymýšlí. Pro neaktivní nebo neexistující entitu vrací 404 a
+        NEZAKLÁDÁ nic.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user_id, display_name, created]
+                properties:
+                  user_id: { type: string }
+                  display_name: { type: string }
+                  created:
+                    type: boolean
+                    description: true = záznam byl právě založen tímto voláním.
+        "404":
+          description: Neznámá nebo neaktivní entita
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /categories:
+    get:
+      operationId: listInternalCategories
+      summary: Globální katalog qa_category včetně neaktivních
+      parameters:
+        - { name: lang, in: query, schema: { type: string } }
+        - { name: include_inactive, in: query, schema: { type: boolean, default: true } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories]
+                properties:
+                  categories:
+                    type: array
+                    items: { $ref: "#/components/schemas/InternalCategory" }
+    post:
+      operationId: createInternalCategory
+      summary: Založení globální kategorie
+      description: >
+        legal_entity_code je vždy NULL (CHECK v migraci 215). Kód je unikátní
+        napříč aktivními i neaktivními záznamy — vypnutý kód se nerecykluje.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, labels]
+              additionalProperties: false
+              properties:
+                code: { type: string, pattern: "^[A-Z][A-Z0-9_]{1,62}$" }
+                labels: { type: object, additionalProperties: { type: string } }
+                sort_order: { type: integer }
+                notes: { type: string }
+                created_by: { type: string }
+      responses:
+        "201":
+          description: Vytvořeno
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InternalCategory" }
+        "409":
+          description: Kód už existuje (i neaktivní)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: Neplatný kód, labels nebo neznámý jazyk popisku
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable: { type: boolean }
+
+    PackState:
+      type: object
+      required: [pack_id, legal_entity_code, pack_version, pack_etag, metadata_uniform]
+      properties:
+        pack_id: { type: string }
+        legal_entity_code: { type: string }
+        pack_version: { type: integer }
+        pack_etag:
+          type: string
+          description: >
+            "sha256:…" nad kanonickým JSON (version, built_at, seřazené položky)
+            — přesný recept v CONTRACT.md §3. Počítá se ZDE, aby měl jednoho vlastníka.
+        built_at: { type: [string, "null"], format: date-time }
+        lang: { type: string }
+        entry_count: { type: integer }
+        metadata:
+          type: object
+          description: Packová metadata, která portál posílá ZPĚT beze změny.
+          properties:
+            visibility: { type: string }
+            audience_roles: { type: [array, "null"], items: { type: string } }
+            school_grade_ids: { type: [array, "null"], items: { type: integer } }
+            school_grade_codes: { type: [array, "null"], items: { type: string } }
+            school_subject_ids: { type: [array, "null"], items: { type: integer } }
+            school_subject_codes: { type: [array, "null"], items: { type: string } }
+            school_level: { type: [string, "null"] }
+            valid_from: { type: [string, "null"], format: date }
+            valid_to: { type: [string, "null"], format: date }
+            domain_codes: { type: [array, "null"], items: { type: string } }
+        metadata_uniform:
+          type: boolean
+          description: >
+            false = položky packu mají mezi sebou různá metadata. Ingest umí
+            poslat jen jednu sadu na celý pack, takže publikace by je splácla.
+            Portál v takovém případě odmítá publikovat (PACK_METADATA_DIVERGENT).
+        divergent_fields:
+          type: array
+          items: { type: string }
+        divergent_entries:
+          type: array
+          items: { type: string }
+
+    InternalEntry:
+      type: object
+      required: [entry_key, entry_id, canonical_q, answer_md, is_active]
+      properties:
+        entry_key: { type: [string, "null"] }
+        entry_id: { type: string, format: uuid }
+        canonical_q: { type: string }
+        answer_md: { type: string }
+        variants: { type: array, items: { type: string } }
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              url: { type: string }
+        domain_ids: { type: [array, "null"], items: { type: integer } }
+        domains: { type: array, items: { type: string }, description: type_code kódy }
+        category_id: { type: [integer, "null"] }
+        category_code: { type: [string, "null"] }
+        category_label: { type: [string, "null"] }
+        category_label_fallback: { type: boolean, default: false }
+        category_is_active: { type: [boolean, "null"] }
+        cat_legacy:
+          type: [string, "null"]
+          description: tags->>'category', původní text. O přiřazení nerozhoduje.
+        owner_user_id: { type: [string, "null"] }
+        visibility: { type: string }
+        audience_roles: { type: [array, "null"], items: { type: string } }
+        school_grade_ids: { type: [array, "null"], items: { type: integer } }
+        school_subject_ids: { type: [array, "null"], items: { type: integer } }
+        school_level: { type: [string, "null"] }
+        valid_from: { type: [string, "null"], format: date }
+        valid_to: { type: [string, "null"], format: date }
+        is_active: { type: boolean }
+
+    InternalCategory:
+      type: object
+      required: [id, code, labels, is_active]
+      properties:
+        id: { type: integer, description: Interní. Portál ho dál nevystavuje. }
+        code: { type: string }
+        labels: { type: object, additionalProperties: { type: string } }
+        label: { type: [string, "null"] }
+        label_fallback: { type: boolean, default: false }
+        is_active: { type: boolean }
+        sort_order: { type: integer }
+        notes: { type: [string, "null"] }

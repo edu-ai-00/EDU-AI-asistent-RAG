@@ -17,7 +17,8 @@ from ..state import SearchState
 from ..db import get_cursor
 from .. import config
 from .. import scope
-from .qa_common import pack_filter, sources_json
+from .qa_common import (pack_filter, domain_filter, sources_json,
+                        finalize_chips, resolve_form)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,13 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
         "q", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)   # migration 140
+    # ON THE EMBEDDING ROW, and inside the `cand` CTE below — i.e. BEFORE
+    # `ORDER BY embedding <=> query LIMIT fetch_k`. The whole point of migration
+    # 144 was that this scan hands candidates outwards from the index: a
+    # predicate applied after the LIMIT would silently shrink an already-chosen
+    # top-k, so a narrow area could come back empty while the area holds a
+    # perfectly good answer that sat at position k+1.
+    dom_cond, dom_params = domain_filter(state, "q")
 
     try:
         with get_cursor() as cur:
@@ -106,7 +114,7 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
                            q.embedding <=> %s::vector AS dist
                     FROM {config.QA_EMBEDDING_TABLE} q
                     JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = q.entry_id
-                    WHERE q.is_active AND {frag}{scope_cond}
+                    WHERE q.is_active AND {frag}{scope_cond}{dom_cond}
                       AND q.embedding_model = %s
                     ORDER BY q.embedding <=> %s::vector
                     LIMIT %s
@@ -122,7 +130,7 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
                          dist, entry_id
                 LIMIT 1
             """
-            cur.execute(sql, [vec_str, *pack_params, *scope_params,
+            cur.execute(sql, [vec_str, *pack_params, *scope_params, *dom_params,
                               emb_model, vec_str, fetch_k, tier_band, own, org])
             hit = cur.fetchone()
     except Exception as e:
@@ -140,15 +148,31 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
         return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec}
 
     # Related questions next to the answer: qa_vector fetches only the single
-    # nearest entry, so it has no ranking of its own to offer — but qa_lexical
-    # ran before it and parked its nearest entries (deferred_suggest /
-    # fallback_suggestions). Reused here, minus the entry being answered.
-    _parked = ((state.get("deferred_suggest") or {}).get("suggestions")
-               or state.get("fallback_suggestions") or [])
+    # nearest entry, so it has no ranking of its own to offer — but qa_lexical ran
+    # before it and parked its nearest entries (deferred_suggest). Those go through
+    # the same three rules as every other path: a cross-pack chip needs a higher
+    # score, a short row is topped up from the answered entry's category, and the
+    # row is ordered by the number it shows. Until 2026-09-04 this path had none of
+    # them, and it is the one that answers the vaguest questions.
+    #
+    # fallback_suggestions is deliberately NOT the second choice: it is qa_lexical's
+    # nearest entries with no bar at all, and next to a curated answer that showed
+    # as "Lze mít na lavici pití?" under a question about an IVP (0.15, production).
+    _parked = [s for s in ((state.get("deferred_suggest") or {}).get("suggestions") or [])
+               if s.get("entry_id") != entry_id]
+    _top_n = int(params.get("suggest_top_n") or config.QA_SUGGEST_TOP_N)
+    try:
+        with get_cursor() as cur:
+            _chips = finalize_chips(cur, state, params, entry_id, _parked, _top_n,
+                                    resolve_form(params))
+    except Exception as e:
+        # a suggestion is an offer, never the answer — it must not cost one
+        logger.warning("qa_vector: chips failed (%s) — parked list as it came", e)
+        _chips = _parked[:_top_n]
     return {
         "resolved": True, "outcome": "answer", "answer_source": "qa_vector", "query_vec": vec,
         "matched_entry_id": entry_id, "match_score": round(sim, 4),
         "answer": answer_md or "", "sources_json": sources_json(asset_refs),
-        "suggestions": [s for s in _parked if s.get("entry_id") != entry_id],
+        "suggestions": _chips,
         "user_language": state.get("query_language"),
     }

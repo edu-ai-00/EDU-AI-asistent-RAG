@@ -1,4 +1,8 @@
-FROM python:3.12-slim
+# Pinned by DIGEST, not by tag: `python:3.12-slim` moves upstream, and every move
+# invalidates this layer and every layer under it — so a rebuild that changed
+# nothing in this repo re-ran pip from scratch and re-downloaded gigabytes.
+# Bump this deliberately (docker pull python:3.12-slim, read RepoDigests).
+FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -8,6 +12,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+# CPU torch FIRST, from PyTorch's own CPU index. sentence-transformers pulls
+# torch, and on linux/amd64 PyPI serves the CUDA build — ~3 GB of nvidia-*
+# wheels that can never run here (torch.cuda.is_available() is False), which is
+# also what requirements.txt already says the reranker is: in-process, CPU.
+# Installing it here satisfies the dependency, so the next step will not fetch
+# the CUDA variant. Keep the version in step with what requirements.txt resolves.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.14.0
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Shared CZ normalization/lemma/stem — installed into BOTH this image and the

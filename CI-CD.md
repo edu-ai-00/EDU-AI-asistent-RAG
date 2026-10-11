@@ -195,9 +195,10 @@ Produkční `nginx.conf` nesmí obsahovat ruční hotfixy, které nejsou v Git.
 Před zapnutím automatizace je nutné jednorázově porovnat produkční konfiguraci
 s repozitářem a legitimní změny commitnout.
 
-Ideální je zabalit verzovaný `nginx.conf` do vlastního nginx image. `.htpasswd`
-a `auth_keys.conf` zůstanou v persistentních mounts mimo image.
-Pipeline před nasazením spustí `nginx -t`.
+Ideální je zabalit verzovaný `nginx.conf` do vlastního nginx image. Od 2026-09-02
+nginx nemountuje žádný secret (`.htpasswd` ani `auth_keys.conf`), takže do image
+jde celá konfigurace bez výjimek. Pipeline před nasazením spustí `nginx -t`
+a po nasazení `scripts/perimeter_check.py --strict` z runneru mimo VPN.
 
 Pokud konfigurace zůstane bind-mounted, deployer musí aktualizovat jen
 verzovanou konfiguraci a nikdy nesmí přepisovat autentizační soubory.

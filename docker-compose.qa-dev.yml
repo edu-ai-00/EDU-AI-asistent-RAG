@@ -1,0 +1,128 @@
+# ══════════════════════════════════════════════════════════════
+#  IZOLOVANÝ DEV STACK PRO OVĚŘENÍ QA PORTÁLU — ne pro žádný server.
+#
+#  PROČ TENTO SOUBOR EXISTUJE. Základní docker-compose.yml má u KAŽDÉ služby
+#  pevný `container_name`. Ten je absolutní, nikoli per projekt, takže samotné
+#  `-p jiny_projekt` NEIZOLUJE: druhý stack by se pokusil vytvořit kontejner
+#  jménem edu_ai_postgres, srazil se s běžícím, nebo — hůř — by se testovalo
+#  proti cizímu. Tenhle override přejmenovává všechny kontejnery a přesouvá
+#  publikované porty na jiný rozsah.
+#
+#  IMAGE TAGY. Kontejnery i porty se přejmenovaly, ale `image:` v základním
+#  compose ne — každá služba se staví pod SDÍLENÝ tag (edu_ai_search:1.0 …).
+#  `docker compose build` v tomto projektu proto přepsal tentýž tag, ze kterého
+#  si běžný lokální stack bere image; běžící kontejner to nerozhodí, ale při
+#  příštím `up -d --force-recreate` by lokální stack najel na dev build.
+#  Stalo se to 14. 9. 2026. Každá zde stavěná služba má proto vlastní `:qadev`
+#  tag. Stahované image (nginx, pgadmin, bifrost, cloudflared) se netýkají.
+#
+#  Svazky se prefixují názvem projektu samy (eduai_qadev_postgres_data), takže
+#  s prázdným svazkem vznikne ČISTÁ databáze z postgres/init_clean —
+#  s vymyšlenými školami ze seedu, nikdy ne z produkce.
+#
+#  SPUŠTĚNÍ (z kořene repozitáře; -f i -p vždy explicitně, aby se nepoužil
+#  COMPOSE_FILE / COMPOSE_PROJECT_NAME z .env):
+#
+#      docker compose -p eduai_qadev \
+#        -f docker-compose.yml -f docker-compose.qa-dev.yml up -d
+#
+#  ÚKLID (smaže JEN svazky tohoto projektu):
+#
+#      docker compose -p eduai_qadev \
+#        -f docker-compose.yml -f docker-compose.qa-dev.yml down -v
+#
+#  Před jakýmkoli zápisem ověřit, do čeho je stack skutečně připojený:
+#      docker inspect qadev_edu_ai_search --format '{{json .NetworkSettings.Networks}}'
+#      docker exec qadev_edu_ai_postgres psql -U edu_ai -d edu_ai -c "select current_database()"
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  nginx:
+    container_name: qadev_edu_ai_nginx
+    # !override REPLACES the list. Bez toho Compose porty přidá a 80/8443/8444
+    # by se srazily s uživatelským stackem.
+    ports: !override
+      - "127.0.0.1:18000:80"   # VPN strana: /qa/, /qa-api/v1/, /chat/, /api/
+      - "127.0.0.1:18001:81"   # tunelový listener — MUSÍ na /qa/ vracet 404
+
+  edu_ai_api:
+    container_name: qadev_edu_ai_api
+    image: edu_ai_api:qadev
+    ports: !override
+      - "127.0.0.1:18080:8080"
+
+  edu_ai:
+    container_name: qadev_edu_ai_langflow
+    image: edu_ai:qadev
+    ports: !override
+      - "127.0.0.1:17860:7860"
+
+  postgres:
+    container_name: qadev_edu_ai_postgres
+    image: edu_ai_postgres:qadev
+    ports: !override
+      - "127.0.0.1:15432:5432"
+    # Renaming the container silently broke service-to-service DNS. Consumers
+    # address the database as ${POSTGRES_DB_SERVER:-edu_ai_postgres}, which in
+    # the normal stack resolves via the container_name alias — here that alias
+    # became qadev_edu_ai_postgres, so edu_ai_search failed with
+    # "could not translate host name edu_ai_postgres". The alias below restores
+    # the name INSIDE this project's data network only. It cannot reach the
+    # user's stack: that postgres lives on a different network (edu_ai_data),
+    # and the failure mode this replaces was a hard error, never a silent
+    # connection to the real database.
+    networks:
+      data:
+        aliases:
+          - edu_ai_postgres
+
+  pgadmin:
+    container_name: qadev_edu_ai_pgadmin
+    ports: !override []
+    # nginx.conf resolves the upstream as edu_ai_pgadmin, which in the normal
+    # stack is the container_name. Renaming it here made nginx die on startup
+    # with "host not found in upstream" — and nginx dying takes the whole edge
+    # down, so the /qa/ routing could not be tested at all. Same fix as the
+    # postgres alias above, scoped to this project's edge network.
+    networks:
+      edge:
+        aliases:
+          - edu_ai_pgadmin
+      data: {}
+
+  edu_ai_search:
+    container_name: qadev_edu_ai_search
+    image: edu_ai_search:qadev
+    ports: !override
+      - "127.0.0.1:18090:8090"
+
+  edu_ai_web_chat:
+    container_name: qadev_edu_ai_web_chat
+    image: edu_ai_web_chat:qadev
+    ports: !override
+      - "127.0.0.1:18081:8081"
+
+  edu_ai_qa_admin:
+    container_name: qadev_edu_ai_qa_admin
+    image: edu_ai_qa_admin:qadev
+    # Publikováno JEN pro testy tohoto stacku. V produkčním compose nemá
+    # portál žádný port na hostu — přístup vede výhradně přes nginx.
+    ports: !override
+      - "127.0.0.1:18082:8082"
+    environment:
+      # Testy volají portál i přímo na 127.0.0.1:18082 i přes nginx na 18000;
+      # obojí musí projít CSRF/origin kontrolou.
+      # http://nginx je origin, který vidí prohlížeč Playwrightu běžící
+      # UVNITŘ dev sítě (služba se jmenuje nginx). Bez něj by každý zápis
+      # z browser testu skončil na 403 z kontroly originu. Jen dev stack.
+      - QA_PORTAL_ALLOWED_ORIGINS=http://127.0.0.1:18000,http://localhost:18000,http://127.0.0.1:18082,http://localhost:18082,http://nginx
+
+  bifrost:
+    container_name: qadev_bifrost
+    ports: !override []
+
+  cloudflared:
+    container_name: qadev_cloudflared
+    # Tunel do dev stacku nepatří: vystavil by testovací data ven.
+    profiles: ["disabled"]

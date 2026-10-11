@@ -19,6 +19,7 @@ Gather-only: writes to state["rag_chunks"]; the keywords column lives ON
 document_chunks (merged 2026-08-07), so there is no separate table to join.
 """
 
+import json
 import logging
 from functools import lru_cache
 
@@ -39,22 +40,36 @@ _NOEXCL = scope.not_excluded("m")
 
 
 @lru_cache(maxsize=65536)
-def _kw_tokens_cached(keyword: str, form_key: tuple, lang: str) -> frozenset:
+def _kw_tokens_cached(keyword: str, form_key: tuple, lang: str, cfg_key: str) -> frozenset:
     """Reduce one stored keyword to the chosen form(s), same contract as the query.
 
     Cached for the process lifetime: the corpus keyword vocabulary is small and
     repeats across chunks, but the reduction (simplemma + stemmer) used to run
     for EVERY keyword of EVERY candidate row on EVERY query — the reason the
-    candidate window had to stay small in the first place."""
-    forms = build_forms(keyword or "", None, lang)
+    candidate window had to stay small in the first place.
+
+    `cfg_key` is the stoplist + engines as a canonical JSON string: hashable, so
+    it can live in the cache key, which means editing edu_ai.qa_stopword
+    invalidates the affected entries instead of leaving a process-lifetime cache
+    built from the old vocabulary. Until 2026-09-05 this passed cfg=None while
+    the module docstring claimed the SAME build_forms() contract as the query —
+    the query carried the číselník, this did not."""
+    forms = build_forms(keyword or "", json.loads(cfg_key), lang)
     toks: set[str] = set()
     for f in form_key:
         toks |= set(forms.get(f, []) or [])
     return frozenset(toks)
 
 
-def _kw_tokens(keyword: str, form, lang: str) -> frozenset:
-    return _kw_tokens_cached(keyword or "", tuple(form), lang or "")
+def _kw_tokens(keyword: str, form, lang: str, cfg_key: str) -> frozenset:
+    return _kw_tokens_cached(keyword or "", tuple(form), lang or "", cfg_key)
+
+
+def _cfg_key(cfg: dict | None) -> str:
+    """Canonical, hashable form of the parts of cfg that change the reduction."""
+    c = cfg or {}
+    return json.dumps({"normalization": c.get("normalization") or {},
+                       "engines": c.get("engines") or []}, sort_keys=True)
 
 
 def rag_keywords(state: SearchState, params: dict | None = None) -> dict:
@@ -71,6 +86,12 @@ def rag_keywords(state: SearchState, params: dict | None = None) -> dict:
     # corpus considers discriminative (df share within topical_max_df_share).
     topical_admission = bool(params.get("topical_admission", True))
     topical_max_df_share = float(params.get("topical_max_df_share", 0.25))
+
+    # The stoplist + engines the STORED keywords must be reduced with — the same
+    # ones the query went through in prepare. Resolved once per call: it is the
+    # cache key for every keyword below.
+    from ..settings import get_active_setting
+    _ckey = _cfg_key(get_active_setting(state.get("legal_entity"))["config"])
 
     qtokens = form_query_tokens(state, form)
     chunks = list(state.get("rag_chunks", []))
@@ -89,6 +110,17 @@ def rag_keywords(state: SearchState, params: dict | None = None) -> dict:
         "c", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)
+    # Disabled in every active setting today (migration 200) — and filtered
+    # anyway, deliberately: a step that is off is a step somebody will switch on,
+    # and an area filter missing from the one path nobody exercises is exactly
+    # how this kind of rule rots. Tested with the step forced on in an isolated
+    # fixture, not by changing a production setting.
+    dom_cond, dom_params = scope.domain_where("c", "document_domain_id",
+                                              state.get("domain_ids"))
+    # candidates get the area; the df statistics below keep the identity-only
+    # predicate — see the long note in document_lexical for why the two differ
+    cand_cond = scope_cond + dom_cond
+    cand_params = [*scope_params, *dom_params]
     # Stored keywords are kept RAW and reduced HERE, so they must be reduced in
     # the QUERY's language for their tokens to meet the query tokens on the same
     # forms. When the query language is undecided, reduce in EVERY candidate
@@ -118,14 +150,14 @@ def rag_keywords(state: SearchState, params: dict | None = None) -> dict:
          AND c.processing_uuid = m.processing_uuid
          AND m.is_active = true
          {_NOEXCL}
-        WHERE c.keywords IS NOT NULL AND array_length(c.keywords, 1) > 0{lang_cond}{scope_cond}
+        WHERE c.keywords IS NOT NULL AND array_length(c.keywords, 1) > 0{lang_cond}{cand_cond}
         ORDER BY c.output_row_number
         LIMIT %s
     """
     use_synonyms = params.get("synonyms", True)
     try:
         with get_cursor() as cur:
-            cur.execute(sql, [*lang_params, *scope_params, fetch_k])
+            cur.execute(sql, [*lang_params, *cand_params, fetch_k])
             rows = cur.fetchall()
             # the SQL window is ordered by output_row_number (document order),
             # not by relevance — a FULL window means candidates were cut blind
@@ -194,7 +226,7 @@ def rag_keywords(state: SearchState, params: dict | None = None) -> dict:
             kwset: set[str] = set()
             for kw in (keywords or []):
                 for ql in qlangs:
-                    kwset |= _kw_tokens(kw, form, ql)
+                    kwset |= _kw_tokens(kw, form, ql, _ckey)
             overlap = _match_tokens & kwset
             if len(overlap) < min_overlap:
                 continue

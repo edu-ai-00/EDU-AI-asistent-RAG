@@ -10,8 +10,8 @@ openapi: 3.1.0
 #     (16 paths, derived from the code, cannot drift). That is the authority on
 #     the exact body of every reference and admin endpoint.
 #   * THIS FILE owns what a generator cannot know: the PUBLIC surface through
-#     nginx — the /search/ prefix, the API-key scheme, and the statuses the edge
-#     raises before the app is ever reached (401, 413, 429, 502/503/504).
+#     nginx — the /search/ prefix, which paths the edge publishes at all, and the
+#     statuses it raises before the app is ever reached (413, 429, 502/503/504).
 #     It also names every operation, so a reader sees the whole surface at once.
 #   * ./schemas/*.json own the request and response shapes. Referenced, never
 #     re-inlined.
@@ -33,31 +33,34 @@ servers:
       chat BFF calls it directly and the network is the boundary.
   - url: https://{host}/search
     description: >
-      Via the nginx edge, which is where the API key is checked. nginx strips the
-      /search/ prefix, so the paths below are unchanged: the public question is
-      POST /search/v1/ask. Rate limited to 10 req/s per IP, burst 20.
-      proxy_read_timeout is 120 s.
+      Via the nginx edge, which checks no credentials of any kind — see
+      Authentication below. nginx strips the /search/ prefix, so the paths below
+      are unchanged: the public question is POST /search/v1/ask. Rate limited to
+      10 req/s per IP, burst 20. proxy_read_timeout is 120 s.
     variables:
       host:
         default: example.invalid
 
 # ── Authentication ───────────────────────────────────────────────────────────
-# A BARE key. `Authorization: <key>` with NO "Bearer " prefix — the nginx map is
-# matched byte for byte, and the prefix was wrongly documented for months while
-# the deployed map never had one.
+# THERE IS NONE, at any layer, deliberately (2026-09-02). No API key, no scheme,
+# no header. What holds the perimeter is outside this service and outside this
+# repository: a Cloudflare Access policy on the tunnel hostname, and the AWS
+# security group on the VPN-only ports. scripts/perimeter_check.py verifies both
+# from off-site and is the only thing that would notice either being widened.
+#
+# nginx still decides WHICH of the operations below exist at the edge: its
+# $search_path_allowed map publishes /health, /v1/ask, /v1/ask/stream,
+# /v1/entities, /v1/code-lists, /v1/ui-labels, /v1/domains and /v1/explain, and
+# answers 404 for every other path documented here.
+# /v1/domains was added 2026-09-06 for the area picker: per-school DOMAIN codes
+# and their translated names, the same class of reference data /v1/code-lists
+# already publishes for roles and grades. That is not authentication — it is the
+# only thing keeping the admin-flavoured operations (/v1/query-log,
+# /v1/staff-users, /v1/ingest-principal, /v1/qa-export …) off the edge, since no
+# handler applies a check of its own. They are reached in-cluster by the gateway
+# and the web chat BFF. Add a path to that map and you publish it to everyone
+# past the perimeter — say so here at the same time.
 components:
-  securitySchemes:
-    searchApiKey:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: >
-        The bare key, with no scheme prefix. Enforced by nginx on /search/ only;
-        the in-cluster origin has no auth. NOTE: this single key reaches every
-        operation below, the admin-flavoured ones included (/v1/query-log,
-        /v1/staff-users, /v1/ingest-principal) — no handler applies a narrower
-        check of its own.
-
   parameters:
     legalEntityRequired:
       name: legal_entity
@@ -85,8 +88,6 @@ components:
   responses:
     Envelope400:
       description: 'Bad request — see errors.yaml (BAD_REQUEST).'
-    Envelope401:
-      description: 'Missing or invalid API key. Raised by nginx (UNAUTHORIZED).'
     Envelope403:
       description: >
         The caller could not be established (FORBIDDEN). Not documented in
@@ -104,9 +105,13 @@ components:
       description: >
         Failure outside a pipeline step (INTERNAL_ERROR, retryable). Steps catch
         their own errors and fall through.
-
-security:
-  - searchApiKey: []
+    Envelope503:
+      description: >
+        A dependency the request cannot proceed WITHOUT was unreachable
+        (UNAVAILABLE, retryable). For /v1/ask, /v1/ask/stream and /v1/explain that is the
+        DOMAIN catalog while an explicit `domains` filter was being validated:
+        the alternative would be answering the wider search the caller did not
+        ask for. For /v1/domains it is the catalog itself.
 
 paths:
   # ── The one operation a client really has ─────────────────────────────────
@@ -124,7 +129,6 @@ paths:
                 properties:
                   status:  { type: string, example: ok }
                   service: { type: string, example: edu_ai_search }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/ask:
     post:
@@ -165,7 +169,6 @@ paths:
               schema:
                 $ref: "./schemas/search-response.schema.json"
         "400": { $ref: "#/components/responses/Envelope400" }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "403": { $ref: "#/components/responses/Envelope403" }
         "409":
           description: >
@@ -175,6 +178,15 @@ paths:
         "422": { $ref: "#/components/responses/Envelope422" }
         "429": { $ref: "#/components/responses/Envelope429" }
         "500": { $ref: "#/components/responses/Envelope500" }
+        "503":
+          description: >
+            The DOMAIN catalog could not be read while validating an explicit
+            `domains` filter (UNAVAILABLE, retryable). The caller asked for a
+            NARROWER search, so the honest answer is "try again" — never the
+            wider search they did not ask for. Raised before any retrieval, and
+            before the idempotency claim, so it leaves no claim behind.
+            Not returned for a request without `domains`: that path never reads
+            the catalog.
 
   /v1/ask/stream:
     post:
@@ -200,7 +212,6 @@ paths:
             text/event-stream:
               schema: { type: string }
         "400": { $ref: "#/components/responses/Envelope400" }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "403": { $ref: "#/components/responses/Envelope403" }
         "422": { $ref: "#/components/responses/Envelope422" }
         "429": { $ref: "#/components/responses/Envelope429" }
@@ -212,7 +223,6 @@ paths:
       summary: Active legal entities — the valid values of `legal_entity`.
       responses:
         "200": { description: 'Entities, each with may_publish_organization and search_requires_user.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/code-lists:
     get:
@@ -222,7 +232,6 @@ paths:
         - $ref: "#/components/parameters/legalEntityOptional"
       responses:
         "200": { description: 'Lists grouped by list_code, each entry code + labels{lang}.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/ui-labels:
     get:
@@ -235,7 +244,6 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: 'scope, default, available[], labels{lang:{key:text}}, incomplete{lang:[key]}.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/document-types:
     get:
@@ -243,17 +251,52 @@ paths:
       summary: Active document-type taxonomy.
       responses:
         "200": { description: 'type_code, is_ui_default, labels{lang}.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/domains:
     get:
       operationId: domains
-      summary: Active DOMAIN taxonomy — school-system situations.
+      summary: Active DOMAIN taxonomy — school-system situations, and the area picker's catalog.
+      description: >
+        PUBLISHED as /search/v1/domains since 2026-09-06 (nginx allowlist), for
+        the mobile client's area picker. Reference data only: per-school DOMAIN
+        codes and their translated names, resolved nearest-owner-up through
+        resolved_taxonomy_rules — a school with its own catalog sees ONLY its
+        own, otherwise it inherits the GLOBAL set. No question, no answer, no
+        user content, so it is cacheable like /v1/code-lists.
+
+        The `code` values here are exactly what a client may send as
+        SearchRequest.domains FOR THE SAME legal_entity. The response echoes
+        `legal_entity` back so a client can bind its stored selection to the
+        school the codes actually belong to: a picker filled from one school's
+        catalog and used to search in another produces codes the search then
+        rejects with 422. Without an entity the GLOBAL set is returned, kept for
+        the existing callers (the classification LLM, the upload UI).
       parameters:
         - $ref: "#/components/parameters/legalEntityOptional"
       responses:
-        "200": { description: 'code, labels{lang}.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
+        "200":
+          description: >
+            { legal_entity, domains: [{code, labels{lang}}] }. `legal_entity`
+            is the entity the catalog was resolved FOR (null when none was
+            given); `domains` is unchanged in shape and order (sort_order).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  legal_entity:
+                    type: [string, "null"]
+                    description: The entity this catalog belongs to, echoed back.
+                  domains:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, description: A value for SearchRequest.domains. }
+                        labels:
+                          type: object
+                          description: Display name per language code; DATA, so a new language is an UPDATE.
+        "503": { $ref: "#/components/responses/Envelope503" }
 
   /v1/validity-periods:
     get:
@@ -263,7 +306,6 @@ paths:
         - $ref: "#/components/parameters/legalEntityOptional"
       responses:
         "200": { description: 'Periods as resolved for that entity.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   # ── Ingest support. Called by the gateway, which holds no DB credentials. ──
   /v1/staff-users:
@@ -274,7 +316,6 @@ paths:
         - $ref: "#/components/parameters/legalEntityRequired"
       responses:
         "200": { description: 'user_id, display_name, legal_entity_code.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "422": { $ref: "#/components/responses/Envelope422" }
 
   /v1/ingest-principal:
@@ -299,7 +340,6 @@ paths:
       responses:
         "200": { description: 'The verified entity, user and visibility.' }
         "400": { description: 'Unknown visibility, or a unit publishing to the organisation while that is disabled.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "404": { description: 'No such active entity, or the user does not belong to it.' }
 
   /v1/ingest-status:
@@ -317,7 +357,6 @@ paths:
           schema: { type: integer }
       responses:
         "200": { description: 'Status rows.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   # ── Curated QA packs ──────────────────────────────────────────────────────
   /v1/qa-packs:
@@ -328,7 +367,6 @@ paths:
         - $ref: "#/components/parameters/legalEntityRequired"
       responses:
         "200": { description: 'pack_id, version, lang, built_at, entry_count.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "422": { $ref: "#/components/responses/Envelope422" }
 
   /v1/qa-export:
@@ -340,6 +378,14 @@ paths:
         columns, delimiter, BOM — has exactly one owner and an export cannot
         drift from what the import accepts. 404 rather than an empty file: a
         0-row CSV for a typo would read as "the pack is empty".
+        Format: UTF-8 with BOM, CRLF, RFC 4180 quoting, delimiter ",".
+        The delimiter changed from ";" to "," in qa-portal/1.4.0; the ingest
+        reader accepts BOTH, so an older semicolon file stays a valid upload.
+        The domains column contains a JSON array of DOMAIN codes per entry.
+        Ingest also accepts comma-separated codes. A blank or absent cell inherits
+        upload domains; [] explicitly leaves the entry without domain labels.
+        Nonblank entry domains replace the upload default. Unknown or inactive
+        codes for the upload entity are rejected before QA records are changed.
       parameters:
         - $ref: "#/components/parameters/legalEntityRequired"
         - name: pack_id
@@ -352,7 +398,6 @@ paths:
           content:
             text/csv:
               schema: { type: string }
-        "401": { $ref: "#/components/responses/Envelope401" }
         "404": { description: 'No active pack of that name for that entity.' }
 
   # ── Diagnostics. Not for production clients. ──────────────────────────────
@@ -371,7 +416,6 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: 'Log rows.' }
-        "401": { $ref: "#/components/responses/Envelope401" }
 
   /v1/explain:
     post:
@@ -387,7 +431,12 @@ paths:
             schema:
               $ref: "./schemas/search-request.schema.json"
       responses:
-        "200": { description: 'Raw partial cascade state (debug shape, unversioned).' }
+        "200":
+          description: >
+            Raw partial cascade state (debug shape, unversioned), or the
+            SearchResponse role_required envelope when the role gate stops
+            the request before the diagnostic pipeline runs.
         "400": { $ref: "#/components/responses/Envelope400" }
-        "401": { $ref: "#/components/responses/Envelope401" }
+        "403": { $ref: "#/components/responses/Envelope403" }
         "422": { $ref: "#/components/responses/Envelope422" }
+        "503": { $ref: "#/components/responses/Envelope503" }

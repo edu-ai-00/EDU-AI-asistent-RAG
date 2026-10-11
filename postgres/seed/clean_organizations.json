@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "source_sha": "4a8aff1920fefd57f3aaf0a91647ca74fc3e7290",
+  "source_rows_sha256": "a0b408e04c60fb8d8025f53b7a06b72bf6b9f5ea6e5a2974e44664289f00353a",
+  "date": "2026-10-11",
+  "seed_created_at": "2026-10-11T00:00:00+00:00",
+  "deactivate_codes": [
+    "SKOLA_NOVA_VES",
+    "SKOLA_NOVA_VES_SOS",
+    "SKOLA_NOVA_VES_ZS",
+    "ZAKLADNI_SKOLA_BOROVA",
+    "ZAKLADNI_SKOLA_LIPOVA"
+  ],
+  "rows": [
+    {
+      "legal_entity_code": "SVOBODNA_SKOLA_PRAHA",
+      "parent_code": null,
+      "display_name": "Svobodná škola Praha",
+      "kind": "legal_person",
+      "level": "ZS",
+      "grade_levels": {
+        "ZS": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ]
+      },
+      "is_active": true
+    },
+    {
+      "legal_entity_code": "ZS_JEDOVNICE",
+      "parent_code": null,
+      "display_name": "Základní škola Jedovnice",
+      "kind": "legal_person",
+      "level": "ZS",
+      "grade_levels": {
+        "ZS": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ]
+      },
+      "is_active": true
+    },
+    {
+      "legal_entity_code": "ZS_KAVCI_HORY",
+      "parent_code": null,
+      "display_name": "Škola Kavčí hory - celá organizace",
+      "kind": "legal_person",
+      "level": null,
+      "grade_levels": {
+        "SS": [
+          "10",
+          "11",
+          "12",
+          "13"
+        ],
+        "ZS": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ]
+      },
+      "is_active": true
+    },
+    {
+      "legal_entity_code": "ZS_KAVCI_HORY_SOS",
+      "parent_code": "ZS_KAVCI_HORY",
+      "display_name": "Škola Kavčí hory — střední odborná škola",
+      "kind": "unit",
+      "level": "SS",
+      "grade_levels": null,
+      "is_active": true
+    },
+    {
+      "legal_entity_code": "ZS_KAVCI_HORY_ZS",
+      "parent_code": "ZS_KAVCI_HORY",
+      "display_name": "Škola Kavčí hory — základní škola",
+      "kind": "unit",
+      "level": "ZS",
+      "grade_levels": null,
+      "is_active": true
+    }
+  ]
+}

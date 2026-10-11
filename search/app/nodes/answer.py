@@ -19,10 +19,16 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from ..state import SearchState
 from ..db import get_cursor
 from ..messages import (system_message, resolve_unanswered,
-                        resolve_llm_unavailable)
+                        resolve_llm_unavailable, subject_absent)
 from ..languages import language_name, ui_default_language
 from ..settings import terms_for_language
 from .. import config
+from .. import scope
+from .prepare import prepare
+from .route import route
+from .qa_exact import qa_exact
+from .qa_lexical import qa_lexical
+from .qa_common import pack_filter
 from .. import settings
 from .answer_generator import SYSTEM_PROMPT
 
@@ -2340,7 +2346,8 @@ def prepare_generation(state: SearchState, params: dict | None = None) -> dict |
         # the other-ročník safety net travels in state from qa_lexical: those packs
         # never answer, so if the document branch answered instead, this is the only
         # place the user learns that a rule for their school exists at all
-        "suggestions": suggestions + list(state.get("other_grade_suggestions") or []),
+        "suggestions": _with_curated(
+            suggestions + list(state.get("other_grade_suggestions") or []), state),
         "language": lang,
         # (question_grade, profile_grade) when they differ AND the conversation
         # has not been told yet — drives the trailing VARIANT and the two-grade
@@ -2417,6 +2424,29 @@ def _mismatch_noted_before(state: SearchState) -> bool:
     return False
 
 
+def _with_curated(suggestions, state) -> list[dict]:
+    """A document answer with NO chips borrows the curated ones qa_lexical parked.
+
+    Chips beside a generated answer are built from SECTION HEADINGS of the
+    answering documents, so a document whose chunks carry none offers nothing —
+    measured 2026-09-04 on "Co obsahuje školní vzdělávací program?": five context
+    chunks, five without a heading, zero chips, while qa_lexical had ranked 23
+    candidates for the same query and parked its shortlist.
+
+    `deferred_suggest` ONLY, never fallback_suggestions. The deferred list cleared
+    t_suggest and was withheld purely to give the documents their chance; the
+    fallback list is what fell below every bar, and offering that beside an answer
+    was built once and reverted for producing "Jak funguje další kolo přijímacího
+    řízení?" under a question about school lunches.
+
+    Only when the list is EMPTY: a document's own unread sections are closer to
+    what was just answered than a curated question, so they are never displaced.
+    """
+    if suggestions:
+        return suggestions
+    return list((state.get("deferred_suggest") or {}).get("suggestions") or [])
+
+
 def merge_suggestions(*groups) -> list[dict]:
     """Concatenate suggestion lists, first occurrence of a question wins."""
     out, seen = [], set()
@@ -2440,6 +2470,100 @@ def without_clarify(suggestions) -> list[dict]:
     return [s for s in suggestions or [] if s.get("kind") != "clarify"]
 
 
+def _probe_variant(state: SearchState, variant: str) -> str | None:
+    """Run the DETERMINISTIC QA steps on a rephrasing; return the entry it lands on.
+
+    Verification by actually asking, instead of by guessing. The steps that cost
+    real time are deliberately not run: document_lexical takes 370-700 ms and
+    qa_vector embeds the query (868-2500 ms measured), while route + qa_exact +
+    qa_lexical together are 40-150 ms — a few percent of a no_answer turn that has
+    already spent five seconds or more.
+
+    What it proves is narrow and worth stating: that an answer WOULD come back, not
+    that it would be right. "Kdo je učitelem českého jazyka?" answers with
+    coverage 0.7351 — and the answer is the length of the Czech test (production
+    2026-09-04). Which is why the caller offers the ENTRY'S OWN question rather
+    than the model's phrasing: a chip reading "Jak dlouho trvá test z českého
+    jazyka?" is one nobody clicks by mistake.
+    """
+    # domain_codes/domain_ids ARE in this list, and that is the point of it
+    # being a list: the probe re-runs route + qa_exact + qa_lexical, so a copy
+    # that dropped the area scope would search the whole corpus and then offer
+    # the curated question it found there — the one place a suggestion could
+    # leave the chosen area while every retrieval query stayed inside it.
+    probe = {k: state.get(k) for k in
+             ("legal_entity", "entity_scope", "organization_entities", "user_id",
+              "user_role", "user_school_grade", "language_filter",
+              "domain_codes", "domain_ids")}
+    probe["user_question"] = variant
+    try:
+        probe.update(prepare(probe) or {})
+        probe.update(route(probe) or {})
+        if probe.get("resolved"):
+            return None
+        # related_suggestions off: the probe wants the MATCH, and building chips
+        # for a question nobody asked would run the ranking a second time.
+        probe.update(qa_exact(probe, {"related_suggestions": False}) or {})
+        if not probe.get("resolved"):
+            probe.update(qa_lexical(probe) or {})
+        if probe.get("resolved") and probe.get("outcome") == "answer":
+            return probe.get("matched_entry_id")
+        return None
+    except Exception as e:
+        logger.warning("answer: variant probe failed (%s) — variant dropped", e)
+        return None
+
+
+def variant_chips(state: SearchState, variants) -> list[dict]:
+    """Rephrasings, verified by asking — and offered as the CURATED question found.
+
+    One gate for all four places a VARIANT line becomes a chip (the empty-pool
+    generator, the model's NO_ANSWER protocol, the trailing variant, and the
+    streaming branch's copy of the last two); gating only the first left the loop
+    exactly as it was (2026-09-04).
+
+    Each survivor is emitted as `kind: qa` carrying the matched entry's own
+    canonical question, not the model's wording. Two reasons. A curated question
+    is a text the user can judge — the reported harm was a chip promising a
+    teacher's name and delivering the length of the Czech test, and the deception
+    lived in the chip, not in the answer. And clicking one lands on qa_exact,
+    which returns exactly the entry the probe already saw.
+
+    The model's job shrinks to what it is good at: finding the curated question a
+    badly-phrased search missed. It no longer invents questions nobody can answer.
+    """
+    variants = [v for v in (variants or []) if (v or "").strip()]
+    if not variants:
+        return []
+    if subject_absent(state):
+        logger.info("answer: %d variant(s) dropped — subject absent from both indexes",
+                    len(variants))
+        return []
+    hits, seen = [], set()
+    for v in variants:
+        entry_id = _probe_variant(state, v)
+        if entry_id and entry_id not in seen:
+            seen.add(entry_id)
+            hits.append(entry_id)
+    if not hits:
+        logger.info("answer: all %d variant(s) dropped — none reaches an answer",
+                    len(variants))
+        return []
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                f"SELECT entry_id::text, canonical_q FROM {config.QA_ENTRIES_TABLE} "
+                f"WHERE entry_id::text = ANY(%s)", (hits,))
+            q_of = {r[0]: r[1] for r in cur.fetchall()}
+    except Exception as e:
+        logger.warning("answer: variant lookup failed (%s) — none offered", e)
+        return []
+    logger.info("answer: %d of %d variant(s) reached a curated entry",
+                len(hits), len(variants))
+    return [{"kind": "qa", "entry_id": e, "question": q_of[e]}
+            for e in hits if q_of.get(e)]
+
+
 def generate_variants(state: SearchState, params: dict) -> list[dict]:
     """LLM question variants for an EMPTY pool — kind `variant` suggestions.
 
@@ -2451,14 +2575,23 @@ def generate_variants(state: SearchState, params: dict) -> list[dict]:
     lv = lv if isinstance(lv, dict) else {}
     if not lv.get("enabled", True):
         return []
+    # NOT A WORDING PROBLEM. Every content concept of the question is absent from
+    # the corpus, so no rephrasing that keeps the subject can match — offering one
+    # sends the user round a loop. resolve_unanswered says so instead.
+    if subject_absent(state):
+        logger.info("answer: no variants — the subject is absent from both indexes")
+        return []
     try:
         lang = state.get("query_language")
         lang_line = f" Write them in {language_name(lang)}." if lang else ""
+        # Effort explicitly, or the reasoning tiers run at the vendor's own
+        # default; measured 2026-09-03 as noise-level here, see migration 204.
         llm = get_chat(str(lv.get("model") or params.get("model")
                            or config.ANSWER_MODEL),
                        int(lv.get("max_tokens") or 200),
-                       temperature=lv.get("temperature",
-                                          params.get("temperature")))
+                       lv.get("reasoning_effort",
+                              params.get("reasoning_effort")) or None,
+                       lv.get("temperature", params.get("temperature")))
         resp = llm.invoke([
             SystemMessage(content=_load_system_prompt()),
             HumanMessage(content=(
@@ -2470,7 +2603,7 @@ def generate_variants(state: SearchState, params: dict) -> list[dict]:
                 + lang_line)),
         ])
         _noans, variants = parse_no_answer(resp.content or "")
-        return [{"kind": "variant", "question": v} for v in variants]
+        return variant_chips(state, variants)
     except Exception as e:
         logger.warning("answer: variant generation failed (%s) — none", e)
         return []
@@ -2540,7 +2673,7 @@ def answer(state: SearchState, params: dict | None = None) -> dict:
                     len(_variants))
         res = resolve_unanswered(state)
         res["suggestions"] = merge_suggestions(
-            [{"kind": "variant", "question": v} for v in _variants],
+            variant_chips(state, _variants),
             without_clarify(prep.get("suggestions")), res.get("suggestions"))
         res["trace_detail"] = {"context_chunks": prep["context_chunks"],
                                "pool": len(state.get("rag_chunks") or []),
@@ -2566,7 +2699,7 @@ def answer(state: SearchState, params: dict | None = None) -> dict:
             prep.get("suggestions"))
     elif _trailing:
         prep["suggestions"] = merge_suggestions(
-            [{"kind": "variant", "question": v} for v in _trailing],
+            variant_chips(state, _trailing),
             prep.get("suggestions"))
     _answer, _empty_handed = drop_empty_handed_paragraphs(
         _answer, _noinfo_matcher(prep.get("language")))

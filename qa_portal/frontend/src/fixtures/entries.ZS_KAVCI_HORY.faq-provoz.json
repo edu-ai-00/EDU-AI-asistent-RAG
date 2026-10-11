@@ -1,0 +1,102 @@
+{
+  "entries": [
+    {
+      "entry_key": "omluva-lhuta",
+      "entry_id": "8f14e45f-ceea-467e-9998-000000000001",
+      "canonical_q": "Do kdy musím omluvit nepřítomnost dítěte ve škole?",
+      "answer_md": "Nejpozději do **3 dnů** od začátku nepřítomnosti. Písemnou omluvenku předloží žák neprodleně po návratu do školy.",
+      "variants": [
+        "Jaká je lhůta pro omluvení nepřítomnosti žáka?",
+        "Do kdy mám dát vědět, že je dítě doma nemocné?"
+      ],
+      "sources": [
+        { "title": "Školní řád ZŠ Kavčí hory", "url": "https://www.ksidlisti.cz/upload/skolni_rad.pdf" }
+      ],
+      "domains": ["ATTENDANCE"],
+      "category_code": null,
+      "category_label": null,
+      "category_is_active": null,
+      "cat_legacy": "Docházka",
+      "is_active": true,
+      "owner_user_id": "qa_portal__ZS_KAVCI_HORY",
+      "visibility": "public",
+      "audience_roles": null,
+      "school_grade_ids": null,
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "entry_key": "druzina-poplatek",
+      "entry_id": "8f14e45f-ceea-467e-9998-000000000002",
+      "canonical_q": "Kolik stojí školní družina a jak se platí?",
+      "answer_md": "Měsíční poplatek je 300 Kč a hradí se převodem na účet školy do 15. dne v měsíci.",
+      "variants": ["Jaká je cena družiny?", "Jak se platí družina?"],
+      "sources": [
+        { "title": "Vnitřní řád školní družiny", "url": "https://www.ksidlisti.cz/upload/rad_druziny.pdf" }
+      ],
+      "domains": ["SCHOOL_OPERATIONS"],
+      "category_code": "AFTER_SCHOOL_CARE",
+      "category_label": "Družina",
+      "category_is_active": true,
+      "cat_legacy": "Družina",
+      "is_active": true,
+      "owner_user_id": "qa_portal__ZS_KAVCI_HORY",
+      "visibility": "public",
+      "audience_roles": null,
+      "school_grade_ids": null,
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "entry_key": "zkouseni-po-nemoci",
+      "entry_id": "8f14e45f-ceea-467e-9998-000000000003",
+      "canonical_q": "Dítě bylo dlouho nemocné. Musí být hned první den zkoušeno?",
+      "answer_md": "Pokud absence trvala více než týden, má žák nárok na omluvu z přípravy po dobu jednoho týdne od návratu.",
+      "variants": ["Má žák po nemoci nárok na omluvu z přípravy?"],
+      "sources": [
+        { "title": "Školní řád ZŠ Kavčí hory", "url": "https://www.ksidlisti.cz/upload/skolni_rad.pdf" }
+      ],
+      "domains": ["GRADING", "ATTENDANCE"],
+      "category_code": null,
+      "category_label": null,
+      "category_is_active": null,
+      "cat_legacy": "Hodnocení",
+      "is_active": true,
+      "owner_user_id": "qa_portal__ZS_KAVCI_HORY",
+      "visibility": "public",
+      "audience_roles": null,
+      "school_grade_ids": null,
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    },
+    {
+      "entry_key": "stara-otazka-neaktivni",
+      "entry_id": "8f14e45f-ceea-467e-9998-000000000004",
+      "canonical_q": "Platí ještě starý rozvrh zvonění z roku 2019?",
+      "answer_md": "Ne, od září 2024 platí nový rozvrh zvonění zveřejněný na webu školy.",
+      "variants": [],
+      "sources": [],
+      "domains": [],
+      "category_code": null,
+      "category_label": null,
+      "category_is_active": null,
+      "cat_legacy": null,
+      "is_active": false,
+      "owner_user_id": "qa_portal__ZS_KAVCI_HORY",
+      "visibility": "public",
+      "audience_roles": null,
+      "school_grade_ids": null,
+      "school_subject_ids": null,
+      "valid_from": null,
+      "valid_to": null
+    }
+  ],
+  "next_cursor": null,
+  "total": 4,
+  "pack_etag": "sha256:mockpack1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "pack_version": 3,
+  "metadata_uniform": true
+}

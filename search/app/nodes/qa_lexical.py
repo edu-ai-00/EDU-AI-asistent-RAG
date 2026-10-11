@@ -24,7 +24,8 @@ from .. import scope
 from ..messages import system_message
 from ..settings import coverage_stopwords
 from .qa_common import (
-    pack_filter, load_synonym_groups, expand_query, coverage,
+    pack_filter, domain_filter,
+    load_synonym_groups, expand_query, coverage, category_siblings,
     concept_idf_weights, weighted_coverage,
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
@@ -48,11 +49,20 @@ def _qa_items(entries, top_n: int) -> list[dict]:
     ("qa" = a curated entry), `entry_id`/`score` are extra context a client may
     ignore.
     """
-    seen, items = set(), []
+    seen, texts, items = set(), set(), []
     for entry_id, canonical_q, score in entries:
-        if entry_id in seen:
+        # TEXT as well as entry_id. One question commonly exists as SEVERAL entries
+        # — 31 of the 33 questions in provoz-zs are also in provoz-org and
+        # provoz-sos — so an entry_id-only check let the same sentence through
+        # twice. Reported from production 2026-09-04: two identical buttons reading
+        # "Jak požádat o individuální vzdělávací plán?", one the school's entry and
+        # one the organisation's. Entries arrive best-first (tier puts the caller's
+        # own school ahead of the organisation), so the one kept is the right one.
+        key = (canonical_q or "").strip().casefold()
+        if entry_id in seen or (key and key in texts):
             continue
         seen.add(entry_id)
+        texts.add(key)
         items.append({"kind": "qa", "entry_id": entry_id, "question": canonical_q,
                       "score": round(float(score), 4) if score is not None else None})
         if len(items) >= top_n:
@@ -78,6 +88,23 @@ def _suggest(entries, top_n: int, lang: str | None = None, min_score: float = 0.
         "answer": system_message("qa_suggest", lang),
         "sources_json": "[]", "user_language": lang,
     }
+
+
+def _covers_rare_concept(concept_sets, tokens, dfs, n_total, max_df_share) -> bool:
+    """Does `tokens` cover a concept DISCRIMINATIVE enough to be the reason?
+
+    df share, not a word list: it is data, per pack, language-agnostic. Used both
+    for admitting a curated ANSWER and for admitting a related CHIP — the same
+    question ("did a rare word match, or only common ones?") asked of a different
+    entry.
+    """
+    for i, cs in enumerate(concept_sets):
+        if not (cs & tokens):
+            continue
+        df = dfs[i] if i < len(dfs) else None
+        if df is not None and (df / n_total) <= max_df_share:
+            return True
+    return False
 
 
 def _other_grade_suggestions(state: SearchState, params: dict | None = None) -> list[dict]:
@@ -144,9 +171,16 @@ def _other_grade_suggestions(state: SearchState, params: dict | None = None) -> 
         return []
     try:
         with get_cursor() as cur:
+            # The df ratio here is a GENERICITY measure over the offered packs —
+            # "is this word so common in them that matching it means nothing" —
+            # and it stays pack-wide for the same reason the IDF denominator
+            # does: narrowing it to one area shrinks the corpus and makes every
+            # word look generic, which silently withdraws the buttons instead of
+            # scoping them. The OFFER query below is what the area filters.
             cur.execute(
                 f"SELECT count(DISTINCT e.entry_id) FROM {config.QA_ENTRIES_TABLE} e"
-                f" WHERE e.is_active AND e.pack_id = ANY(%s)", [list(offer)])
+                f" WHERE e.is_active AND e.pack_id = ANY(%s)",
+                [list(offer)])
             _ntot = int((cur.fetchone() or [0])[0] or 0)
             if _ntot:
                 _kept = []
@@ -156,7 +190,8 @@ def _other_grade_suggestions(state: SearchState, params: dict | None = None) -> 
                         f"  FROM {config.QA_VARIANTS_TABLE} v"
                         f"  JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id"
                         f" WHERE v.is_active AND e.is_active AND e.pack_id = ANY(%s)"
-                        f"   AND {tsexpr} @@ to_tsquery('simple', %s)", [list(offer), _t])
+                        f"   AND {tsexpr} @@ to_tsquery('simple', %s)",
+                        [list(offer), _t])
                     _df = int((cur.fetchone() or [0])[0] or 0)
                     if _df / _ntot <= _max_df:
                         _kept.append(_t)
@@ -175,6 +210,12 @@ def _other_grade_suggestions(state: SearchState, params: dict | None = None) -> 
                 "v", state.get("entity_scope") or [],
                 state.get("organization_entities") or [], state.get("user_id"),
                 state.get("user_role"), validity=True)
+            # THE NET RELAXES THE ROČNÍK. Nothing else, and the area least of
+            # all: this is the one query in the cascade whose whole purpose is
+            # to reach rows a filter excluded, so it is exactly where an
+            # unintended widening would hide. The offered packs already passed
+            # route's manifest area filter; this is the per-row half.
+            _dom_cond, _dom_params = domain_filter(state, "v")
             cur.execute(
                 f"SELECT DISTINCT ON (v.entry_id) v.entry_id::text, e.canonical_q,"
                 f"       ts_rank_cd({tsexpr}, to_tsquery('simple', %s)) AS rank,"
@@ -184,9 +225,9 @@ def _other_grade_suggestions(state: SearchState, params: dict | None = None) -> 
                 f"  FROM {config.QA_VARIANTS_TABLE} v"
                 f"  JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id"
                 f" WHERE v.is_active AND e.is_active AND e.pack_id = ANY(%s)"
-                f"   {scope_cond} AND {tsexpr} @@ to_tsquery('simple', %s)"
+                f"   {scope_cond}{_dom_cond} AND {tsexpr} @@ to_tsquery('simple', %s)"
                 f" ORDER BY v.entry_id, rank DESC",
-                [tsq, list(offer), *scope_params, tsq])
+                [tsq, list(offer), *scope_params, *_dom_params, tsq])
             rows = cur.fetchall()
     except Exception as e:
         logger.warning("qa_lexical: other-grade offer failed (%s) — skipped", e)
@@ -269,6 +310,16 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
         "v", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)   # migration 140
+    # The chosen AREAS, on the scanned variant row — appended to the CANDIDATE
+    # predicate only. `scope_cond` (identity) is what the IDF denominator keeps
+    # using, for the reason document_lexical spells out at length: a concept's
+    # IDF answers "how discriminative is this word in the packs route selected",
+    # and re-measuring it inside one area moves the A/B/C bar with the user's
+    # choice of area. Eligibility is the candidate query, and that IS filtered —
+    # so no out-of-area row can be an answer, a suggestion or a chip.
+    dom_cond, dom_params = domain_filter(state, "v")
+    cand_cond = scope_cond + dom_cond
+    cand_params = [*scope_params, *dom_params]
     tsexpr = form_ts(form, "v")
 
     try:
@@ -300,11 +351,11 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                        v.legal_entity_code, v.school_grade_ids
                 FROM {config.QA_VARIANTS_TABLE} v
                 JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
-                WHERE v.is_active AND {frag}{scope_cond} AND {tsexpr} @@ to_tsquery('simple', %s)
+                WHERE v.is_active AND {frag}{cand_cond} AND {tsexpr} @@ to_tsquery('simple', %s)
                 ORDER BY rank DESC
                 LIMIT %s
             """
-            cur.execute(sql, [tsq, *pack_params, *scope_params, tsq, fetch_k])
+            cur.execute(sql, [tsq, *pack_params, *cand_params, tsq, fetch_k])
             rows = cur.fetchall()
 
             if not rows:
@@ -315,11 +366,11 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                            1 - (v.norm_text <-> %s) AS sim
                     FROM {config.QA_VARIANTS_TABLE} v
                     JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
-                    WHERE v.is_active AND {frag}{scope_cond}
+                    WHERE v.is_active AND {frag}{cand_cond}
                     ORDER BY v.norm_text <-> %s
                     LIMIT %s
                 """
-                cur.execute(trgm_sql, [joined_norm, *pack_params, *scope_params,
+                cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params,
                                        joined_norm, suggest_top_n])
                 trows = cur.fetchall()
                 best_sim = float(trows[0][3]) if trows else 0.0
@@ -454,18 +505,34 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
             _adm_max_df = float(params.get("topical_max_df_share", 0.25))
             _ntot_adm = getattr(concept_idf_weights, "last_total", None) or 0
             _dfs_adm = getattr(concept_idf_weights, "last_df", []) or []
+            # IS THE SUBJECT IN THIS CORPUS AT ALL? A concept with df 0 appears in
+            # no entry, so no rephrasing that keeps it can ever match — telling
+            # someone to try different words is then a polite lie. False only when
+            # EVERY content concept is absent; one known word is enough to make a
+            # rephrasing worth offering. None when there are no corpus statistics
+            # to judge by, which must not read as "absent".
+            # DISCRIMINATIVE concepts only. "any concept with df > 0" is too weak:
+            # "Kdo je školníkem této školy?" contains `škola`, which every second
+            # entry contains, so the question looked answerable while `školník`
+            # — the word the question is actually about — appears nowhere
+            # (production 2026-09-04, the same question in two phrasings behaved
+            # differently). A generic word present in the corpus says nothing
+            # about the subject being present.
+            _in_corpus = (any(0 < (d or 0) and (d / _ntot_adm) <= _adm_max_df
+                              for d in _dfs_adm)
+                          if (_ntot_adm and _dfs_adm) else None)
+            # WHICH words are missing, not just that something is. The document
+            # side has to ask about THESE and nothing else: asked about the whole
+            # query it answers "present" on any content-ish word the bigger corpus
+            # happens to hold — "jmenuje" is in the school documents, "školník" is
+            # in neither, and the question is about the caretaker (2026-09-04).
+            _absent = sorted({t for i, cs in enumerate(concept_sets)
+                              if (_dfs_adm[i] if i < len(_dfs_adm) else None) == 0
+                              for t in cs}) if _dfs_adm else []
             _rare_hit = None
             if _adm and _ntot_adm:
-                _rare_hit = False
-                for _i, _cs in enumerate(concept_sets):
-                    if not (_cs & top["tokens"]):
-                        continue
-                    _df = _dfs_adm[_i] if _i < len(_dfs_adm) else None
-                    if _df is None:
-                        continue
-                    if (_df / _ntot_adm) <= _adm_max_df:
-                        _rare_hit = True
-                        break
+                _rare_hit = _covers_rare_concept(concept_sets, top["tokens"],
+                                                 _dfs_adm, _ntot_adm, _adm_max_df)
                 _detail["topical_admission"] = {"rare_hit": _rare_hit,
                                                 "max_df_share": _adm_max_df,
                                                 "n": _ntot_adm}
@@ -475,10 +542,87 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                                 "entries); no curated answer, cascade continues",
                                 _adm_max_df, _ntot_adm)
 
+            # ── RELATED CHIPS: the rare-concept gate, not a higher bar ──
+            # A chip beside an answer used to be admitted on coverage alone. Measured
+            # 2026-09-03 over 80 real questions: coverage does not separate a good chip
+            # from a bad one in this band — "Jak škola předchází šikaně?" and "Jak se
+            # omlouvá absence?" both scored 0.3482 on "někdo se mi posmívá", one being
+            # exactly right and the other nonsense. Raising t_suggest cuts them at the
+            # same rate (at 0.45 more than HALF the answers lost every chip), so the
+            # bar was never the lever. What tells them apart is WHICH concept matched:
+            # the good chip shares a rare one, the bad one only "škola"/"jak". Same
+            # admission the answer above passes, asked of each candidate.
+            # OFF BY DEFAULT, and the measurement is why (2026-09-03, 80 real
+            # questions, tools/measure_related_chips.py). `rare` — the chip must
+            # share a concept with df share <= topical_max_df_share, the same test
+            # the ANSWER passes — removed 3 of 162 chips, and they were decent ones.
+            # At 0.10 it removed 16 and left 4 answers with nothing. A stricter rule
+            # (chip must cover the query's MOST discriminative concept) was tried and
+            # is gone: it cut the best chips there are, because the most useful
+            # related question is usually the SIBLING that differs in exactly that
+            # concept — "Jak dlouho trvá test z matematiky?" → "…z českého jazyka?"
+            # (0.7322) is the shape of chip it removed 92 times.
+            # The chips were not the complaint. Repetition was, and conversation.py
+            # is where that is fixed.
+            _rel_adm = params.get("related_admission", "off")
+            # SAME PACK as the entry that answered. The ranking spans every pack in
+            # scope, and a school holds two: its operations FAQ and its JPZ FAQ.
+            # Shared phrasing then jumps domains — "Co mají žáci dělat, když učitel
+            # nepřijde na hodinu?" was offered "Co dělat, když pozvánka k JPZ
+            # nepřijde?" (2026-09-04), matched on "co dělat, když … nepřijde" and
+            # nothing else. Same rule the category fill already follows: a related
+            # question comes from the same body of material as the answer.
+            # A HIGHER BAR for a chip from another pack, not a ban. Measured over
+            # 77 questions 2026-09-04: banning cross-pack chips was +7/-8, because
+            # it also cut chips scoring 1.00 — "co když přijdu pozdě" is answered
+            # from the JPZ pack and its best chip ("Dítě přišlo do hodiny o pár
+            # minut později") lives in the operations one. The bad ones all sat at
+            # 0.34-0.41 and the good ones at 1.00, so the two separate cleanly by
+            # score where they did not separate by pack.
+            _xpack_min = float(params.get("related_cross_pack_min", 0.7) or 0.0)
+            _related = [t for t in _triples if t[0] != top_id and t[2] >= t_suggest
+                        and (agg[t[0]].get("pack_id") == top.get("pack_id")
+                             or t[2] >= _xpack_min)]
+            # By the number the chip SHOWS. `ranked` is ordered by ts_rank and tier
+            # because that is how the ANSWER is chosen, but a chip carries its
+            # coverage — so the row came out 0.3738, 0.4435, 0.3738 and read as a
+            # bug. Sorting here changes presentation only; top_id above is already
+            # decided and is not touched.
+            _related.sort(key=lambda t: -(t[2] or 0.0))
+            if _rel_adm == "rare" and _ntot_adm:
+                _before = len(_related)
+                _related = [t for t in _related
+                            if _covers_rare_concept(concept_sets, agg[t[0]]["tokens"],
+                                                    _dfs_adm, _ntot_adm, _adm_max_df)]
+                _detail["related_admission"] = {"mode": _rel_adm, "kept": len(_related),
+                                                "of": _before, "max_df_share": _adm_max_df}
+
             # ── A ──
             if (top_cov >= t_answer and margin >= m_margin
                     and _rare_hit is not False):
                 _q, answer_md, _tags, _refs = fetch_answer(cur, top_id)
+                _rel_items = _qa_items(_related, suggest_top_n)
+                # Nothing cleared the bar → what a curator filed alongside this
+                # entry. Reported 2026-09-04 (Marek): answers arriving with no
+                # related questions at all, while the pack held eleven on the topic.
+                if not _rel_items and params.get("related_category_fill", True):
+                    # cand_cond, NOT scope_cond. A sibling is an OFFER — a button
+                    # the user can send — so it is bound by the chosen areas
+                    # exactly like an answer. A curator's category is a grouping
+                    # WITHIN a pack and says nothing about areas: in the mixed
+                    # fixture pack one category holds both an attendance and a
+                    # catering question, and with the identity-only predicate the
+                    # catering one was offered under an ATTENDANCE search
+                    # (caught by tests/test_domain_scope.py, 2026-09-06). The
+                    # identity-only predicate belongs to the df STATISTICS, and
+                    # this is the second of the two call sites — the one in
+                    # qa_common._scope_frags was already correct, which is what
+                    # made the leak survive the first pass.
+                    _sib = category_siblings(
+                        cur, top_id, frag, pack_params, cand_cond, cand_params,
+                        form, concept_sets, idf_w)
+                    _rel_items = _qa_items(_sib, suggest_top_n)
+                    _detail["category_fill"] = len(_rel_items)
                 return {
                     "trace_detail": _detail,
                     "resolved": True, "outcome": "answer", "answer_source": "qa_lexical",
@@ -487,11 +631,8 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                     "answer": answer_md or "", "sources_json": sources_json(_refs),
                     "user_language": lang,
                     # the runners-up that would themselves have been suggested,
-                    # offered NEXT TO the answer ("related questions") — only those
-                    # above t_suggest, so junk never rides along with a good answer
-                    "suggestions": _qa_items(
-                        [t for t in _triples if t[0] != top_id and t[2] >= t_suggest],
-                        suggest_top_n),
+                    # offered NEXT TO the answer ("related questions")
+                    "suggestions": _rel_items,
                 }
             # ── B — DEFERRED, not terminal (2026-07-31) ──
             # A weak QA hit used to close the cascade while the documents held
@@ -506,16 +647,32 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                 out.update({"decision": "B", "match_score": round(top_cov, 4),
                             "match_margin": round(margin, 4), "matched_entry_id": top_id})
                 logger.info("qa_lexical: suggest DEFERRED (cov=%.3f) — cascade continues", top_cov)
-                return {"trace_detail": _detail,
+                return {"trace_detail": _detail, "query_in_corpus": _in_corpus,
+                    "query_absent_concepts": _absent,
                         "resolved": False, "decision": "B-deferred",
                         "match_score": round(top_cov, 4), "match_margin": round(margin, 4),
                         "deferred_suggest": out}
             # ── C ── (nearest entries parked for a possible no_answer — see the
             # trgm branch above for why)
-            return {"trace_detail": _detail,
+            return {"trace_detail": _detail, "query_in_corpus": _in_corpus,
+                    "query_absent_concepts": _absent,
                     "resolved": False, "decision": "C",
                     "match_score": round(top_cov, 4), "match_margin": round(margin, 4),
-                    "fallback_suggestions": _qa_items(_triples, suggest_top_n)}
+                    # A near miss has to miss on something that MATTERS. Coverage
+                    # above zero is not enough: "Kdo je školníkem této školy?"
+                    # offered three entries that shared nothing but `škola`
+                    # (production 2026-09-04). Same test the answer and the chips
+                    # pass — a DISCRIMINATIVE concept has to be the overlap — so a
+                    # no_answer with nothing to offer offers nothing, which is the
+                    # honest outcome and no longer an accident.
+                    "fallback_suggestions": _qa_items(
+                        [t for t in _triples
+                         if (t[2] or 0.0) > 0.0
+                         and (not _ntot_adm
+                              or _covers_rare_concept(concept_sets,
+                                                      agg[t[0]]["tokens"], _dfs_adm,
+                                                      _ntot_adm, _adm_max_df))],
+                        suggest_top_n)}
 
     except Exception as e:
         logger.warning("qa_lexical: failed (%s) — falling through", e)

@@ -40,6 +40,22 @@ class SearchState(TypedDict, total=False):
     # filter. A missing role short-circuits to outcome='role_required' in
     # server._role_gate before any retrieval runs.
     user_role: str | None
+    # THE CHOSEN THEMATIC AREAS, in the two forms the cascade needs. Both are
+    # None together for an unrestricted search, and None is not the same as an
+    # empty list anywhere they are read (see scope.domain_where).
+    #   domain_codes  canonical DOMAIN codes as validated — what goes back out in
+    #                 effective_scope and into the query log. Codes, because an
+    #                 id is per-entity and would not compare across turns.
+    #   domain_ids    every active taxonomy_rules id of those codes the caller's
+    #                 organisation can have labelled material with (GLOBAL rows
+    #                 included) — what the SQL filters on. An empty LIST here is
+    #                 a real state: valid codes that nothing carries, which means
+    #                 "no rows", never "no filter".
+    # Resolved ONCE at the API boundary (domain_scope.resolve) so no step can
+    # arrive at a different answer, and so a catalog failure is a declared error
+    # instead of a silently wider search.
+    domain_codes: list[str] | None
+    domain_ids: list[int] | None
     conversation_id: str | None
     session_id: str | None
     # query tokens in both index forms (mirror qa_variants norm_text/lemma_text).
@@ -79,7 +95,7 @@ class SearchState(TypedDict, total=False):
     answer_parts: list[dict]                # one entry per answer paragraph + its source
     legal_entity: str                       # whose search this is
     organization_entities: list[str]         # root of its organisation + all under it
-    # ALWAYS returned (empty only on guards/qa_exact): every item's `question` is
+    # ALWAYS returned (empty only on guards): every item's `question` is
     # a text the client can resend to /search. kinds: qa (curated entry, with
     # entry_id+score), clarify (domains differ; `options` = refined queries),
     # related (unread section of an answering document).
@@ -87,6 +103,17 @@ class SearchState(TypedDict, total=False):
     # qa_lexical decision C parks its nearest entries here; only
     # resolve_unanswered reads it, so a real answer never carries junk.
     fallback_suggestions: list[dict]
+    # Is the question's SUBJECT in this half of the corpus — a concept that is both
+    # present and discriminative? A generic word that happens to be there says
+    # nothing. Set independently by the two retrievers (QA packs / documents), and
+    # only when BOTH say False may the answer claim "we do not have this" and drop
+    # the LLM rephrasings; see messages.subject_absent. None = that step did not
+    # run, or had no corpus statistics, which is not the same as absence.
+    query_in_corpus: bool | None
+    query_in_documents: bool | None
+    # The query concepts qa_lexical found NOWHERE in the packs. document_lexical
+    # asks about exactly these, so "present" cannot be earned by a different word.
+    query_absent_concepts: list[str]
     sources_json: str                       # JSON string
     user_language: str                      # ISO 639-1 (answer language)
 

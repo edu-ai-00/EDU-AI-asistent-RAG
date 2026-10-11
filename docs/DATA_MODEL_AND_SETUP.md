@@ -5,11 +5,16 @@ components: [data-model, setup, ingest, langflow]
 sources:
   - postgres/init_clean/01_schema.sql
   - postgres/init_clean/02_seed_config.sql
+  - postgres/init/213_log_domains.sql
+  - scripts/align_existing_db.sh
+  - scripts/domain_inventory.py
+  - scripts/domain_migration.py
   - search/app/scope.py
+  - search/app/domain_scope.py
   - api/app/main.py
   - docker-compose.yml
   - .env.example
-last_verified: 2026-08-28
+last_verified: 2026-09-06
 ---
 
 # Data model and setup — what every table is for, and the order to fill it
@@ -199,13 +204,151 @@ Two things worth knowing:
 
 | Table | What it holds |
 |---|---|
-| `question_answer_log` | Append-only record of every query: the question, the route taken, the candidates, the answer. Written by the search service. |
+| `question_answer_log` | Append-only record of every query: the question, the route taken, the candidates, the answer, and (since migration 213) the thematic AREAS it was restricted to. Written by the search service. |
 | `qa_feedback` | A rating attached to a logged answer. |
 | `qa_conversation_v` | A view assembling a session's turns into a conversation. |
 | `idempotency_key` | Replay cache for `POST /search`, so a retried request does not produce a second answer. 24-hour retention. |
 
 The query path performs **no `UPDATE`s** — the log is append-only by design, so
 an answer can never be rewritten after the fact.
+
+### `question_answer_log.domains` (migration 213)
+
+`text[] NULL`. Which thematic areas the turn searched in, as **canonical DOMAIN
+codes** — not `taxonomy_rules` ids. An id differs per school for one and the
+same code (in production `SECONDARY_ADMISSIONS` is one id in the ZŠ catalog and
+another globally), so an id column could not be compared across turns and a
+re-tagged catalog would silently change what a historical row meant.
+
+`NULL`, never `'{}'`, and no default: NULL **is** the meaning of "no thematic
+restriction", and it is what every pre-existing row and every client without the
+field writes. A `DEFAULT '{}'` would make "unrestricted" indistinguishable from
+"explicitly empty" — which the API rejects with a 422 and can therefore never
+reach the table.
+
+**No backfill**, deliberately: the area a 2026-08 question was asked in is not
+recoverable from its text, and guessing it would poison the comparison the
+column exists for. It is also a column the server **reads back** — see
+[ai/caching.md](ai/caching.md) — so a guessed value would change which earlier
+turns a follow-up sees.
+
+The migration is transactional, repeatable, and **checks the column's type**:
+`ADD COLUMN IF NOT EXISTS` alone proves only that *something* called `domains`
+is there, and a hand-patched database with a `jsonb` one would fail every INSERT
+at runtime while the migration reported success.
+
+---
+
+## 5a. Thematic area labels — where they live and how to change them
+
+The area filter reads the **scanned** row, never a declaration through a join,
+because the vector scans order by distance and take a `LIMIT` before any join.
+So every label exists twice, and the two must agree:
+
+| Layer | Declared on | Scanned on |
+|---|---|---|
+| curated QA | `qa_pack_manifest.domain_ids`, `qa_entries.domain_ids` | `qa_variants.domain_ids`, `qa_embedding.domain_ids` (migrations 140, 144) |
+| documents | `document_metadata.document_domain_user` / `_llm` | `document_chunks.document_domain_id` |
+
+**The effective value of a document is user-declared if non-empty, else the
+classifier's** — the precedence the ingest applies and propagates to the chunks.
+Editing `document_metadata` alone therefore changes nothing that retrieval sees:
+the chunks keep the old labels, and the document becomes reachable in the wrong
+areas or in none. Measured on production 2026-09-06: **170 chunks carried no
+label under a labelled document, and 94 carried a different set** — the exact
+signature of a metadata-only edit.
+
+Two tools, and neither of them decides anything:
+
+- `scripts/domain_inventory.py` — **read-only**, safe against production
+  (`--remote edu-ai`). Per school: the catalog, active packs with untagged and
+  *differing* entry counts, documents and chunks, and a drift section that
+  separates the harmless case (same set, different array order — irrelevant to
+  array overlap) from the two that block switching the picker on: a **missing**
+  label, and a **different set**. It prints codes, counts and identifiers only,
+  never a question or a document's text, so its output can go into a deployment
+  note.
+- `scripts/domain_migration.py` — applies a **curator's written decisions**.
+  Dry run by default; `--apply --go` writes one transaction per set; `--verify`
+  reads back, including the derived copies; `--rollback <snapshot> --go`
+  restores the recorded values row by row. The plan carries **codes, not ids**,
+  and keys QA entries by **`entry_key`**, because the QA writer resolves
+  identity through `entry_key` and the same CSV rebuilt into another pack does
+  not keep its UUID.
+
+Four properties of it are worth stating exactly, because each is a way the tool
+could have destroyed data and earlier versions of it did not have them:
+
+  **One selector defines the set.** `snapshot_sql(item)` enumerates the rows a
+  set will write — by pack, file or entity — and it is used three times: to take
+  the snapshot, as the guard's "actual" side inside the transaction, and (via
+  its keys) to restrict every UPDATE. It therefore includes the **scan
+  surfaces**, `qa_variants` and `qa_embedding`, which were previously updated by
+  JOIN while being absent from the snapshot altogether: a variant added to an
+  existing answer was written blind and had no rollback entry.
+
+  **The precondition is re-asserted INSIDE the write transaction**, after a row
+  lock (`FOR UPDATE`). A check in a separate statement is advisory: a curator
+  saving in the gap between it and the UPDATE would have their decision
+  overwritten silently. It compares the WHOLE current target set against the
+  snapshot, so it catches a value that changed, a row that disappeared **and a
+  row that appeared** — the last of which was structurally undetectable while
+  the comparison restricted its own actual side to the keys it already had.
+
+  **Every write is keyed to the snapshot.** The predicates by pack and file are
+  kept for clarity, but each statement also carries
+  `AND <key> IN (…the snapshot's keys…)`. Selecting by `pack_id` alone touched
+  whatever was in the pack at write time, which is not the set the operator
+  reviewed. This is also what covers the case no guard can see — a row inserted
+  by a transaction that has not committed, and is therefore invisible to any
+  SELECT: the guard refuses what it can see, and the key restriction makes the
+  rest unreachable.
+
+  **The snapshot reaches disk BEFORE the first row is touched** (atomically, via
+  a temp file and `os.replace`), and is rewritten after each set. Written after
+  the loop, a process killed half way — a dropped SSH connection is enough —
+  left a changed database with no record of the prior values, at precisely the
+  moment the record is needed.
+
+  **A rollback restores each recorded row by its own key**, verifies inside its
+  own transaction under the same lock, and REFUSES (exit 2) when a row has
+  changed since the apply, naming which. It used to resync the scan surfaces
+  with an unrestricted `UPDATE … FROM qa_entries` — ~3 000 variants and ~3 000
+  embeddings on production, to undo two packs — and to run its drift check
+  *before* the transaction, so a curator committing in between was overwritten
+  after the tool had printed "no drift". `--force` skips the verification;
+  never the lock.
+
+The guarantee is **per snapshot**, and worth saying plainly: a row absent from
+snapshot S is neither written nor restored by S. A row that is committed and
+visible when a snapshot is taken is legitimately part of the set that snapshot
+describes — writing it is correct precisely *because* it is recorded and can
+therefore be undone.
+
+`--rollback` is not `qa_deactivate_packs.py --activate`: that one re-activates
+*every* variant of a pack, which is a different thing from putting a curated set
+back, and the difference has already cost one.
+
+`tests/test_domain_migration.py` drives the script through `subprocess` as an
+operator would and asserts on the database afterwards: a concurrent session
+committing during the apply transaction and during the **restore** transaction,
+a row (and a variant) inserted between the snapshot and the write, a process
+killed mid-apply, and a rollback that must leave a foreign set — and a variant
+deliberately out of step with its entry — untouched. The concurrency groups win
+their races deterministically by holding an **uncommitted** row lock from a
+second psql session and handshaking on `pg_locks`, not by sleeping.
+
+What the migration tool does **not** do: re-chunk, re-embed, re-classify, or
+recompute `taxonomy_binding` / `document_binding_id` and the audience and grade
+values derived from a binding. If new areas change a document's semantic
+binding, that is a targeted **reingest**, not a label edit — and `--verify`
+reports an unchanged binding so the case cannot pass unnoticed.
+
+**Untagged content is not a defect a tool can fix.** Which area a source belongs
+to is a curatorial decision, and an untagged source is invisible under *any*
+explicit filter — it is not "in every area". A school may knowingly keep a
+document reachable only under "all areas"; that is a decision to record in the
+report, not a default to rely on.
 
 ---
 
@@ -333,8 +476,11 @@ language row**, plus the abbreviations found in the documents.
 ## 6b. Worked example B — an organisation with several schools inside it
 
 The harder case, and the one the whole hierarchy exists for: **one legal person
-operating both a primary and a secondary school**. This is the shape of the
-reference install (`SKOLA_NOVA_VES`).
+operating both a primary and a secondary school**. The fictitious
+`SKOLA_NOVA_VES` example below illustrates this shape. The current
+[clean-install organization seed](../postgres/seed/clean_organizations.json)
+keeps this demo organization and its units inactive; its active `ZS_KAVCI_HORY`
+organization uses the same parent/unit structure.
 
 The problem it solves: inside such an organisation, **"2. ročník" means two
 different years** — the second year of the primary school, and the second year

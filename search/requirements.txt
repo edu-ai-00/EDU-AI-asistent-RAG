@@ -7,7 +7,7 @@ psycopg2-binary>=2.9.10
 pandas>=2.2.0
 numpy>=1.26.0
 pydantic>=2.10.0
-simplemma>=1.1.2
+simplemma==2.0.0   # PIN: lemma tvary jsou kontrakt indexu — viz contracts/parity/
 # Cross-encoder reranker (in-process, CPU). Pulls torch + transformers — heavy,
 # but reranks only the fused top-K, and it resolves the semantic cases BM25 can't
 # (blog-about-X vs rules-about-X). Behind the `rerank` step switch (default off).

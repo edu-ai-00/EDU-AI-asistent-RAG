@@ -1,0 +1,6 @@
+{
+  "domains": [
+    { "code": "ATTENDANCE", "label": "Docházka", "sort_order": 1 },
+    { "code": "SCHOOL_OPERATIONS", "label": "Provoz školy", "sort_order": 2 }
+  ]
+}

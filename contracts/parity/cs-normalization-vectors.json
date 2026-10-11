@@ -134,7 +134,7 @@
         "vysvedceni"
       ],
       "lemma": [
-        "vysvedcit"
+        "vysvedceni"
       ],
       "stem": [
         "vysvedcen"
@@ -207,6 +207,22 @@
       ],
       "stem": [
         "nemk"
+      ]
+    },
+    {
+      "input": "Kdy jsou přijímačky?",
+      "norm": [
+        "kdy",
+        "prijimacky"
+      ],
+      "lemma": [
+        "kdy",
+        "prijimac"
+      ],
+      "stem": [
+        "kdy",
+        "jso",
+        "prijimack"
       ]
     }
   ]

@@ -62,8 +62,8 @@ INSERT INTO {config.QUESTION_ANSWER_LOG_TABLE}
    raw_query, norm_query, lemma_query, stem_query, question_language,
    answer_source, answer_source_text, stage, matched_entry_id, match_score,
    answer_md, sources, strategies, strategies_text, answer_language, latency_ms, setting_id,
-   flow_trace, turn_seq, query_id, selected_answer_key)
-VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s, %s, %s, %s,%s,%s)
+   flow_trace, turn_seq, query_id, selected_answer_key, suggestions_offered, domains)
+VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s, %s, %s, %s,%s,%s, %s, %s)
 """
 
 
@@ -122,6 +122,11 @@ def log_search(req, resp, duration_ms: int, setting_id: str | None = None) -> No
         # two-dimensional presentation: knowledge base + retrieval method
         source_text = _source_plane(resp.answer_source)
         strat_text = _strategy_text(strategies_val, resp.answer_source)
+        # getattr twice: the eval harness builds its own response-like objects,
+        # and a response from before this column existed has no effective_scope.
+        _es = getattr(resp, "effective_scope", None)
+        _dom = getattr(_es, "domains", None) if _es is not None else None
+        domains = list(_dom) if _dom else None
         with get_cursor() as cur:
             cur.execute(_INSERT, (
                 conv, req.session_id, req.user_id,
@@ -156,6 +161,20 @@ def log_search(req, resp, duration_ms: int, setting_id: str | None = None) -> No
                 # what the client PICKED, against matched_entry_id above = what it
                 # actually got. The gap is the measurement, see migration 135.
                 getattr(req, "selected_answer_key", None),
+                # WHAT WAS OFFERED (migration 205) — the other half of "do not
+                # repeat a suggestion". raw_query above already carries what was
+                # ASKED, a clicked chip included, since the client resends its
+                # text; this is the chips nobody took. Read back by
+                # conversation.load_seen on the next turn.
+                Json(resp.suggestions) if getattr(resp, "suggestions", None) else None,
+                # THE AREA FILTER (migration 213), read off the RESPONSE's
+                # effective_scope rather than off the request. That is the one
+                # normalized representation both endpoints already build from the
+                # resolver's output, so the logged value cannot disagree with the
+                # value the search ran with or with the value the client was told
+                # — and a raw request field could differ from all three (order,
+                # case, duplicates). None → NULL = no thematic restriction.
+                domains,
             ))
     except Exception as e:  # fire-and-forget: logging must never break search
         logger.warning("question_answer_log insert failed (ignored): %s", e)

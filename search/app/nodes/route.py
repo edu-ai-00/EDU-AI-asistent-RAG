@@ -1,10 +1,14 @@
-# last change in code by Jan Drozd and Martin Safranek (2026-08-22).
+# last change in code by Jan Drozd (2026-09-18).
 """Node — route: deterministic guard + pack scope (no LLM).
 
 guard
   1. usable query?  empty / punctuation-only tokens → short-circuit "unusable".
   2. meta-question  the WHOLE query equals a qa_blocklist category='meta' phrase
                     ("Co umíš?") → answer with capabilities, not a block.
+  2b. identity      same equality against category='identity' ("Jak se jmenuje
+                    naše škola?") → answer from legal_entity.display_name. The
+                    name is metadata and is in no index, so retrieval can never
+                    answer it (measured on production, 2026-09-11).
   3. blocklist      any query token matches qa_blocklist (whole-token) OR every
                     token of a blocklist phrase occurs inside one window of the
                     query → short-circuit. self_harm gets a calm, supportive
@@ -46,13 +50,49 @@ logger = logging.getLogger(__name__)
 _PHRASE_SLACK = 3
 
 
-def token_forms(text: str, lang: str) -> list[set[str]]:
+# Negation prefixes, per language. Belongs in the číselník like context_leading
+# does, and is kept in code on purpose: _load_blocklist already SKIPS the guard
+# when its DB read fails, so making negation handling depend on a second read
+# would mean a DB hiccup silently inverts what the guard matches.
+_NEGATION_PREFIX = {"cs": ("ne",), "de": (), "en": (), "es": ()}
+
+
+def _negation_lost(surface: str, lemma: str, lang: str) -> bool:
+    """True when the lemma dropped a negation the surface form carries.
+
+    simplemma 2.0.0 lemmatizes "nechci" to "chtit" — the opposite meaning. On a
+    guard that is not a ranking nuisance but a wrong verdict: measured
+    2026-09-03, the phrase rule "nechci žít" matched "chci žít" and "chci žít
+    zdravě" through exactly this bridge, so a pupil asking how to live healthily
+    got the suicide-crisis reply. simplemma 1.2.0 gave "nechtít" and the bridge
+    did not exist, so this is version-dependent and cannot be left to the
+    library. Guards against the reverse too: "nechci umřít" no longer trips the
+    rule for "chci umřít".
+    """
+    for p in _NEGATION_PREFIX.get(lang or "", ()):
+        if surface.startswith(p) and not lemma.startswith(p):
+            return True
+    return False
+
+
+def token_forms(text: str, lang: str, cfg: dict | None) -> list[set[str]]:
     """One set of accepted surface forms per token, stopwords KEPT.
+
+    `cfg` carries the stoplist and the engines (settings + qa_stopword). It is
+    REQUIRED in every running path: eduai_normalize 3.0.0 has no built-in list,
+    and until 2026-09-05 this function passed none — so the lemma branch ran on
+    the library's own Czech/English sets (which happened to equal the číselník)
+    and on NOTHING for German and Spanish, whose blocklist phrases therefore
+    carried un-dropped function words that the query side had already removed.
 
     Both sides of a phrase match go through this, so query and blocklist are
     reduced identically. Each token carries its own lemma because simplemma is
     inconsistent across a verb's forms ("ublížit"→ublizovat, "ublížím"→ublizit) —
     comparing form sets rather than single strings absorbs that.
+
+    A lemma that lost a negation is left OUT — see _negation_lost. Dropping it on
+    BOTH sides keeps a negated rule matching its own wording (via the surface
+    form) while it stops meaning its own opposite.
     """
     out: list[set[str]] = []
     for word in tokenize(text or ""):
@@ -62,7 +102,9 @@ def token_forms(text: str, lang: str) -> list[set[str]]:
         # lemmatize the RAW word: simplemma needs the diacritics to recognise it
         # ("ublížím"→ublizit, but the folded "ublizim" is not a word it knows).
         # It also drops stopwords, so a stopword yields [] → surface only.
-        out.append({surface} | set(lemma_tokens(word, lang=lang)))
+        lemmas = {l for l in lemma_tokens(word, cfg, lang)
+                  if not _negation_lost(surface, l, lang)}
+        out.append({surface} | lemmas)
     return out
 
 
@@ -86,21 +128,26 @@ def _phrase_hit(term: list[set[str]], query: list[set[str]],
     return False
 
 
-def _load_blocklist(lang: str):
-    """Return (single_tokens: dict[str,(cat,sev)], phrases: list[(forms,cat,sev)])."""
+def _load_blocklist(lang: str, cfg: dict | None):
+    """Return (single_tokens: dict[str,(cat,sev)], phrases: list[(forms,cat,sev)]).
+
+    `cfg` is threaded through to token_forms so a blocklist phrase is reduced
+    with the same stoplist and engines as the query it will be compared with."""
     singles: dict[str, tuple[str, int]] = {}
     phrases: list[tuple[list[set[str]], str, int]] = []
     with get_cursor() as cur:
         cur.execute(
             f"SELECT term, term_norm, term_lemma, category, severity, is_phrase "
             f"FROM {config.QA_BLOCKLIST_TABLE} "
-            "WHERE is_active AND category <> 'meta'"
+            # 'meta' and 'identity' are DETECTION vocabulary for the two answer
+            # paths above, not terms to block on.
+            "WHERE is_active AND category NOT IN ('meta', 'identity')"
         )
         for term, term_norm, term_lemma, category, severity, is_phrase in cur.fetchall():
             if is_phrase:
                 # tokenize the ORIGINAL term: term_norm has lost its diacritics,
                 # which is what the lemmatizer needs to recognise the word
-                phrases.append((token_forms(term or term_norm, lang),
+                phrases.append((token_forms(term or term_norm, lang, cfg),
                                 category, int(severity)))
             else:
                 # index by both norm and lemma surface so either query form hits
@@ -163,6 +210,14 @@ def _meta_phrases() -> set:
         return {r[0] for r in cur.fetchall()}
 
 
+def _identity_phrases() -> set:
+    with get_cursor() as cur:
+        cur.execute(
+            f"SELECT term_norm FROM {config.QA_BLOCKLIST_TABLE} "
+            "WHERE is_active AND category = 'identity'")
+        return {r[0] for r in cur.fetchall()}
+
+
 def _corpus_topics(state: SearchState, top_n: int = 6):
     """(topics, suggestions) — the most frequent section headings of the
     organisation's non-private documents. Live: the message grows with the
@@ -180,6 +235,14 @@ def _corpus_topics(state: SearchState, top_n: int = 6):
     scope_cond, scope_params = scope.where(
         "c", state.get("entity_scope") or [], orgs, state.get("user_id"),
         state.get("user_role"), validity=True)
+    # Runs BEFORE pack_ids exists (it is _meta_check's own answer, not a
+    # retrieval result), so it cannot inherit the pack pre-selection and has to
+    # filter both halves itself — the curated questions on the ENTRY row and the
+    # headings on the CHUNK row. An offer is a question the user can click; one
+    # from an area they excluded is the same automatic widening as an answer.
+    _dom = state.get("domain_ids")
+    dom_c, dom_cp = scope.domain_where("c", "document_domain_id", _dom)
+    dom_e, dom_ep = scope.domain_where("e", "domain_ids", _dom)
     with get_cursor() as cur:
         # OFFER WHAT CAN BE ANSWERED. Headings are what the corpus is ORGANISED
         # by, not what it can answer: measured 2026-08-26 the offer read "Stupeň 4
@@ -202,24 +265,33 @@ def _corpus_topics(state: SearchState, top_n: int = 6):
                 f"""SELECT e.canonical_q
                       FROM {config.QA_ENTRIES_TABLE} e
                      WHERE e.is_active AND e.canonical_q IS NOT NULL
-                       {_qa_scope}
+                       {_qa_scope}{dom_e}
                      GROUP BY e.canonical_q
                      ORDER BY min(length(e.canonical_q)) LIMIT %s""",
-                (*_qa_params, top_n))
+                (*_qa_params, *dom_ep, top_n))
             heads = [r[0] for r in cur.fetchall()]
         except Exception as e:
             logger.warning("route.meta: curated topics failed (%s) — headings", e)
         if len(heads) < top_n:
             cur.execute(
+                # file_uuid AND processing_uuid, like every other chunk query in
+                # the service. USING (file_uuid) alone joined the ACTIVE metadata
+                # row to the chunks of EVERY processing run of that file, so a
+                # re-ingested document offered headings from a superseded
+                # version — the section may have been deleted from the document
+                # since. Same pair the retrievers use, so the offer and the
+                # answer now speak about the same rows.
                 f"""SELECT c.section_heading, count(*) AS n
                     FROM {config.CHUNKS_TABLE} c
-                    JOIN {config.METADATA_TABLE} m USING (file_uuid)
+                    JOIN {config.METADATA_TABLE} m
+                      ON c.file_uuid = m.file_uuid
+                     AND c.processing_uuid = m.processing_uuid
                     WHERE m.is_active
                       AND c.section_heading IS NOT NULL
                       AND length(c.section_heading) BETWEEN 4 AND 70
-                      {scope_cond}
+                      {scope_cond}{dom_c}
                     GROUP BY 1 ORDER BY n DESC LIMIT %s""",
-                (*scope_params, top_n - len(heads)))
+                (*scope_params, *dom_cp, top_n - len(heads)))
             heads += [r[0] for r in cur.fetchall()]
     sugg = [{"kind": "related", "question": h} for h in heads[:4]]
     return heads, sugg
@@ -229,7 +301,15 @@ def _meta_check(state: SearchState, params: dict | None = None):
     """Terminal capabilities answer for a meta-question, else None."""
     params = params or {}
     q = _fold_q(state.get("user_question", ""))
-    _max_words = int(params.get("meta_max_words") or 6)
+    # 10, not 6. The cap is belt-and-braces — the real filter is the intent guard
+    # below, which requires that after fillers, function words and interrogatives
+    # are stripped, ONLY an ability verb remains and no domain keyword appears.
+    # At 6 the belt was doing the work and doing it wrong: "A na co mi ještě
+    # dokážeš odpovědět?" (7 words) and "A co se týká třeba školy do které chodím"
+    # (8) were searched in the corpus, and a school corpus answers them — the
+    # first came back with what a JPZ invigilator may explain (2026-09-04). The
+    # same question at five words was recognised.
+    _max_words = int(params.get("meta_max_words") or 10)
     if not q or len(q.split()) > _max_words:
         return None
     lang = state.get("query_language")
@@ -341,6 +421,56 @@ def _meta_check(state: SearchState, params: dict | None = None):
         return None
 
 
+# ── who the school IS — metadata, never corpus ─────────────────────────────
+# The name lives in legal_entity.display_name and in no searchable text, so no
+# retrieval step can reach it: measured on production 2026-09-11, where the
+# entity whose documents DO name it (10 chunks) still answered no_answer —
+# `skola` is above bm25_max_df_share and `jmenovat` has df 0. Detection is data
+# (qa_blocklist category='identity'), matching is the same whole-query equality
+# as the meta path, so "jak se jmenuje školník" stays a corpus question.
+
+def _identity_check(state: SearchState, params: dict | None = None):
+    """Terminal answer naming the school, else None."""
+    params = params or {}
+    q = _fold_q(state.get("user_question", ""))
+    _max_words = int(params.get("identity_max_words") or 8)
+    if not q or len(q.split()) > _max_words:
+        return None
+    lang = state.get("query_language")
+    try:
+        _fill = _meta_fillers(lang)
+        _stripped = " ".join(t for t in q.split() if t not in _fill)
+        _phrases = _identity_phrases()
+        if not (q in _phrases or (_stripped and _stripped in _phrases)):
+            return None
+        school = ""
+        with get_cursor() as cur:
+            cur.execute(
+                f"SELECT display_name FROM {config.PG_SCHEMA}.legal_entity "
+                "WHERE legal_entity_code = %s", (state.get("legal_entity"),))
+            row = cur.fetchone()
+            if row:
+                school = (row[0] or "").strip()
+        # NOTHING TO SAY IS NOT AN ANSWER. Without a name or without the message
+        # row (new code, migration 216 not yet applied) the rendered text would
+        # be "Tahle škola se jmenuje ." or empty — the cascade is better.
+        msg = system_message("school_identity", lang) if school else ""
+        if not school or not msg.strip():
+            logger.info("route.identity: no name or no message for %r — "
+                        "continuing to cascade", state.get("legal_entity"))
+            return None
+        logger.info("route.identity: named the entity")
+        return {
+            "trace_detail": {"guard": "identity"},
+            "resolved": True, "outcome": "answer", "answer_source": "meta",
+            "answer": msg.replace("{{SCHOOL}}", school),
+            "sources_json": "[]", "user_language": lang,
+        }
+    except Exception as e:
+        logger.warning("route.identity: check failed (%s) — continuing to cascade", e)
+        return None
+
+
 # Default policy — self_harm always wins over other categories if both match.
 # Every value below is overridable from settings.config->pipeline[route].params,
 # so the reaction to a risky query is data, not a rebuild. The defaults reproduce
@@ -441,12 +571,22 @@ def _guard(state: SearchState, params: dict | None = None):
     if meta:
         return meta, []
 
+    # 2b) a question about the school's identity — metadata, not corpus
+    identity = _identity_check(state, params)
+    if identity:
+        return identity, []
+
     # 3) blocklist
     prio, min_sev, msg_key, outcome_by_cat, slack = _guard_policy(params)
 
     lang = state.get("query_language") or "cs"
     try:
-        singles, phrases = _load_blocklist(lang)
+        # One resolution for both sides of the phrase match — the blocklist term
+        # and the query must be reduced by the same stoplist, or _phrase_hit
+        # compares token sets that were never built the same way.
+        from ..settings import get_active_setting
+        _cfg = get_active_setting(state.get("legal_entity"))["config"]
+        singles, phrases = _load_blocklist(lang, _cfg)
     except Exception as e:  # never let a guard DB hiccup break search
         logger.warning("route.guard: blocklist unavailable (%s) — skipping", e)
         return None, []
@@ -454,7 +594,7 @@ def _guard(state: SearchState, params: dict | None = None):
     token_set = set(norm) | set(lemma)
     hits: list[tuple[str, int]] = [singles[t] for t in token_set if t in singles]
 
-    query_forms = token_forms(state.get("user_question", ""), lang)
+    query_forms = token_forms(state.get("user_question", ""), lang, _cfg)
     for term, category, severity in phrases:
         if _phrase_hit(term, query_forms, slack):
             hits.append((category, severity))
@@ -600,10 +740,25 @@ def _scope(state: SearchState) -> list[str]:
                 "m", state.get("entity_scope") or [],
                 state.get("organization_entities") or [], state.get("user_id"),
                 state.get("user_role"), validity=True)
+            # THE PACK IS A PRE-SELECTION, and the manifest's own domain label is
+            # what makes it one: a pack labelled only "Přijímačky" holds no
+            # answer for a caller who chose "Stravování", so it must not enter
+            # pack_ids at all — nor offer_pack_ids below, which is a list of
+            # buttons and would otherwise offer questions from an excluded area.
+            #
+            # This does NOT replace the per-entry filter in qa_common. A mixed
+            # pack passes here on any one of its areas and is then narrowed row
+            # by row; the manifest overlap only avoids scanning packs that cannot
+            # contribute. An unlabelled pack (domain_ids NULL) therefore does NOT
+            # pass an explicit filter — it is unclassified material, and spec §6
+            # makes tagging it a data-acceptance task, not something this query
+            # guesses at.
+            dom_cond, dom_params = scope.domain_where("m", "domain_ids",
+                                                      state.get("domain_ids"))
 
             sql = (f"SELECT pack_id FROM {config.QA_MANIFEST_TABLE} m"
-                   f" WHERE m.is_active{scope_cond}")
-            params = list(scope_params)
+                   f" WHERE m.is_active{scope_cond}{dom_cond}")
+            params = [*scope_params, *dom_params]
             if grade_ids:
                 sql += (" AND (m.school_grade_ids IS NULL"
                         " OR cardinality(m.school_grade_ids) = 0"
@@ -632,13 +787,18 @@ def _scope(state: SearchState) -> list[str]:
             # reason; only the ročník condition is relaxed.
             offer_packs: list[str] = []
             if grade_ids and entity:
+                # The net relaxes the ROČNÍK and nothing else — the same rule the
+                # domain filter follows: a question from an area the caller did
+                # not choose is not a helpful button, it is the automatic
+                # widening spec §1 forbids. So scope, role, level and now the
+                # area all still apply; only the year condition is inverted.
                 osql = (f"SELECT pack_id FROM {config.QA_MANIFEST_TABLE} m"
-                        f" WHERE m.is_active{scope_cond}"
+                        f" WHERE m.is_active{scope_cond}{dom_cond}"
                         f"   AND m.legal_entity_code = %s"
                         f"   AND m.school_grade_ids IS NOT NULL"
                         f"   AND cardinality(m.school_grade_ids) > 0"
                         f"   AND NOT (m.school_grade_ids && %s::bigint[])")
-                oparams = [*scope_params, entity, grade_ids]
+                oparams = [*scope_params, *dom_params, entity, grade_ids]
                 if caller_level:
                     osql += " AND (m.school_level IS NULL OR m.school_level = %s)"
                     oparams.append(caller_level)
@@ -662,8 +822,17 @@ def route(state: SearchState, params: dict | None = None) -> dict:
     try:
         pack_ids, _ex_ids, _un_ids, _offer = _scope(state)
     except Exception as e:
-        logger.warning("route.scope: failed (%s) — falling back to all packs", e)
-        pack_ids, _ex_ids, _un_ids, _offer = [], set(), set(), []
+        # FALL CLOSED. This said "falling back to all packs" and meant it:
+        # pack_filter reads an empty pack_ids as "no pack restriction", so an
+        # exception here opened every active pack in the database to the caller —
+        # every school's, since the manifest scope predicate had not run either.
+        # _scope's own except already returns the sentinel for exactly this
+        # reason; this outer handler was the one path that did not, and with a
+        # thematic filter in play it would also have answered from areas the
+        # caller excluded. The document branch still answers.
+        logger.warning("route.scope: failed (%s) — QA branch skipped "
+                       "(no pack in scope)", e)
+        pack_ids, _ex_ids, _un_ids, _offer = [_NO_PACK], set(), set(), []
     # guard passed: say so explicitly — "the blocklist was checked and nothing
     # matched" is a result, and an empty cell would not distinguish it from
     # "this step does nothing".

@@ -1,0 +1,38 @@
+{
+  "preview_id": "d2b2b2b2-0000-4000-8000-000000000003",
+  "source_kind": "zip",
+  "mode": "merge",
+  "packs": [
+    {
+      "pack_id": "faq-provoz",
+      "file": "packs/faq-provoz.csv",
+      "base_etag": "sha256:mockpack1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "is_new_pack": false,
+      "diff": { "added": [], "changed": [], "unchanged": ["omluva-lhuta", "druzina-poplatek"], "deactivated": [] },
+      "ok": true,
+      "errors": [],
+      "legacy_cat_unresolved": [],
+      "row_count": 2
+    },
+    {
+      "pack_id": "skolni-druzina",
+      "file": "packs/skolni-druzina.csv",
+      "base_etag": "",
+      "is_new_pack": true,
+      "diff": { "added": [], "changed": [], "unchanged": [], "deactivated": [] },
+      "ok": false,
+      "errors": [
+        {
+          "file": "packs/skolni-druzina.csv",
+          "row": 3,
+          "field": "domains",
+          "code": "UNKNOWN_DOMAIN",
+          "message": "Doména 'JIDELNA' není v katalogu školy."
+        }
+      ],
+      "legacy_cat_unresolved": [],
+      "row_count": 1
+    }
+  ],
+  "expires_at": "2026-09-11T12:30:00Z"
+}

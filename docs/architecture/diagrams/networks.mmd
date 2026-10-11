@@ -1,0 +1,17 @@
+block-beta
+  columns 3
+  edge["edge · bridge / egress<br/><br/>nginx<br/>edu_ai_api<br/>edu_ai (Langflow)<br/>pgadmin<br/>edu_ai_search<br/>edu_ai_web_chat<br/>edu_ai_qa_admin"]
+  app["app · internal: true<br/><br/>edu_ai_api<br/>edu_ai (Langflow)<br/>edu_ai_search<br/>edu_ai_web_chat<br/>edu_ai_qa_admin<br/>bifrost<br/>cloudflared (volitelně)"]
+  data["data · internal: true<br/><br/>edu_ai (Langflow)<br/>pgadmin<br/>edu_ai_search<br/>postgres"]
+  be["bifrost_egress · bridge<br/><br/>bifrost<br/>odchozí provoz k providerům"]
+  tunnel["tunnel · internal: true<br/><br/>nginx<br/>cloudflared (volitelně)<br/>subnet z konfigurace"]
+  te["tunnel_egress · bridge<br/><br/>cloudflared (volitelně)<br/>odchozí provoz ke Cloudflare"]
+  classDef egress fill:#e6f5f5,stroke:#16868b,color:#16364a;
+  classDef internal fill:#edf2fa,stroke:#466489,color:#16364a;
+  classDef optional fill:#f3f3f3,stroke:#777,color:#333,stroke-dasharray:5 4;
+  style edge fill:#e6f5f5,stroke:#16868b,color:#16364a
+  style be fill:#e6f5f5,stroke:#16868b,color:#16364a
+  style app fill:#edf2fa,stroke:#466489,color:#16364a
+  style data fill:#edf2fa,stroke:#466489,color:#16364a
+  style tunnel fill:#edf2fa,stroke:#466489,color:#16364a
+  style te fill:#f3f3f3,stroke:#777,color:#333,stroke-dasharray:5 4

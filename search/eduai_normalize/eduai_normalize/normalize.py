@@ -23,52 +23,6 @@ import unicodedata
 _ASCII = re.compile(r"[a-z0-9]+")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 
-# ── Czech stopwords (normalized: lower, no diacritics) — built-in FALLBACK only;
-#    the authoritative list is the qa_stopword číselník, injected via cfg. ──
-STOPWORDS = {
-    "od", "do", "na", "v", "ve", "z", "ze", "s", "se", "k", "ke", "u", "o",
-    "po", "za", "pro", "pri", "nad", "pod", "pred", "mezi", "bez", "kolem",
-    "podle", "okolo", "kvuli", "vedle", "behem", "skrz", "krom", "vuci",
-    "a", "i", "ale", "nebo", "ci", "ze", "aby", "kdyz", "protoze", "jelikoz",
-    "takze", "tedy", "tak", "tez", "take", "ani", "nebot", "avsak", "vsak",
-    "proto", "pak", "uz", "jiz", "jen", "jenom", "snad", "asi", "prece",
-    "vlastne", "prave", "jeste", "no", "ano", "ne", "ja", "totiz",
-    "ty", "on", "ona", "ono", "my", "vy", "oni", "ony", "si", "me", "mne", "mi",
-    "te", "tebe", "ti", "tobe", "ho", "jej", "jeho", "ji", "jeji", "jich", "jim",
-    "jimi", "nam", "nas", "vam", "vas", "svuj", "sve", "svych", "svym", "muj",
-    "moje", "meho", "mych", "tvuj", "tve", "ten", "ta", "to", "tento", "tato",
-    "toto", "tyto", "tom", "tomto", "tim", "teto", "tech", "sam", "sama", "samo",
-    "vsechno", "vse", "kazdy", "nejaky", "nejaka",
-    "je", "jsou", "jsem", "jsi", "jsme", "jste", "byl", "byla", "bylo", "byli",
-    "byly", "byt", "bude", "budou", "budu", "budes", "budeme", "budete",
-    "bych", "bys", "by", "bychom", "byste", "sme",
-    "tady", "tam", "sem", "tu", "zde", "ted",
-    "the",
-}
-
-# ── English stopwords (built-in FALLBACK; authoritative list = qa_stopword
-#    číselník lang='en'). Interrogatives (what/which/who/when/where/why/how)
-#    are intentionally NOT here — same design as Czech: they carry intent and
-#    are excluded from coverage via the interrogative synonym groups instead. ──
-STOPWORDS_EN = {
-    "a", "an", "the", "and", "or", "but", "if", "then", "else", "so", "than",
-    "of", "at", "by", "for", "with", "about", "against", "between", "into",
-    "through", "during", "before", "after", "above", "below", "to", "from",
-    "up", "down", "in", "out", "on", "off", "over", "under", "again", "once",
-    "here", "there", "all", "any", "both", "each", "few", "more", "most",
-    "other", "some", "such", "no", "nor", "not", "only", "own", "same", "too",
-    "very", "can", "will", "just", "should", "would", "could", "may", "might",
-    "must", "shall", "now",
-    "is", "are", "was", "were", "be", "been", "being", "am",
-    "have", "has", "had", "having", "do", "does", "did", "doing",
-    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
-    "them", "my", "your", "his", "its", "our", "their", "mine", "yours",
-    "this", "that", "these", "those", "as",
-    "s", "t",   # possessive 's / n't tokenization leftovers
-}
-
-_BUILTIN_STOPWORDS = {"cs": STOPWORDS, "en": STOPWORDS_EN}
-
 # ── deterministic language detection (shared by BOTH sides so index and query
 #    resolve the same language for the same text) ──
 # PRIMARY detector = langdetect (Nakatani/Google port, 55 languages, character
@@ -92,21 +46,47 @@ _BUILTIN_STOPWORDS = {"cs": STOPWORDS, "en": STOPWORDS_EN}
 _LANGDETECT_SEED = 0
 _LANGDETECT_MIN_PROB = 0.70   # measured: 0 errors at any threshold; 0.90 loses
                               # correct short calls like "Anmeldung" (0.71)
+# ALL-CAPS defeats langdetect on short text: its n-gram profiles are built from
+# lowercase, so a Czech heading in capitals loses its diacritics-plus-case
+# signature and comes back German. Measured over 1348 production chunks:
+# lowercasing below this length fixes 7 (5x de->cs on Czech headings such as
+# "HODNOCENÍ NA VYSVĚDČENÍCH…", 2x None->cs) and breaks nothing. Lowercasing
+# UNCONDITIONALLY breaks 2 (en->de on a longer mixed passage), which is why this
+# is a length bound and not a plain .lower().
+_LANGDETECT_LOWER_BELOW = 200
+
+
+def langdetect_scores(text: str) -> list[tuple[str, float]]:
+    """Ranked (language, probability) from langdetect, with OUR preprocessing.
+
+    PUBLIC because the ingest quality gate needs the raw probability, which
+    detect_lang() deliberately hides behind `allowed` and a threshold. That gate
+    used to call langdetect itself, so it did not get the ALL-CAPS handling below
+    and could judge a document's language differently from the reduction that
+    indexed it. One function, one preprocessing — that is the whole point.
+
+    Returns [] instead of raising: nothing in this module may take the pipeline
+    down over a detection. Callers that distinguished LangDetectException from
+    other failures therefore see both as [].
+    """
+    try:
+        from langdetect import DetectorFactory, detect_langs
+    except ImportError:
+        return []
+    DetectorFactory.seed = _LANGDETECT_SEED
+    if len(text) < _LANGDETECT_LOWER_BELOW:
+        text = text.lower()
+    try:
+        return [(p.lang, float(p.prob)) for p in detect_langs(text)]
+    except Exception:
+        return []
 
 
 def _langdetect_probe(text: str, allowed: tuple) -> str | None:
     """Best language among `allowed` per langdetect, or None if it abstains."""
-    try:
-        from langdetect import DetectorFactory, detect_langs
-    except ImportError:
-        return None
-    DetectorFactory.seed = _LANGDETECT_SEED
-    try:
-        for p in detect_langs(text):
-            if p.lang in allowed:
-                return p.lang if p.prob >= _LANGDETECT_MIN_PROB else None
-    except Exception:
-        return None
+    for lang, prob in langdetect_scores(text):
+        if lang in allowed:
+            return lang if prob >= _LANGDETECT_MIN_PROB else None
     return None
 
 
@@ -222,69 +202,95 @@ def require_lang(lang: str | None) -> str:
 
 
 def stopwords_of(cfg, lang: str | None = None) -> set:
-    """Stoplist for `lang` from cfg (qa_stopword číselník injected by
-    settings.py and by the ingest components); built-in list as the fallback.
+    """Stoplist for `lang`, taken ONLY from cfg — there is no built-in list.
 
-    cfg normalization.stopwords_by_lang = {"cs": [...], "en": [...], …}. The
-    legacy flat `stopwords` key (which was the Czech list by construction) is
-    gone: it made Czech the only language served from a differently-shaped key,
-    and the built-in Czech list is a superset of the číselník's, so removing it
-    cannot change any token.
+    cfg normalization.stopwords_by_lang = {"cs": [...], "en": [...], …}, loaded
+    from the qa_stopword číselník by settings.py and by the ingest components.
 
-    A language with no list anywhere gets an EMPTY set, not the Czech one. The
-    fallback used to be `_BUILTIN_STOPWORDS.get(lang, STOPWORDS)`, i.e. Czech
-    stopwords over any unregistered language — which then deletes the German or
-    Polish words that happen to spell a Czech function word (die/do/on/to/no/je).
-    Dropping nothing is the neutral behaviour: recall widens slightly, no content
-    word is destroyed, and the missing list shows up in the readiness check.
+    A cfg carrying no stopwords_by_lang AT ALL is a caller bug, not a data
+    state, and raises. The built-in lists this replaced (155 cs words, 112 en)
+    bought no availability — without the database there are no settings, no
+    packs and no chunks to search — while they did buy a divergence nobody
+    could see: they happened to EQUAL the číselník for cs and en, so those two
+    agreed by coincidence, and de/es had no built-in list at all, so
+    route.py:94 matched blocklist phrases against German and Spanish tokens
+    that were never stopword-filtered. Same rule as require_lang: the caller
+    decides, there is no default.
+
+    A language PRESENT in the config but with no list of its own gets an EMPTY
+    set. That is a real data state ("this language declares no stopwords") and
+    dropping nothing is the neutral behaviour: recall widens slightly and no
+    content word is destroyed. The old fallback was
+    `_BUILTIN_STOPWORDS.get(lang, STOPWORDS)`, i.e. Czech stopwords over any
+    unregistered language, which deleted the German or Polish words that happen
+    to spell a Czech function word (die/do/on/to/no/je).
+
+    Offline callers with no database — the parity generator and checker — pass
+    contracts/parity/stoplist.json, which is that snapshot as DATA.
     """
     lang = require_lang(lang)
     by_lang = (cfg or {}).get("normalization", {}).get("stopwords_by_lang")
-    if by_lang and by_lang.get(lang):
-        return set(by_lang[lang])
-    return _BUILTIN_STOPWORDS.get(lang, set())
-
-
-# Which reducer implements which language when the CONFIG says nothing. Only a
-# fallback — settings.config.engines is authoritative and always present in
-# the running services. This exists for the cfg-less paths: the parity vectors
-# (deliberately pinned to library behaviour, not to DB data) and any caller that
-# reduces a single string without loading the setting. Same role as
-# _BUILTIN_STOPWORDS. A new language needs a config row, not an entry here.
-_DEFAULT_ENGINE = {
-    ("lemmatizer", "cs"): "simplemma",
-    ("lemmatizer", "en"): "simplemma",
-    ("stemmer", "cs"): "dolamic_savoy_light",
-    ("stemmer", "en"): "snowball_english",
-}
+    if by_lang is None:
+        raise ValueError(
+            "stopwords_by_lang missing from cfg: the stoplist is DATA "
+            "(edu_ai.qa_stopword) and must be loaded and passed by the caller. "
+            "There is no built-in list any more. Offline tools and tests: pass "
+            "contracts/parity/stoplist.json.")
+    return set(by_lang.get(lang) or ())
 
 
 def engine_for(cfg, kind: str, lang: str | None = None) -> dict:
-    """The `engines` entry of this kind for this language, from settings.
+    """The `engines` entry of this kind for THIS language, from settings.
 
-    Language→reducer is DATA: config.engines already carries
-    {"kind":"stemmer","name":"snowball_english","language":"en"}. Entries with no
-    `language` are treated as applying to any (that is how the pre-multilingual
-    configs looked).
+    Language→reducer is DATA: config.engines carries
+    {"kind":"stemmer","name":"snowball_english","language":"en"}.
+
+    An entry with NO `language` matches nothing. It used to match every language
+    ("that is how the pre-multilingual configs looked"), which meant the two
+    language-less entries in settings._FALLBACK resolved for en, de and es as
+    well — all three would have been reduced by the CZECH stemmer, mangling
+    profesores->profeso instead of profesor and leaving schools/Schulen
+    unstemmed. No settings row has carried a language-less entry for a long time
+    (0 of 48, active and inactive alike), so nothing legitimate depended on it.
     """
     lang = require_lang(lang)
-    generic = None
     for e in (cfg or {}).get("engines", []):
-        if e.get("kind") != kind:
-            continue
-        el = e.get("language")
-        if el == lang:
+        if e.get("kind") == kind and e.get("language") == lang:
             return e
-        if el is None and generic is None:
-            generic = e
-    return generic or {}
+    return {}
 
 
 def engine_name(cfg, kind: str, lang: str | None = None) -> str:
-    """Engine name for (kind, language) — config first, built-in default second."""
+    """Engine name for (kind, language), taken ONLY from cfg — no built-in table.
+
+    A cfg carrying no `engines` key AT ALL is a caller bug and raises, exactly
+    as stopwords_of does for the stoplist. The table this replaced held cs and
+    en only, and both halves of it were wrong in their own way:
+
+      * cs/en AGREED with settings, so the duplicate was invisible — until
+        someone changed a language's stemmer in the config, after which the
+        cfg-less path would keep serving the previous one. Measured on the two
+        Czech stemmers: 1 word in 14 differs (rýsovac vs rýsovak), i.e. the
+        index and the query would disagree on SOME queries and nothing would
+        error.
+      * de/es were ABSENT, so engine_name returned "" and the word passed
+        through unstemmed — that is how 66 rows of migration 211 got a wrong
+        term_stem.
+
+    A language PRESENT in the config but with no entry of this kind gets "",
+    and stem_word deliberately returns the word unstemmed rather than reaching
+    for another language's reducer. That is a real data state; a missing
+    `engines` key is not.
+    """
     lang = require_lang(lang)
-    name = (engine_for(cfg, kind, lang) or {}).get("name")
-    return name or _DEFAULT_ENGINE.get((kind, lang), "")
+    if (cfg or {}).get("engines") is None:
+        raise ValueError(
+            f"engines missing from cfg (kind={kind!r}, lang={lang!r}): which "
+            "reducer implements which language is DATA "
+            "(settings.config.engines) and must be loaded and passed by the "
+            "caller. There is no built-in table any more. Offline tools and "
+            "tests: pass contracts/parity/stoplist.json.")
+    return (engine_for(cfg, kind, lang) or {}).get("name") or ""
 
 
 def stem_min_len(cfg, lang: str | None = None) -> int:

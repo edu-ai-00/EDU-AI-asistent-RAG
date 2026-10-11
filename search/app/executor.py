@@ -106,6 +106,18 @@ def run_search(initial: dict, stop_before: str | None = None) -> tuple[dict, str
     # apply, so a plain question costs one dict update and no LLM call.
     _ctx = resolve_context(state, cfg) or {}
     state.update(_ctx)
+    # resolve_context normally only REWRITES, but it can also settle the turn: an
+    # input that is not a question ("aha", "díky") has nothing to retrieve, and
+    # running the cascade on it searches the corpus for an interjection. Ends here,
+    # before prepare — the steps below have nothing to add and the answer is
+    # already complete.
+    if _ctx.get("resolved"):
+        state["strategies"] = []
+        state["trace"] = [{"step": "resolve_context", "status": "ran",
+                           "raw_question": state.get("user_question"),
+                           "resolved": True, "outcome": state.get("outcome"),
+                           "stopped_here": True}]
+        return state, setting_id
     # prepare = token build (norm/lemma/stem forms per the setting's normalization
     # config); always runs before the pipeline.
     state.update(prepare(state, cfg) or {})
@@ -126,13 +138,16 @@ def run_search(initial: dict, stop_before: str | None = None) -> tuple[dict, str
 
     # First row of the trace: what the cascade actually searched for. Without it
     # a rewritten query looks like the user asked something they never typed.
-    if _ctx:
+    # Keyed on the REWRITE, not on a non-empty return: the node also reports why
+    # it declined, and a decline is a skip however much it has to say about it.
+    if _ctx.get("user_question"):
         _mark("resolve_context", "ran", turns=_ctx.get("context_turns"),
               raw_question=_ctx.get("raw_question"),
               resolved_question=_ctx.get("user_question"))
     else:
         _mark("resolve_context", "skipped",
-              note="self-contained question, no prior turns, or disabled")
+              note=_ctx.get("context_skip_reason")
+              or "self-contained question, no prior turns, or disabled")
 
     for step in cfg.get("pipeline", []):
         name = step.get("step")

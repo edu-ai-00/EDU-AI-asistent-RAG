@@ -1,0 +1,74 @@
+{
+  "validating": {
+    "operation_id": "0a000000-0000-4000-8000-000000000001",
+    "status": "validating",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": null,
+    "started_at": "2026-09-11T12:00:00Z",
+    "finished_at": null,
+    "result_etag": null
+  },
+  "accepted": {
+    "operation_id": "0a000000-0000-4000-8000-000000000002",
+    "status": "accepted",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": null,
+    "started_at": "2026-09-11T12:00:01Z",
+    "finished_at": null,
+    "result_etag": null
+  },
+  "processing": {
+    "operation_id": "0a000000-0000-4000-8000-000000000003",
+    "status": "processing",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": "7e000000-0000-4000-8000-000000000099",
+    "started_at": "2026-09-11T12:00:01Z",
+    "finished_at": null,
+    "result_etag": null
+  },
+  "completed": {
+    "operation_id": "0a000000-0000-4000-8000-000000000004",
+    "status": "completed",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": "7e000000-0000-4000-8000-000000000098",
+    "started_at": "2026-09-11T12:00:01Z",
+    "finished_at": "2026-09-11T12:00:07Z",
+    "result_etag": "sha256:mockpack1cccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "summary": { "added": 1, "updated": 1, "deactivated": 1, "untouched": 2 }
+  },
+  "failed": {
+    "operation_id": "0a000000-0000-4000-8000-000000000005",
+    "status": "failed",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": "7e000000-0000-4000-8000-000000000097",
+    "started_at": "2026-09-11T12:00:01Z",
+    "finished_at": "2026-09-11T12:00:09Z",
+    "result_etag": null,
+    "error": {
+      "code": "UPSTREAM_ERROR",
+      "message": "Ingest selhal mezi QA writerem a embeddingy. Zveřejnění se neprovedlo.",
+      "retryable": true
+    }
+  },
+  "unknown": {
+    "operation_id": "0a000000-0000-4000-8000-000000000006",
+    "status": "unknown",
+    "school": "ZS_KAVCI_HORY",
+    "pack_id": "faq-provoz",
+    "preview_id": "5b2b6f2a-0000-4000-8000-000000000001",
+    "processing_uuid": "7e000000-0000-4000-8000-000000000096",
+    "started_at": "2026-09-11T11:58:00Z",
+    "finished_at": null,
+    "result_etag": null
+  }
+}

@@ -13,12 +13,14 @@ describe today's behaviour) and AFTER it (it must still pass — that proves the
 refactor was behaviour-neutral and no re-ingest is needed).
 
     docker cp contracts/parity/. edu_ai_search:/tmp/parity/
-    docker exec -i edu_ai_search python - /tmp/parity \
+    docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search \
+      python - /tmp/parity \
       < contracts/parity/check_vectors.py
 
 The directory argument is required when piping via stdin: `__file__` is not a
-real path then, so the script cannot find the vectors next to itself. /app is
-read-only for the runtime user, hence /tmp.
+real path then, so the script cannot find the vectors next to itself. The
+working directory also makes stoplist.json available to parity_cfg(), and
+PYTHONPATH keeps app importable. /app is read-only for the runtime user, hence /tmp.
 
 Exits non-zero on any drift and prints the exact input and form that moved.
 Reads every <lang>-normalization-vectors.json in that directory, so a new
@@ -32,6 +34,18 @@ import sys
 from app.text_norm import build_forms
 
 FORMS = ("norm", "lemma", "stem")
+
+
+
+# The stoplist and the engines are DATA, not code: eduai_normalize 3.0.0 has no
+# built-in tables and stopwords_of()/engine_name() raise without them. These vectors stay deliberately pinned to
+# LIBRARY behaviour, not to whatever edu_ai.qa_stopword holds today, so they read
+# the snapshot in stoplist.json next to them — no database, still deterministic.
+def parity_cfg() -> dict:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "stoplist.json"), encoding="utf-8") as fh:
+        _d = json.load(fh)
+        return {"normalization": _d["normalization"], "engines": _d["engines"]}
 
 
 def vectors_dir() -> str:
@@ -58,7 +72,7 @@ def main() -> int:
         lang = doc.get("language") or os.path.basename(path).split("-")[0]
         for vec in doc["vectors"]:
             checked += 1
-            got = build_forms(vec["input"], None, lang)
+            got = build_forms(vec["input"], parity_cfg(), lang)
             for form in FORMS:
                 if got[form] != vec[form]:
                     drift += 1

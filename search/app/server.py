@@ -14,11 +14,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import config
+from . import domain_scope
 from . import idempotency
 from .executor import run_search
 from .llm import get_chat
 from .log import log_search
-from .nodes.answer import (prepare_generation, parse_no_answer,
+from .nodes.answer import (prepare_generation, parse_no_answer, variant_chips,
                            merge_suggestions, without_clarify,
                            extract_trailing_variants)
 # `system_message` was used on the /search/stream no-answer path without ever
@@ -26,6 +27,7 @@ from .nodes.answer import (prepare_generation, parse_no_answer,
 # body (found 2026-07-29 while wiring the language registry).
 from .messages import system_message, resolve_unanswered
 from .languages import ui_default_language
+from . import conversation
 from .settings import (organization_entities, platform_int, platform_setting,
                        subtree_entities,
                        ancestor_entities, verify_user, get_active_setting)
@@ -198,6 +200,20 @@ class SearchRequest(BaseModel):
     # Restricts BOTH document retrieval (effective doc language = user code, else
     # LLM code) and the QA packs (manifest lang). None = no restriction.
     language: str | None = None
+    # THEMATIC AREAS the search is restricted to — DOMAIN codes from
+    # GET /v1/domains for THIS entity (spec.search-domain-scope §3). Absent or
+    # null = the search that ran before this field existed; a non-empty set is
+    # OR between the areas and AND with every existing filter. `[]`, an empty
+    # element, an unknown/inactive code or a wrong type is a 422 naming the
+    # offending element — NEVER a silently narrowed or widened set.
+    #
+    # A preference, not a permission: it can only remove sources, and the entity,
+    # role, visibility and validity predicates are unchanged behind it.
+    #
+    # Typed list[str] rather than list[DomainCode]: which codes exist is DATA
+    # (taxonomy_rules, per school), so the server validates membership against
+    # the school's own catalog and a frozen enum here could only drift from it.
+    domains: list[str] | None = None
     # Groups turns of one conversation. MUST be a UUID — validated below, because
     # question_answer_log.conversation_id is a uuid column and anything else used to
     # kill the whole log row on insert. log_search swallows its errors by design, so
@@ -272,6 +288,16 @@ class EffectiveScope(BaseModel):
     role: str | None = None              # code_list('role') code, as validated
     school_grade: str | None = None      # the ročník the cascade USED (may be text-derived)
     language: str | None = None          # language filter, null = no restriction
+    # The thematic areas the search WAS restricted to, canonical (trimmed,
+    # upper-cased, deduplicated, sorted) — or null for no restriction. Codes,
+    # never the internal taxonomy_rules ids: those are per-entity and no client
+    # has any use for them.
+    #
+    # ONLY EVER A VALIDATED VALUE. It is filled from what domain_scope.resolve
+    # returned, not from the request, so a response can never present an
+    # unchecked filter as the one that ran — including on the early returns
+    # (role_required), where validation has deliberately already happened.
+    domains: list[str] | None = None
     # WHETHER the caller was identified: the private branch of the visibility
     # predicate depends on it, so it answers "why do I not see my own document".
     identified: bool = False
@@ -285,8 +311,8 @@ class SearchResponse(BaseModel):
     outcome: str                # answer|suggest|blocked|self_harm|unusable|no_answer|role_required
     answer_source: str          # guard|qa_exact|qa_lexical|qa_vector|rag|none
     strategies: list[str] = []  # granular retrieval steps that contributed (document_lexical, qa_lexical, …)
-    # ALWAYS present; empty only on guard outcomes, qa_exact, or a genuinely empty
-    # corpus. Contract: every item's `question` (and each string in `options`) can
+    # ALWAYS present; empty only on guard outcomes or a genuinely empty corpus —
+    # an exact QA hit carries related questions too (qa_exact.related_suggestions). Contract: every item's `question` (and each string in `options`) can
     # be sent straight back to /search as the next question. kinds: qa | clarify |
     # related — see contracts/schemas/search-response.schema.json.
     suggestions: list[dict] = []
@@ -327,10 +353,17 @@ class HealthResponse(BaseModel):
 
 
 def _effective_scope(req: "SearchRequest", result: dict | None = None,
-                     role: str | None = None, identified: bool = False) -> "EffectiveScope":
+                     role: str | None = None, identified: bool = False,
+                     domains: list[str] | None = None) -> "EffectiveScope":
     """The scope as the cascade USED it, not as the request stated it. The ročník in
     particular may be text-derived ("pro 6. třídu") when the caller sent none, so
-    echoing the request back would report a value that never applied."""
+    echoing the request back would report a value that never applied.
+
+    `domains` comes from the resolver, never from `req`: the same rule, applied
+    to the field where getting it wrong is worst — a response claiming a filter
+    that was never validated would be a claim about which sources could have
+    answered.
+    """
     result = result or {}
     # NOT result.get(key, _grade_code(...)): the default would be evaluated on every
     # call, and _grade_code hits the code_list — an extra query per response, and a
@@ -347,6 +380,9 @@ def _effective_scope(req: "SearchRequest", result: dict | None = None,
         role=role,
         school_grade=str(grade) if grade is not None else None,
         language=result.get("language_filter") or None,
+        # the cascade's own copy wins, so a step could in principle report what
+        # it really applied; today they only carry it through unchanged
+        domains=result.get("domain_codes") or domains,
         identified=identified,
     )
 
@@ -393,8 +429,15 @@ def _sources_cell(asset_refs) -> str:
     return "\n".join(lines)
 
 
-def _public_suggestions(items) -> list[dict]:
+def _public_suggestions(items, req=None, user_id=None,
+                        domains: list[str] | None = None) -> list[dict]:
     """The suggestion list as a CLIENT may treat it — every `question` sendable.
+
+    `req`/`user_id` turn on the per-conversation dedupe (see conversation.py): a
+    question this chat already asked is never offered back, and a chip already
+    shown and ignored goes to the end rather than into the bin. Passing neither
+    is the old behaviour, which is what the eval harness and any caller without a
+    conversation_id get anyway.
 
     Two things the wire promises and the cascade did not keep:
 
@@ -412,6 +455,17 @@ def _public_suggestions(items) -> list[dict]:
     """
     if not platform_setting("suggest_clarify", False):
         items = without_clarify(items)
+    # the lookup costs a query, so it is not spent on a response with nothing to
+    # filter — which is every guard outcome and most of the eval traffic
+    if items and req is not None and getattr(req, "conversation_id", None):
+        # `domains` is the VALIDATED set, so the dedupe reads back only the turns
+        # of this conversation asked in the same area — see conversation.load_seen.
+        asked, offered = conversation.load_seen(
+            req.conversation_id, getattr(req, "legal_entity", None), user_id,
+            domains)
+        items = conversation.drop_repeats(items, asked, offered)
+    # last: the builders above dedupe within themselves, never against each other
+    items = conversation.unique_questions(items)
     return [{**s, "entry_id": s.get("entry_id") or ""} for s in items or []]
 
 
@@ -553,12 +607,21 @@ def _valid_role(role) -> str | None:
     return r if r in allowed else None
 
 
-def _role_gate(req: "SearchRequest") -> tuple[str | None, "SearchResponse | None"]:
+def _role_gate(req: "SearchRequest",
+               domains: list[str] | None = None) -> tuple[str | None, "SearchResponse | None"]:
     """(validated role, error-response-or-None). When a role is required and the
     caller gave none (or an unknown one), the SECOND item is a ready 200
     response carrying the localized 'role_required' message — the caller renders
     it like any answer. Role is a HARD audience filter (init 127); without it we
-    cannot tell which documents the caller may see, so we ask rather than guess."""
+    cannot tell which documents the caller may see, so we ask rather than guess.
+
+    `domains` is the ALREADY VALIDATED code set — _prepare_search runs the domain
+    resolver BEFORE this gate for exactly this reason. So the early return
+    reports the filter that would have applied instead of omitting it, and it is
+    never the raw request value: this response cannot claim a filter nobody
+    checked. No retrieval happens on this path, so the field is scope, not a
+    statement about which sources were consulted.
+    """
     role = _valid_role(req.user_role)
     if role or not _search_requires_role():
         return role, None
@@ -568,7 +631,147 @@ def _role_gate(req: "SearchRequest") -> tuple[str | None, "SearchResponse | None
         outcome="role_required", answer_source="guard",
         language=lang, suggestions=[],
         # role stays null — that IS the finding here
-        effective_scope=_effective_scope(req))
+        effective_scope=_effective_scope(req, domains=domains))
+
+
+def _resolve_domains(req: "SearchRequest", org: list[str]) -> tuple[list[str] | None,
+                                                                   list[int] | None]:
+    """(canonical codes, filter ids) for the request — the two 422/503 boundaries.
+
+    The translation from domain_scope's exceptions into this service's error
+    envelope, in one place because three endpoints need it and a fourth will.
+
+    422 carries `fields` pointing at `domains` or at the offending element, like
+    every other rejected field VALUE here. 503 is the case the spec is emphatic
+    about: the caller asked for a NARROWER search and the catalog could not be
+    read, so the honest answer is "try again", never the wider search they did
+    not ask for. Retryable, and raised before any retrieval — and, at every call
+    site, before the idempotency claim, so a 422/503 leaves no claim hanging for
+    the client's retry to collide with.
+    """
+    try:
+        codes = domain_scope.normalize(req.domains)
+        return domain_scope.resolve(req.legal_entity, codes, org)
+    except domain_scope.DomainValidationError as e:
+        raise HTTPException(status_code=422, detail={
+            "code": "VALIDATION_ERROR", "message": e.message,
+            "retryable": False, "fields": e.fields}) from e
+    except domain_scope.DomainCatalogUnavailable as e:
+        raise HTTPException(status_code=503, detail={
+            "code": "UNAVAILABLE",
+            "message": "The domain catalog could not be read, so the requested "
+                       "area filter cannot be applied. Retry shortly.",
+            "retryable": True}) from e
+
+
+def _hashable_body(req: "SearchRequest",
+                   domains: list[str] | None) -> dict:
+    """The request body as the idempotency digest sees it.
+
+    ONE rule, and it is a compatibility rule, not a new semantic: a NULL
+    `domains` is dropped before hashing, everything else is left exactly as
+    model_dump produces it.
+
+    Why it has to be dropped. `body_hash` hashes the canonical model_dump, so
+    adding a field with a default of None changes the digest of every request
+    that does not send it — including the one a client sent five minutes ago and
+    is now retrying. Its stored claim was hashed by the OLD code, from a dict
+    with no `domains` key at all, and the retry would come back
+    IDEMPOTENCY_CONFLICT: a client that did nothing wrong told its answer
+    belongs to someone else. Dropping the key when it is null reproduces that
+    old dict byte for byte.
+
+    Why ONLY this field. Every other default (retrieval_only=False, debug=False,
+    …) was already in the digest when the stored claims were written, so
+    omitting one now would break the compatibility this exists to keep. The
+    exemption is for fields ADDED after a claim could exist, and it is not a
+    general "skip the defaults".
+
+    An EXPLICIT filter goes in, in CANONICAL form (from the resolver, not the
+    request): ["B","a"] and ["A","b"] are the same set and must replay each
+    other, while the same key with a genuinely different scope must 409 — which
+    is what including the codes achieves.
+    """
+    body = req.model_dump()
+    if domains is None:
+        body.pop("domains", None)
+    else:
+        body["domains"] = list(domains)
+    return body
+
+
+def _prepare_search(req: "SearchRequest") -> dict:
+    """Identity, visibility scope and thematic scope — everything the cascade
+    needs, resolved once and identically for /ask, /ask/stream and /explain.
+
+    It existed three times, and the copies had drifted: the stream forgot
+    params_override for a while, and /explain never resolved an entity at all —
+    it ran the deterministic prefix with no entity_scope, so scope.where() saw
+    nothing resolved and the diagnostic answered about a corpus nobody could
+    reach. One function, so a new field cannot land on two of the three.
+
+    ORDER MATTERS and is asserted by the tests:
+      1. entity (an unknown one is a 400 — nothing else can be resolved)
+      2. caller (403 for an unbacked user_id, before anything is read)
+      3. domains (422/503) — BEFORE the role gate and before any idempotency
+         claim, so the early `role_required` return can report a VALIDATED
+         filter and a rejected request leaves no claim behind
+      4. role (a 200 carrying `role_required`, returned by the caller)
+
+    Returns the initial cascade state plus `_role`, `_role_err`, `_uid`,
+    `_domain_codes` — the four things the endpoints themselves have to branch on.
+    """
+    # Two lists, because the levels read in different directions. `organization`
+    # matches the whole tree of the legal person. `entity` reads UPWARD from the
+    # publisher — my own documents plus those of everyone under me, so the head
+    # office sees what its units published for themselves while siblings stay
+    # invisible to each other. Empty for an unknown entity, and scope.where turns
+    # that into "see nothing" rather than into no predicate at all.
+    _org = organization_entities(req.legal_entity)
+    # STRICT three-level model (2026-08-07):
+    #   entity        → ONLY the owning entity. Nobody else: not the parent, not a
+    #                   child unit, not a sibling. A document that must reach the
+    #                   whole school is ingested as `organization`, not `entity`.
+    #   organization  → everyone within the organisation (the whole tenant tree).
+    #   (private       → the owner alone, handled in scope.where.)
+    # A foreign organisation never sees anything — _org is resolved within one
+    # legal person and never crosses. Empty _org (unknown entity) → see nothing.
+    _scope = [req.legal_entity] if _org else []
+    # WHO is asking — verified user, or an anonymous caller where the
+    # organisation's policy allows one (see _resolve_search_caller).
+    _uid = _resolve_search_caller(req)
+    if not _org:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown or inactive legal entity '{req.legal_entity}'")
+
+    _codes, _ids = _resolve_domains(req, _org)
+    _role, _role_err = _role_gate(req, domains=_codes)
+
+    initial = {
+        "user_question": req.question,
+        "legal_entity": req.legal_entity,
+        "entity_scope": _scope,
+        "organization_entities": _org,
+        "user_id": _uid,
+        "user_school_grade": _grade_code(req.user_school_grade),
+        "user_role": _role,
+        "language_filter": _validate_language(req.language) if (req.language or "").strip() else None,
+        "domain_codes": _codes,
+        "domain_ids": _ids,
+        "conversation_id": req.conversation_id,
+        "session_id": req.session_id,
+    }
+    if req.query_norm_tokens:
+        initial["query_norm_tokens"] = req.query_norm_tokens
+    if req.query_lemma_tokens:
+        initial["query_lemma_tokens"] = req.query_lemma_tokens
+    if req.query_stem_tokens:
+        initial["query_stem_tokens"] = req.query_stem_tokens
+    if req.params_override:
+        initial["_params_override"] = req.params_override
+    return {"initial": initial, "_uid": _uid, "_role": _role,
+            "_role_err": _role_err, "_domain_codes": _codes}
 
 
 def _validate_language(code: str) -> str:
@@ -618,7 +821,10 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
         raise HTTPException(status_code=400, detail="question is required")
 
     t0 = time.time()
-    logger.info("Search request: %s", req.question[:100])
+    # no question text here: the full question goes to question_answer_log (log.py),
+    # the container log gets identifiers and size only (AGENTS.md)
+    logger.info("Search request (entity=%.64s, role=%.32s, chars=%d)",
+                req.legal_entity, req.user_role, len(req.question))
     if req.selected_answer_key:
         # visible, not silent: whoever sends this expects the answer to come from
         # that entry, and today it does not
@@ -626,31 +832,14 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
                     "(cascade re-matches on the question text)",
                     req.selected_answer_key[:80])
 
-    # Two lists, because the levels read in different directions. `organization`
-    # matches the whole tree of the legal person. `entity` reads UPWARD from the
-    # publisher — my own documents plus those of everyone under me, so the head
-    # office sees what its units published for themselves while siblings stay
-    # invisible to each other. Empty for an unknown entity, and scope.where turns
-    # that into "see nothing" rather than into no predicate at all.
-    _org = organization_entities(req.legal_entity)
-    # STRICT three-level model (2026-08-07):
-    #   entity        → ONLY the owning entity. Nobody else: not the parent, not a
-    #                   child unit, not a sibling. A document that must reach the
-    #                   whole school is ingested as `organization`, not `entity`.
-    #   organization  → everyone within the organisation (the whole tenant tree).
-    #   (private       → the owner alone, handled in scope.where.)
-    # A foreign organisation never sees anything — _org is resolved within one
-    # legal person and never crosses. Empty _org (unknown entity) → see nothing.
-    _scope = [req.legal_entity] if _org else []
-    # WHO is asking — verified user, or an anonymous caller where the
-    # organisation's policy allows one (see _resolve_search_caller).
-    _uid = _resolve_search_caller(req)
-    if not _org:
-        raise HTTPException(
-            status_code=400,
-            detail=f"unknown or inactive legal entity '{req.legal_entity}'")
-
-    _role, _role_err = _role_gate(req)
+    # entity → caller → domains → role, resolved once and shared with
+    # /ask/stream and /explain. Domains are validated in here, i.e. BEFORE the
+    # idempotency claim below, so a 422 or 503 cannot leave a claim the client's
+    # retry would collide with.
+    _prep = _prepare_search(req)
+    initial = _prep["initial"]
+    _uid, _role, _role_err = _prep["_uid"], _prep["_role"], _prep["_role_err"]
+    _domains = _prep["_domain_codes"]
     if _role_err is not None:
         return _role_err
 
@@ -663,7 +852,7 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
     if idempotency_key:
         _acct = idempotency.account_of(req.legal_entity, _uid)
         _key = idempotency_key
-        _digest = idempotency.body_hash(req.model_dump())
+        _digest = idempotency.body_hash(_hashable_body(req, _domains))
         _state, _cached = idempotency.claim(_acct, _key, _digest)
         if _state == "replay":
             http_response.headers["Idempotency-Replayed"] = "true"
@@ -680,27 +869,6 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
                 "message": "The same request is still being processed.",
                 "retryable": True})
         http_response.headers["Idempotency-Replayed"] = "false"
-
-    initial = {
-        "user_question": req.question,
-        "legal_entity": req.legal_entity,
-        "entity_scope": _scope,
-        "organization_entities": _org,
-        "user_id": _uid,
-        "user_school_grade": _grade_code(req.user_school_grade),
-        "user_role": _role,
-        "language_filter": _validate_language(req.language) if (req.language or "").strip() else None,
-        "conversation_id": req.conversation_id,
-        "session_id": req.session_id,
-    }
-    if req.query_norm_tokens:
-        initial["query_norm_tokens"] = req.query_norm_tokens
-    if req.query_lemma_tokens:
-        initial["query_lemma_tokens"] = req.query_lemma_tokens
-    if req.query_stem_tokens:
-        initial["query_stem_tokens"] = req.query_stem_tokens
-    if req.params_override:
-        initial["_params_override"] = req.params_override
 
     # dev/eval: retrieval-only path — run the cascade up to (not incl.) the answer
     # LLM and return the ranked sources. Deterministic + token-free, for sweeps.
@@ -724,7 +892,7 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
             answer="", outcome=result.get("outcome") or "retrieval",
             answer_source="retrieval", strategies=result.get("strategies", []),
             key_words_used=result.get("keywords_used", []),
-            effective_scope=_effective_scope(req, result, _role, bool(_uid)),
+            effective_scope=_effective_scope(req, result, _role, bool(_uid), _domains),
             sources=_sources_list(_src), language=ui_default_language(),
             duration_ms=int((time.time() - t0) * 1000),
             # same rule as the normal path — one behaviour, no special case to
@@ -752,12 +920,13 @@ def search(req: SearchRequest, background_tasks: BackgroundTasks,
         answer_source=result.get("answer_source", "none"),
         strategies=result.get("strategies", []),
         answer_parts=result.get("answer_parts", []),
-        suggestions=_public_suggestions(result.get("suggestions")),
+        suggestions=_public_suggestions(result.get("suggestions"), req, _uid,
+                                        _domains),
         matched_entry_id=result.get("matched_entry_id"),
         match_score=result.get("match_score"),
         sources=_sources_list(result.get("sources_json")),
         key_words_used=result.get("keywords_used", []),
-        effective_scope=_effective_scope(req, result, _role, bool(_uid)),
+        effective_scope=_effective_scope(req, result, _role, bool(_uid), _domains),
         language=result.get("user_language") or ui_default_language(),
         duration_ms=duration_ms,
         trace=result.get("trace", []),
@@ -833,7 +1002,20 @@ def domains(legal_entity: str | None = None):
 
     PER SCHOOL: with legal_entity the set is resolved nearest-owner-up
     (resolved_taxonomy_rules: the school's own domains, else the nearest parent's,
-    else GLOBAL) — the same rule as subjects/grades. Without it → global."""
+    else GLOBAL) — the same rule as subjects/grades. Without it → global.
+
+    ALSO THE AREA PICKER'S CATALOG (spec.search-domain-scope §3), which is why it
+    is now in the nginx allowlist as /search/v1/domains. `codes` a client may
+    send as `domains` are exactly the `code` values here, for exactly the
+    `legal_entity` it asked about — so the response echoes that entity back:
+    without it a client cannot tell a catalog it asked for from the GLOBAL
+    fallback it got, and a picker bound to the wrong school would offer areas
+    the search will then reject with a 422.
+
+    Kept ADDITIVE: `domains` is unchanged in shape and position, and the
+    entity-less call still returns the GLOBAL set for the existing callers (the
+    classification LLM's {{DOMAINS}}, the upload UI).
+    """
     from .db import get_cursor
     with get_cursor() as cur:
         # Always resolve through the function: with an entity it returns that
@@ -845,7 +1027,8 @@ def domains(legal_entity: str | None = None):
             f"FROM {config.PG_SCHEMA}.resolved_taxonomy_rules(%s, 'DOMAIN') "
             "ORDER BY sort_order", (legal_entity,))
         rows = cur.fetchall()
-    return {"domains": [{"code": r[0], "labels": r[1]} for r in rows]}
+    return {"legal_entity": legal_entity,
+            "domains": [{"code": r[0], "labels": r[1]} for r in rows]}
 
 
 VISIBILITY_VALUES = ("private", "entity", "organization")
@@ -1052,8 +1235,6 @@ def qa_export(legal_entity: str, pack_id: str):
     `sources` (asset_refs) is written back in the reader's own line format so the
     round-trip is lossless — see _sources_cell.
     """
-    import csv as _csv
-    import io as _io
     from .db import get_cursor
     with get_cursor() as cur:
         # 404 rather than an empty file: "this pack is not yours / does not
@@ -1086,7 +1267,11 @@ def qa_export(legal_entity: str, pack_id: str):
                        coalesce(e.tags->>'category', '')             AS cat,
                        coalesce(string_agg(v.phrasing, E'\n'
                                            ORDER BY v.variant_id), '') AS variants,
-                       e.asset_refs
+                       e.asset_refs,
+                       ARRAY(SELECT DISTINCT t.type_code
+                             FROM {config.PG_SCHEMA}.taxonomy_rules t
+                             WHERE t.id = ANY(e.domain_ids)
+                             ORDER BY t.type_code) AS domains
                   FROM {config.PG_SCHEMA}.qa_entries e
                   LEFT JOIN {config.PG_SCHEMA}.qa_variants v
                          ON v.entry_id = e.entry_id
@@ -1101,18 +1286,10 @@ def qa_export(legal_entity: str, pack_id: str):
             (pack_id, legal_entity))
         rows = cur.fetchall()
 
-    buf = _io.StringIO()
-    # A real writer, not string joining: answer_md routinely holds ';', quotes
-    # and line breaks, and each of those splits or truncates a hand-built row.
-    w = _csv.writer(buf, delimiter=";", quoting=_csv.QUOTE_MINIMAL,
-                    lineterminator="\r\n")
-    w.writerow(["entry_key", "canonical_q", "answer_md", "cat", "variants",
-                "sources", "is_active"])
-    for r in rows:
-        w.writerow([r[0], r[1], r[2], r[3], r[4], _sources_cell(r[5]), "TRUE"])
-    # utf-8-sig: without the BOM Excel reads the file as the system codepage and
-    # every Czech letter comes out as mojibake, which is where a curator gives up.
-    return Response(content=buf.getvalue().encode("utf-8-sig"),
+    from .qa_csv import rows_to_csv_bytes
+    csv_rows = [(r[0], r[1], r[2], r[3], r[4], _sources_cell(r[5]),
+                 json.dumps(r[6])) for r in rows]
+    return Response(content=rows_to_csv_bytes(csv_rows),
                     media_type="text/csv; charset=utf-8")
 
 
@@ -1450,57 +1627,23 @@ def search_stream(req: SearchRequest):
         raise HTTPException(status_code=400, detail="question is required")
 
     t0 = time.time()
-    logger.info("Stream search request: %s", req.question[:100])
+    # same rule as /ask: identifiers only, the text lives in question_answer_log
+    logger.info("Stream search request (entity=%.64s, role=%.32s, chars=%d)",
+                req.legal_entity, req.user_role, len(req.question))
 
-    # Two lists, because the levels read in different directions. `organization`
-    # matches the whole tree of the legal person. `entity` reads UPWARD from the
-    # publisher — my own documents plus those of everyone under me, so the head
-    # office sees what its units published for themselves while siblings stay
-    # invisible to each other. Empty for an unknown entity, and scope.where turns
-    # that into "see nothing" rather than into no predicate at all.
-    _org = organization_entities(req.legal_entity)
-    # STRICT three-level model (2026-08-07):
-    #   entity        → ONLY the owning entity. Nobody else: not the parent, not a
-    #                   child unit, not a sibling. A document that must reach the
-    #                   whole school is ingested as `organization`, not `entity`.
-    #   organization  → everyone within the organisation (the whole tenant tree).
-    #   (private       → the owner alone, handled in scope.where.)
-    # A foreign organisation never sees anything — _org is resolved within one
-    # legal person and never crosses. Empty _org (unknown entity) → see nothing.
-    _scope = [req.legal_entity] if _org else []
-    # WHO is asking — verified user, or an anonymous caller where the
-    # organisation's policy allows one (see _resolve_search_caller).
-    _uid = _resolve_search_caller(req)
-    if not _org:
-        raise HTTPException(
-            status_code=400,
-            detail=f"unknown or inactive legal entity '{req.legal_entity}'")
-
-    _role, _role_err = _role_gate(req)
-
-    initial = {
-        "user_question": req.question,
-        "legal_entity": req.legal_entity,
-        "entity_scope": _scope,
-        "organization_entities": _org,
-        "user_id": _uid,
-        "user_school_grade": _grade_code(req.user_school_grade),
-        "user_role": _role,
-        "language_filter": _validate_language(req.language) if (req.language or "").strip() else None,
-        "conversation_id": req.conversation_id,
-        "session_id": req.session_id,
-    }
-    if req.query_norm_tokens:
-        initial["query_norm_tokens"] = req.query_norm_tokens
-    if req.query_lemma_tokens:
-        initial["query_lemma_tokens"] = req.query_lemma_tokens
-    if req.query_stem_tokens:
-        initial["query_stem_tokens"] = req.query_stem_tokens
-    # the blocking endpoint has always done this; the stream silently dropped it,
-    # so an eval sweep here ran on the un-overridden params and looked like it
-    # had applied.
-    if req.params_override:
-        initial["_params_override"] = req.params_override
+    # SAME preparation as /ask, and OUTSIDE gen(): an HTTP error must be an HTTP
+    # error. Once StreamingResponse has been returned the status line is already
+    # 200 and a validation failure could only be reported as an SSE `error`
+    # event, which is not what a 422 means. So the domain filter is validated
+    # here — before the stream opens — exactly as the spec requires, and a bad
+    # code gets the identical envelope /ask returns.
+    #
+    # It also picks up what this copy had drifted on: params_override was missing
+    # for a while, and there is now one place for a new field to be added.
+    _prep = _prepare_search(req)
+    initial = _prep["initial"]
+    _uid, _role, _role_err = _prep["_uid"], _prep["_role"], _prep["_role_err"]
+    _domains = _prep["_domain_codes"]
 
     def gen():
         # role gate first — a missing/invalid role answers in one `done` event
@@ -1614,7 +1757,7 @@ def search_stream(req: SearchRequest):
                 elif _noans:
                     result.update(resolve_unanswered(result))
                     result["suggestions"] = merge_suggestions(
-                        [{"kind": "variant", "question": v} for v in _variants],
+                        variant_chips(result, _variants),
                         without_clarify(prep.get("suggestions")),
                         result.get("suggestions"))
                 elif pieces:
@@ -1635,8 +1778,7 @@ def search_stream(req: SearchRequest):
                               ]}], _sugg)
                     elif _trail:
                         _sugg = merge_suggestions(
-                            [{"kind": "variant", "question": v}
-                             for v in _trail], _sugg)
+                            variant_chips(result, _trail), _sugg)
                     result.update({
                         "resolved": True, "outcome": "answer", "answer_source": "rag",
                         "answer": _clean,
@@ -1656,12 +1798,13 @@ def search_stream(req: SearchRequest):
             answer_source=result.get("answer_source", "none"),
             strategies=result.get("strategies", []),
             answer_parts=result.get("answer_parts", []),
-            suggestions=_public_suggestions(result.get("suggestions")),
+            suggestions=_public_suggestions(result.get("suggestions"), req, _uid,
+                                        _domains),
             matched_entry_id=result.get("matched_entry_id"),
             match_score=result.get("match_score"),
             sources=_sources_list(result.get("sources_json")),
             key_words_used=result.get("keywords_used", []),
-            effective_scope=_effective_scope(req, result, _role, bool(_uid)),
+            effective_scope=_effective_scope(req, result, _role, bool(_uid), _domains),
             language=result.get("user_language") or ui_default_language(),
             duration_ms=duration_ms,
         )
@@ -1697,7 +1840,26 @@ def search_stream(req: SearchRequest):
 
 @v1.post("/explain")
 def explain(req: SearchRequest):
-    """Debug: run the deterministic prefix (prepare → route → qa_exact → qa_lexical)."""
+    """Debug: the deterministic prefix (prepare → route → qa_exact → qa_lexical).
+
+    CONTRACT CHANGE, 2026-09-06 — deliberate and stated. Until now this built its
+    own two-key state and ignored the rest of the request: no entity, no caller,
+    no role, no language. scope.where() therefore saw nothing resolved, which is
+    "see nothing", and the endpoint's usefulness rested on that accident rather
+    than on a rule. It is also in the nginx allowlist, so it is a PUBLISHED
+    diagnostic — and a published endpoint that resolved identity loosely would be
+    a way to read curated material without the entity/role/visibility gate.
+
+    So it now runs the same _prepare_search as /ask: the same 400 for an unknown
+    entity, the same 403 for an unbacked user_id, the same 422/503 for a bad
+    domain filter, the same role gate, and the same thematic scope. Same
+    diagnostic value; the identity behind it is now a rule with a test.
+
+    What does NOT change: it stays deterministic, spends no LLM call, and stops
+    after qa_lexical. `role_required` is returned as the same 200 body /ask
+    returns rather than as a state dump, because there is no state to dump —
+    nothing ran.
+    """
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question is required")
     from .nodes.prepare import prepare
@@ -1705,18 +1867,33 @@ def explain(req: SearchRequest):
     from .nodes.qa_exact import qa_exact
     from .nodes.qa_lexical import qa_lexical
 
-    state = {"user_question": req.question, "user_school_grade": req.user_school_grade}
-    if req.query_norm_tokens:
-        state["query_norm_tokens"] = req.query_norm_tokens
-    if req.query_lemma_tokens:
-        state["query_lemma_tokens"] = req.query_lemma_tokens
-    state.update(prepare(state))
+    _prep = _prepare_search(req)
+    if _prep["_role_err"] is not None:
+        return _prep["_role_err"]
+    state = dict(_prep["initial"])
+
+    # THE ACTIVE SETTING'S CONFIG, which this endpoint never passed and now must.
+    # prepare() builds the token forms from the normalization config, and since
+    # eduai_normalize 3.0.0 the stoplist is DATA — no built-in list any more — so
+    # `prepare(state)` with no cfg raises and the endpoint answered 500. Verified
+    # 2026-09-06 on production at e0316a6: /v1/explain 500s there too, i.e. this
+    # is a PRE-EXISTING defect of the 3.0.0 rollout and not of the domain scope.
+    # Fixed here because a diagnostic that cannot run cannot show the
+    # deterministic prefix it exists for, and the same setting row is what the
+    # cascade itself uses (executor.run_search), so the prefix shown is the
+    # prefix that would really run.
+    _cfg = get_active_setting(req.legal_entity)["config"]
+    if req.params_override:
+        state["_params_override"] = req.params_override
+    state.update(prepare(state, _cfg))
     state.update(route(state))
     if not state.get("resolved"):
         state.update(qa_exact(state))
     if not state.get("resolved"):
         state.update(qa_lexical(state))
     state.pop("rag_chunks", None)
+    # the query embedding is a 1536-float list nobody reads out of a diagnostic
+    state.pop("query_vec", None)
     return state
 
 
@@ -1725,3 +1902,5 @@ def explain(req: SearchRequest):
 # empty — or half-built — router, and the routes would 404 with nothing to show
 # for it in the code.
 api.include_router(v1)
+from .qa_admin import internal as _qa_admin_internal
+api.include_router(_qa_admin_internal)

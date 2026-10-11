@@ -1,4 +1,4 @@
-# last change in code by Jan Drozd and Martin Safranek (2026-08-19).
+# last change in code by Jan Drozd (2026-09-03).
 """Load the active search-algorithm configuration from edu_ai.settings.
 
 The cascade is config-driven (RAG redesign — configurable search): its pipeline
@@ -32,10 +32,20 @@ _FALLBACK: dict[str, Any] = {
     # builds the token forms, and the pipeline starts after that.
     "context": {"enabled": True, "max_turns": 4, "window": "2 hours",
                 "model": config.CONTEXT_MODEL, "max_tokens": 120},
+    # `language` is REQUIRED on every entry. Without it these two used to match
+    # ANY language (engine_for treated a language-less entry as generic), so on
+    # this fallback English, German and Spanish were all reduced by the CZECH
+    # stemmer — profesores -> profeso instead of profesor. This is the Czech
+    # baseline and says so; a language with no entry resolves to "" and
+    # stem_word deliberately leaves the word alone rather than borrowing
+    # another language's reducer. Declaring en/de/es here too would just be the
+    # configuration copied into code again.
     "engines": [
         {"name": "simplemma", "kind": "lemmatizer", "column": "lemma_text",
+         "language": "cs",
          "active": {"ingest_qa": True, "ingest_docs": True}},
         {"name": "dolamic_savoy_light", "kind": "stemmer", "column": "stem_text",
+         "language": "cs",
          "params": {"min_len": 3, "aggressive": False},
          "active": {"ingest_qa": True, "ingest_docs": True}},
     ],
@@ -44,7 +54,9 @@ _FALLBACK: dict[str, Any] = {
          "note": "Deterministic guard (usable? + qa_blocklist; self_harm→Linka bezpečí) "
                  "and QA pack scope by grade. No LLM, no retrieval — just admit/deny + scope."},
         # QA block first (curated pairs): exact → lexical → vector.
-        {"step": "qa_exact", "enabled": True, "on_hit": "stop"},
+        {"step": "qa_exact", "enabled": True, "on_hit": "stop",
+         "params": {"related_suggestions": True,
+                    "suggest_top_n": config.QA_SUGGEST_TOP_N}},
         {"step": "qa_lexical", "enabled": True, "on_hit": "stop",
          "params": {"form": ["norm", "lemma", "stem"], "t_answer": config.QA_T_ANSWER,
                     "t_suggest": config.QA_T_SUGGEST, "m_margin": config.QA_M_MARGIN,
@@ -77,24 +89,38 @@ _cache_at: float = 0.0
 _CACHE_TTL_S = 5.0
 
 
-def _load_stopwords() -> dict[str, list[str]]:
+def _load_stopwords() -> dict[str, list[str]] | None:
     """Active stoplists from the qa_stopword číselník, per language (data, not
     code — MD §2.2). Kept in its own table because it changes more often than
-    the search config. Empty → the token functions fall back to the in-code
-    STOPWORDS/STOPWORDS_EN sets."""
+    the search config.
+
+    Returns None when the table could not be READ, and {} when it was read and
+    holds nothing. The two are not the same and used to be indistinguishable:
+    both produced {}, the caller then left stopwords_by_lang unset, and
+    eduai_normalize quietly substituted its own built-in list. That list is gone
+    as of 3.0.0 — an unreadable stoplist now surfaces as a ValueError from
+    stopwords_of instead of as search that silently keeps different words than
+    the index dropped."""
     try:
         with get_cursor() as cur:
             cur.execute(
-                f"SELECT lang, term FROM {config.PG_SCHEMA}.qa_stopword "
-                "WHERE is_active AND scope = 'index'"
+                # term_norm, NE term: term je od 5. 9. 2026 základní tvar
+                # S DIAKRITIKOU (kvůli odvození lemmatu a stemu — simplemma zná
+                # „během", ne „behem"), zatímco porovnává se proti už složeným
+                # tokenům. Složený tvar drží term_norm; use_norm rozhoduje,
+                # jestli řádek na tuhle větev vůbec platí.
+                f"SELECT lang, term_norm FROM {config.PG_SCHEMA}.qa_stopword "
+                "WHERE is_active AND scope = 'index' AND use_norm "
+                "AND term_norm <> ''"
             )
             out: dict[str, list[str]] = {}
             for lang, term in cur.fetchall():
                 out.setdefault(lang, []).append(term)
             return out
     except Exception as e:
-        logger.warning("settings: stopword load failed (%s) — built-in fallback", e)
-        return {}
+        logger.error("settings: stopword load failed (%s) — there is no built-in "
+                     "fallback since eduai_normalize 3.0.0; tokenization will refuse", e)
+        return None
 
 
 def ancestor_entities(legal_entity: str | None) -> list[str]:
@@ -443,7 +469,11 @@ def _load(legal_entity: str | None = None) -> dict[str, Any]:
             # inject the stoplist from its separate číselník into the config the
             # token functions read (search-parity: index side loads the same table)
             sw = _load_stopwords()
-            if sw:
+            if sw is not None:
+                # Set even when EMPTY: "the číselník declares no stopwords" is a
+                # real state and must reach the token functions as data. Leaving
+                # the key unset is reserved for "could not read the table", which
+                # stopwords_of turns into an error rather than a silent default.
                 norm = cfg.setdefault("normalization", {})
                 norm["stopwords_by_lang"] = sw
                 # No legacy flat `stopwords` key any more: it held the CZECH list

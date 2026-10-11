@@ -1,0 +1,28 @@
+-- GENERATED from postgres/role_contract/matrix.json; do not edit by hand.
+-- Database level: owners, PUBLIC CONNECT/TEMP removed, explicit CONNECT. Idempotent.
+\set ON_ERROR_STOP on
+SET search_path = pg_catalog, pg_temp;
+ALTER DATABASE postgres OWNER TO edu_ai_admin;
+REVOKE ALL ON DATABASE postgres FROM PUBLIC;
+REVOKE ALL ON DATABASE postgres FROM edu_ai_ingest;
+REVOKE ALL ON DATABASE postgres FROM edu_ai_langflow;
+REVOKE ALL ON DATABASE postgres FROM edu_ai_migrator;
+REVOKE ALL ON DATABASE postgres FROM edu_ai_owner;
+REVOKE ALL ON DATABASE postgres FROM edu_ai_search;
+ALTER DATABASE edu_ai OWNER TO edu_ai_admin;
+REVOKE ALL ON DATABASE edu_ai FROM PUBLIC;
+REVOKE ALL ON DATABASE edu_ai FROM edu_ai_ingest;
+REVOKE ALL ON DATABASE edu_ai FROM edu_ai_langflow;
+REVOKE ALL ON DATABASE edu_ai FROM edu_ai_migrator;
+REVOKE ALL ON DATABASE edu_ai FROM edu_ai_owner;
+REVOKE ALL ON DATABASE edu_ai FROM edu_ai_search;
+GRANT CONNECT ON DATABASE edu_ai TO edu_ai_search;
+GRANT CONNECT ON DATABASE edu_ai TO edu_ai_ingest;
+GRANT CONNECT ON DATABASE edu_ai TO edu_ai_migrator;
+ALTER DATABASE langflow OWNER TO edu_ai_langflow;
+REVOKE ALL ON DATABASE langflow FROM PUBLIC;
+REVOKE ALL ON DATABASE langflow FROM edu_ai_ingest;
+REVOKE ALL ON DATABASE langflow FROM edu_ai_migrator;
+REVOKE ALL ON DATABASE langflow FROM edu_ai_owner;
+REVOKE ALL ON DATABASE langflow FROM edu_ai_search;
+REVOKE ALL ON DATABASE template1 FROM PUBLIC;

@@ -16,7 +16,6 @@ from eduai_normalize import (  # noqa: F401
     normalize_tokens,
     lemma_tokens,
     stem_tokens,
-    STOPWORDS,
     fold,
     tokenize,
     strip_diacritics,

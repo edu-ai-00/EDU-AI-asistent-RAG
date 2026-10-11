@@ -7,6 +7,14 @@
     python3 scripts/qa_deactivate_packs.py --all --go            # retire everything
     python3 scripts/qa_deactivate_packs.py --all --keep provoz-zs --go
     python3 scripts/qa_deactivate_packs.py --pack cs-curated-zs --entity SKOLA_NOVA_VES_ZS --go
+    python3 scripts/qa_deactivate_packs.py --activate --pack provoz-jed --go   # zpět
+
+`--activate` je přesný opak, ne "undo": obnoví is_active na VŠECH variantách
+vybraných balíčků, takže varianta vypnutá jednotlivě ještě před hromadným
+zneaktivněním ožije s nimi. Soft delete si předchozí stav nepamatuje, takže to
+jinak nejde — u testovacích balíčků to nevadí, u kurátorovaného obsahu to ověř.
+`--all` s ním schválně nejde: zapnout naráz všechno není operace, kterou by měl
+někdo dělat jedním příkazem.
 
 SOFT, never DELETE — the same invalidation the ingest itself uses (`is_active`),
 for the same reasons: question_answer_log.matched_entry_id keeps pointing at a
@@ -22,13 +30,13 @@ Dry run by default. --go is the only way anything is written.
 from __future__ import annotations
 import argparse, re, subprocess, sys
 
-PG = ["docker", "exec", "-i", "edu_ai_postgres", "psql", "-U", "edu_ai", "-d", "edu_ai",
+PG = ["docker", "exec", "-i", "edu_ai_postgres", "psql", "-U", "edu_ai_admin", "-d", "edu_ai",
       "-v", "ON_ERROR_STOP=1"]
 # The server runs the stack from /opt/edu_ai under compose, and SSH passes stdin
 # straight through, so the remote form is the local one with a wrapper — the
 # same pattern the deploy procedure uses to pipe migrations in.
 REMOTE_PSQL = ("cd /opt/edu_ai && docker compose exec -T postgres "
-               "psql -U edu_ai -d edu_ai -v ON_ERROR_STOP=1")
+               "psql -U edu_ai_admin -d edu_ai -v ON_ERROR_STOP=1")
 # Both are validated by the DB anyway; checked here because these values are
 # INLINED into the SQL below and a shell-quoting bug is not an acceptable way to
 # find that out. Same rule as migration 143 for pack_id.
@@ -61,9 +69,9 @@ def _lit(values) -> str:
 
 
 def selector(a) -> str:
-    """The WHERE fragment naming the packs to retire. Written against columns
+    """The WHERE fragment naming the packs to switch. Written against columns
     both qa_entries and qa_pack_manifest carry, so one string serves both."""
-    where = ["is_active"]
+    where = ["NOT is_active" if a.activate else "is_active"]
     if a.pack:
         where.append(f"pack_id = ANY({_lit(a.pack)})")
     if a.entity:
@@ -79,7 +87,9 @@ def main() -> int:
     ap.add_argument("--pack", action="append", default=[], help="pack_id (lze opakovat)")
     ap.add_argument("--entity", action="append", default=[], help="legal_entity_code")
     ap.add_argument("--keep", action="append", default=[], help="pack_id, který zůstane")
-    ap.add_argument("--go", action="store_true", help="skutečně zneaktivnit")
+    ap.add_argument("--go", action="store_true", help="skutečně provést")
+    ap.add_argument("--activate", action="store_true",
+                    help="opak: zapnout vybrané balíčky (vyžaduje --pack/--entity)")
     ap.add_argument("--remote", metavar="HOST",
                     help="ssh alias serveru (např. edu-ai) místo lokálního kontejneru")
     a = ap.parse_args()
@@ -99,6 +109,8 @@ def main() -> int:
         return 0
     if a.all and (a.pack or a.entity):
         sys.exit("  ! --all a --pack/--entity se vylučují")
+    if a.activate and a.all:
+        sys.exit("  ! --activate --all nejde — vyjmenuj --pack/--entity")
 
     where = selector(a)
     hit = psql(f"SELECT legal_entity_code || '  ' || pack_id || '  ' || count(*) "
@@ -109,7 +121,8 @@ def main() -> int:
         print("\n  Výběru neodpovídá žádný aktivní balíček — nic k udělání.")
         return 0
 
-    print(f"\n  {'DRY RUN — ' if not a.go else '*** ZNEAKTIVŇUJI *** '}"
+    verb = "ZAPÍNÁM" if a.activate else "ZNEAKTIVŇUJI"
+    print(f"\n  {'DRY RUN — ' if not a.go else f'*** {verb} *** '}"
           f"vybráno:\n" + "\n".join("    " + l for l in hit.splitlines()))
     if not a.go:
         print("\n  (nic nezměněno — pro provedení přidej --go)")
@@ -117,17 +130,32 @@ def main() -> int:
 
     # One transaction: the three entry tables must not be able to disagree about
     # which entries are live, and the manifest must not outlive its entries.
+    val = "true" if a.activate else "false"
+    cur = "NOT is_active" if a.activate else "is_active"
+    # qa_pack_manifest keeps one row per UPLOAD (provoz-jed has three, versions
+    # 1..3) under a partial unique index — one active row per (entity, pack). So
+    # retiring flips every matching row, but bringing a pack back may flip only
+    # the NEWEST, or the index rejects the whole transaction. Newest by built_at:
+    # that is the upload whose entries are the ones being switched on.
+    manifest_sql = (
+        "UPDATE edu_ai.qa_pack_manifest SET is_active = true "
+        " WHERE NOT is_active AND (legal_entity_code, pack_id, built_at) IN ("
+        "   SELECT legal_entity_code, pack_id, max(built_at) "
+        f"    FROM edu_ai.qa_pack_manifest WHERE {where} "
+        "    GROUP BY legal_entity_code, pack_id);"
+        if a.activate else
+        f"UPDATE edu_ai.qa_pack_manifest SET is_active = false WHERE {where};")
     psql(f"""
         BEGIN;
         CREATE TEMP TABLE _doomed ON COMMIT DROP AS
             SELECT entry_id FROM edu_ai.qa_entries WHERE {where};
-        UPDATE edu_ai.qa_entries   SET is_active = false
-         WHERE is_active AND entry_id IN (SELECT entry_id FROM _doomed);
-        UPDATE edu_ai.qa_variants  SET is_active = false
-         WHERE is_active AND entry_id IN (SELECT entry_id FROM _doomed);
-        UPDATE edu_ai.qa_embedding SET is_active = false
-         WHERE is_active AND entry_id IN (SELECT entry_id FROM _doomed);
-        UPDATE edu_ai.qa_pack_manifest SET is_active = false WHERE {where};
+        UPDATE edu_ai.qa_entries   SET is_active = {val}
+         WHERE {cur} AND entry_id IN (SELECT entry_id FROM _doomed);
+        UPDATE edu_ai.qa_variants  SET is_active = {val}
+         WHERE {cur} AND entry_id IN (SELECT entry_id FROM _doomed);
+        UPDATE edu_ai.qa_embedding SET is_active = {val}
+         WHERE {cur} AND entry_id IN (SELECT entry_id FROM _doomed);
+        {manifest_sql}
         COMMIT;
     """)
 

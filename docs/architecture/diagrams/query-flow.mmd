@@ -1,0 +1,25 @@
+flowchart TD
+  accTitle: Sekvenční vyřízení dotazu QA a RAG
+  accDescr: Executor provádí právě jeden povolený krok aktivní pipeline za iteraci. Nevyřešený krok i odložené QA návrhy pokračují do dalšího kroku; vyřešený výsledek končí podle on_hit.
+  request["HTTP /v1/ask<br/>příklad synchronní cesty"] --> boundary["server.py: vstup a scope<br/>entita → volající → oblasti → role<br/>idempotence dle requestu"]
+  boundary -->|"replay / odmítnutí / role_required"| response["Odpověď klientovi"]
+  boundary --> init["Aktivní settings organizace<br/>resolve_context → prepare"]
+  init -->|"kontext vyřešil reakci"| response
+  init --> next{"Executor: další povolený krok?<br/>pořadí z aktivní konfigurace<br/>enabled + podmínky běhu"}
+  next -->|"ano: JEDEN krok"| run["Spustit krok a aktualizovat stav<br/>route: guard / scope<br/>QA: autorský hit nebo odložené návrhy<br/>gatherer: kandidáti do poolu<br/>answer: podklady → generování / fallback"]
+  run --> decision{"resolved?<br/>a on_hit není continue?"}
+  decision -->|"ano: stop / výchozí hodnota"| response
+  decision -->|"ne: další krok, včetně lexical B"| next
+  run -->|"chyba kroku: zachytit a pokračovat"| next
+  next -->|"ne: pipeline vyčerpaná"| exhausted{"Stav již resolved?"}
+  exhausted -->|"ano, i po on_hit continue"| response
+  exhausted -->|"ne"| fallback["Bez výsledku: deferred suggest<br/>jinak bezpečný no_answer"]
+  fallback --> response
+  note["QA hit vrací autorskou odpověď<br/>bez generování odpovědi.<br/>Lexical B uloží deferred_suggest;<br/>retrieval pokračuje sekvenčně."] -.-> run
+  errornote["Selhání answer modelu:<br/>deferred suggest má přednost,<br/>jinak llm_unavailable."] -.-> run
+  classDef core fill:#edf2fa,stroke:#466489,color:#16364a;
+  classDef answer fill:#e6f5f5,stroke:#16868b,color:#16364a;
+  classDef fallback fill:#fff3da,stroke:#ac812d,color:#46360e;
+  class boundary,init,next,run,decision,exhausted core;
+  class response answer;
+  class fallback,note,errornote fallback;

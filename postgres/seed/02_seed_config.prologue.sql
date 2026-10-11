@@ -1,0 +1,19 @@
+-- 02_seed_config.sql — configuration and registry seed for a clean install.
+-- Regenerated from an empty, isolated reference; never a production dump.
+--
+-- WHAT TRAVELS (configuration and registries only; no documents, chunks, QA
+-- entries or logs):
+--   code_list, taxonomy_rules, taxonomy_binding, embedding_registry,
+--   prompt_registry, system_message, ui_label, qa_stopword, qa_synonym,
+--   qa_blocklist, chunk_exclusion_rule, answer_exclusion_rule, grade_term,
+--   subject_term, validity_period, settings, legal_entity, staff_user.
+--
+-- Active organization metadata comes from the approved seven-field input in
+-- postgres/seed/clean_organizations.json. Its created_at is a fixed seed value,
+-- not a production timestamp. No source settings, staff, domains or notes travel.
+-- The original synthetic organizations remain inactive with their FK/config
+-- references preserved; all original people and identifiers remain fictitious.
+--
+-- Generated with pg_dump --data-only --column-inserts --disable-triggers;
+-- --disable-triggers handles the legal_entity self-reference cycle, so the
+-- loader must run as the database owner. Run AFTER 01_schema.sql.

@@ -1,0 +1,14 @@
+{
+  "packs": [
+    {
+      "pack_id": "skolni-druzina",
+      "version": 1,
+      "pack_etag": "sha256:mockpack2bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "lang": "cs",
+      "built_at": "2026-08-20T09:00:00Z",
+      "entry_count": 2,
+      "metadata_uniform": false,
+      "publishable": false
+    }
+  ]
+}

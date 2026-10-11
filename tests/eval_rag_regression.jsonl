@@ -1,45 +1,5 @@
-# Regression set: reported questions plus manual probes, each with role, grade and entity.
-# Jeden JSON objekt na řádek; #-komentáře a prázdné řádky se ignorují.
-# 'expect' je slovní očekávání (co má odpověď obsahovat / odkud), 'observed_21_8' co systém udělal té noci.
-{"id": "M1", "origin": "marek", "question": "Jaké pomůcky si máme vzít do školy?", "role": "STUDENT", "grade": 6, "entity": "SKOLA_NOVA_VES_ZS", "expect": "o-studiu: seznam pomůcek pro 6. třídu"}
-{"id": "M2", "origin": "marek", "question": "Jaký zvolit postup pro uvolnění žáka ze školy na 14 dní?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "expect": "školní řád: písemná žádost ředitelce"}
-{"id": "M3", "origin": "marek", "question": "Jaké jsou znaky šikany?", "role": "TEACHER", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "expect": "MŠMT metodický pokyn (na serveru chybí)"}
-{"id": "M4", "origin": "marek", "question": "Co se hodnotí u přijímaček?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "expect": "Cermat/Eduin: 60 % z didaktických testů"}
-{"id": "M5", "origin": "marek", "question": "Kdo je ochránce osobních údajů a kde najdu GDPR pravidla?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "expect": "GDPR dokument v korpusu není → no_answer"}
-{"id": "M6", "origin": "marek", "question": "Kdy je nejbližší škola v přírodě?", "role": "PARENT", "grade": 5, "entity": "SKOLA_NOVA_VES_ZS", "expect": "v datech není → no_answer, NESMÍ konfabulovat"}
-{"id": "M7", "origin": "marek", "question": "Co umíš?", "role": "STUDENT", "grade": 6, "entity": "SKOLA_NOVA_VES_ZS", "expect": "meta: nabízená témata musí být zodpověditelná"}
-{"id": "M8", "origin": "marek", "question": "Co si mám přinýst do školy?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "expect": "~pomůcky (překlep v dotazu)"}
-{"id": "M9", "origin": "marek", "question": "jaké pomůcky pro 6. ročník?", "role": "STUDENT", "grade": 6, "entity": "SKOLA_NOVA_VES_ZS", "expect": "o-studiu: seznam pro 6. třídu (jiná formulace M1)"}
-{"id": "N01", "origin": "noc-21.8", "question": "Co se přikládá k přihlášce?", "role": "STUDENT", "grade": 9, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N02", "origin": "noc-21.8", "question": "Co se stane, když mi učitel zabaví telefon?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N03", "origin": "noc-21.8", "question": "co si má syn vzít v září do školy?", "role": "PARENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "rag", "expect": ""}
-{"id": "N04", "origin": "noc-21.8", "question": "co umíš", "role": "TEACHER", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "meta", "expect": ""}
-{"id": "N05", "origin": "noc-21.8", "question": "jaká jsou pravidla pro mobil ve škole?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N06", "origin": "noc-21.8", "question": "jaké čtvrtky jsou potřeba", "role": "TEACHER", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "none", "expect": ""}
-{"id": "N07", "origin": "noc-21.8", "question": "jaké čtvrtky jsou potřeba?", "role": "PARENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "rag", "expect": ""}
-{"id": "N08", "origin": "noc-21.8", "question": "Jaké pomůcky potřebuji do školy", "role": "TEACHER", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N09", "origin": "noc-21.8", "question": "Jaké pomůcky si mám přinést do školy?", "role": "TEACHER", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N10", "origin": "noc-21.8", "question": "Jak funguje pořadí škol v přihlášce?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N11", "origin": "noc-21.8", "question": "jak mám podat přihlášku?", "role": "STUDENT", "grade": 6, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N12", "origin": "noc-21.8", "question": "jak mám uvolnit dceru na 10 dní ze školy?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N13", "origin": "noc-21.8", "question": "Jak požádat o individuální vzdělávací plán?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N14", "origin": "noc-21.8", "question": "Jak škola předchází šikaně?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N15", "origin": "noc-21.8", "question": "kdo jsi?", "role": "STUDENT", "grade": 9, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "meta", "expect": ""}
-{"id": "N16", "origin": "noc-21.8", "question": "kdy je lyžařský výcvik?", "role": "STUDENT", "grade": 9, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N17", "origin": "noc-21.8", "question": "Kdy jsou prijimacky?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N18", "origin": "noc-21.8", "question": "Kdy jsou přijímačky?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N19", "origin": "noc-21.8", "question": "kdy má naše třída naplánovaný lyžařský výcvik?", "role": "STUDENT", "grade": 9, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_vector", "expect": ""}
-{"id": "N20", "origin": "noc-21.8", "question": "kdy pojedeme na lyžák?", "role": "STUDENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N21", "origin": "noc-21.8", "question": "Kdy se jednotná přijímací zkouška bude konat", "role": "STUDENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_lexical", "expect": ""}
-{"id": "N22", "origin": "noc-21.8", "question": "můžeme ve škole fotit?", "role": "STUDENT", "grade": null, "entity": "SKOLA_NOVA_VES_SOS", "observed_21_8": "rag", "expect": ""}
-{"id": "N23", "origin": "noc-21.8", "question": "můžeme ve škole fotit na telefon?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_lexical", "expect": ""}
-{"id": "N24", "origin": "noc-21.8", "question": "najdi ho", "role": "STUDENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "rag", "expect": ""}
-{"id": "N25", "origin": "noc-21.8", "question": "Národní testování žáků 2025", "role": "PARENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "rag", "expect": ""}
-{"id": "N26", "origin": "noc-21.8", "question": "Pro 7 třídu", "role": "TEACHER", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "none", "expect": ""}
-{"id": "N27", "origin": "noc-21.8", "question": "Seznam pomůcek na školní rok 2026/2027 - 2. stupeň", "role": "PARENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "rag", "expect": ""}
-{"id": "N28", "origin": "noc-21.8", "question": "Z čeho se skládá jednotná přijímací zkouška?", "role": "STUDENT", "grade": 7, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "qa_exact", "expect": ""}
-{"id": "N29", "origin": "noc-21.8", "question": "2. Co je udržitelná uplatnitelnost?", "role": "PARENT", "grade": null, "entity": "SKOLA_NOVA_VES_ZS", "observed_21_8": "none", "expect": ""}
-{"id": "N30", "question": "Jak požádat o individuální vzdělávací plán?", "role": "PARENT", "grade": 9, "entity": "SKOLA_NOVA_VES_ZS", "expect": "školní řád ZŠ, Článek I: zákonní zástupci žáků se SVP mají právo požadovat vypracování IVP", "observed_23_8": "před opravou no_answer — bezročníkový chunk školního řádu spadl za 20 chunků CERMATu tagovaných {5,7,9}"}
-{"id": "N31", "question": "Jak požádat o individuální vzdělávací plán?", "role": "PARENT", "grade": 5, "entity": "SKOLA_NOVA_VES_ZS", "expect": "totéž jako N30; přesná ročníková shoda CERMATu nesmí přebít školní řád", "observed_23_8": "po opravě odpovídá, ale z CERMATu (úprava podmínek u přijímaček) — zbývá dořešit"}
-{"id": "N32", "question": "můžeme ve škole fotit?", "role": "STUDENT", "grade": 11, "entity": "SKOLA_NOVA_VES_SOS", "expect": "školní řád SŠ, zákaz fotit mobilem; 206 z 220 chunků SŠ nemá ročníky, takže s uvedeným ročníkem to byl nejhorší tier", "observed_23_8": "po opravě školní řád na 1. místě"}
-{"id": "N33", "question": "Co obsahuje individuální vzdělávací plán?", "role": "PARENT", "grade": 11, "entity": "SKOLA_NOVA_VES_SOS", "expect": "chunk 556 školního řádu SŠ — podpůrná opatření, úprava obsahu a výstupů, kompenzační pomůcky (jen zkratka IVP, proto synonyma)", "observed_23_8": "před synonymy nedosažitelné"}
+# Synthetic public examples, not the private regression benchmark.
+# Copy to a local ignored file and replace ENTITY_CODE with an active entity; prepare matching synthetic corpus.
+{"id": "PUBLIC01", "question": "Kde najdu pravidla omlouvání absence?", "entity": "ENTITY_CODE", "role": "PARENT"}
+{"id": "PUBLIC02", "question": "Jak se přihlásím na školní obědy?", "entity": "ENTITY_CODE", "role": "STUDENT", "grade": 7}
+{"id": "PUBLIC03", "question": "Kde škola zveřejňuje termíny konzultací?", "entity": "ENTITY_CODE", "role": "PARENT"}

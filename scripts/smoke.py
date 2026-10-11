@@ -31,7 +31,9 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import os
 import pathlib
+import re
 import subprocess
 import sys
 import urllib.error
@@ -39,10 +41,15 @@ import urllib.request
 import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import eduai_layout  # noqa: E402
 from envfile import is_placeholder, read_env  # noqa: E402
+from http_safe import open_url  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
+# The maintenance superuser of the role contract; smoke reads through it on the container's local socket.
+MAINTENANCE_USER = "edu_ai_admin"
+_layout: "eduai_layout.Layout | None" = None   # set by main() only when a layout flag or variable was given
 
 EXPECTED_ALIASES = {
     "edu-ai-load-markdown",
@@ -77,6 +84,8 @@ def skip(message: str) -> None:
 
 
 def run(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
+    if _layout is not None and args[:2] == ["docker", "compose"]:
+        args = _layout.compose_prefix() + args[2:]
     return subprocess.run(args, cwd=ROOT, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout)
 
@@ -84,7 +93,7 @@ def run(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
 def http_json(url: str, *, headers: dict[str, str] | None = None,
               data: bytes | None = None, timeout: int = 30) -> dict:
     request = urllib.request.Request(url, data=data, headers=headers or {})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with open_url(request, timeout=timeout) as response:
         raw = response.read()
         if response.headers.get("Content-Encoding") == "gzip":
             raw = gzip.decompress(raw)
@@ -97,7 +106,18 @@ def http_json(url: str, *, headers: dict[str, str] | None = None,
 
 def check_containers() -> None:
     print("\n1. container health")
-    result = run(["docker", "compose", "ps", "--format", "json"])
+    try:
+        selected = run(["docker", "compose", "config", "--services"])
+    except (OSError, subprocess.TimeoutExpired):
+        bad("could not determine enabled Compose services")
+        return
+    expected = set(selected.stdout.split())
+    if selected.returncode != 0 or not expected:
+        bad("could not determine enabled Compose services")
+        return
+    if "cloudflared" not in expected:
+        skip("Cloudflare Tunnel disabled (Compose profile)")
+    result = run(["docker", "compose", "ps", "--all", "--format", "json"])
     if result.returncode != 0:
         bad(f"docker compose ps failed: {result.stderr.strip()[:200]}")
         return
@@ -114,6 +134,9 @@ def check_containers() -> None:
     except json.JSONDecodeError:
         services = [json.loads(line) for line in text.splitlines() if line.strip()]
 
+    present = {service.get("Service") or service.get("Name", "?") for service in services}
+    for name in sorted(expected - present):
+        bad(f"{name}: enabled service has no container")
     for service in services:
         name = service.get("Service") or service.get("Name", "?")
         state = service.get("State", "?")
@@ -221,7 +244,7 @@ def check_flows(langflow_base: str | None, api_key: str) -> None:
 
 def check_database(env: dict[str, str]) -> None:
     print("\n4. database")
-    user = env.get("POSTGRES_DB_USER", "edu_ai")
+    user = MAINTENANCE_USER
     database = env.get("POSTGRES_DB", "edu_ai")
 
     # Via `compose exec`, so this works whether or not 5432 is published.
@@ -256,6 +279,148 @@ def check_database(env: dict[str, str]) -> None:
         bad("document_chunks is not queryable")
 
 
+def check_db_roles(env: dict[str, str]) -> None:
+    """The live catalog must match postgres/role_contract/matrix.json (roles, owners, grants, PUBLIC, default ACLs)."""
+    print("\n4a. database role contract")
+    if env.get("POSTGRES_DB_USER") != "edu_ai_ingest":
+        bad("POSTGRES_DB_USER in .env is not edu_ai_ingest: the flows would connect as another role")
+    cid = run(["docker", "compose", "ps", "-q", "postgres"]).stdout.strip().splitlines()[:1]
+    if not cid:
+        bad("postgres container not found; the role contract cannot be verified")
+        return
+    result = run([sys.executable, str(ROOT / "scripts" / "db_roles.py"), "verify", "--container", cid[0]], timeout=180)
+    lines = [l for l in result.stdout.splitlines() if l.strip()]
+    if result.returncode == 0:
+        ok("role contract: the live catalog matches the matrix")
+        return
+    bad("role contract " + ("deviates" if result.returncode == 1 else "could not be verified") + ": " + "; ".join(lines[:4])[:400])
+
+
+CHAT_ENTITY_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+CHAT_BASE = "http://127.0.0.1:8081"        # as seen from INSIDE edu_ai_web_chat
+
+
+def _truthy(value: str | None) -> bool:
+    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _http_post_in(service: str, url: str, body: dict, timeout: int = 10) -> tuple[int, dict]:
+    """POST JSON inside the service's container; (status, parsed body) for ANY HTTP status."""
+    code = "\n".join([
+        "import json,urllib.request,urllib.error",
+        f"r=urllib.request.Request('{url}',data=json.dumps({body!r}).encode(),"
+        "headers={'content-type':'application/json'})",
+        "try:",
+        f" x=urllib.request.urlopen(r,timeout={timeout});s=x.status;b=x.read()",
+        "except urllib.error.HTTPError as e:",
+        " s=e.code;b=e.read()",
+        "print(json.dumps({'status':s,'body':json.loads(b or b'null')}))",
+    ])
+    result = run(["docker", "compose", "exec", "-T", service, "python", "-c", code])
+    if result.returncode != 0:
+        raise OSError((result.stderr or result.stdout).strip()[:200])
+    out = json.loads(result.stdout.strip().splitlines()[-1])
+    return out["status"], out["body"] or {}
+
+
+def _entity_lookup(env: dict[str, str], value: str) -> bool:
+    """Report whether a fixed/default school code is an active legal entity; True when it is."""
+    user = MAINTENANCE_USER
+    database = env.get("POSTGRES_DB", "edu_ai")
+
+    def query(sql: str):
+        return run(["docker", "compose", "exec", "-T", "postgres", "psql", "-U", user, "-d", database, "-tAc", sql])
+
+    # the value passed the whitelist by the caller, so it can be quoted safely
+    found = query(f"SELECT 1 FROM edu_ai.legal_entity WHERE legal_entity_code = '{value}' AND is_active;")
+    if found.returncode != 0:
+        bad(f"could not look up CHAT_LEGAL_ENTITY: {(found.stderr or found.stdout).strip()[:160]}")
+        return False
+    if found.stdout.strip().splitlines()[-1:] == ["1"]:
+        ok(f"chat entity {value} is an active legal entity")
+        return True
+    known = query("SELECT string_agg(legal_entity_code, ', ' ORDER BY legal_entity_code) FROM "
+                  "(SELECT legal_entity_code FROM edu_ai.legal_entity WHERE is_active ORDER BY 1 LIMIT 12) t;")
+    bad(f"CHAT_LEGAL_ENTITY={value} is not an active legal entity of this database"
+        + (f" (active, first 12: {known.stdout.strip()[:300]})" if known.returncode == 0 and known.stdout.strip() else ""))
+    return False
+
+
+def _check_chat_picker(env: dict[str, str], value: str, unset: bool) -> None:
+    """Browser selection on: the chat is usable once the school list loads; the choice itself is human."""
+    if not unset:
+        # an explicit default must still be a real, active school
+        if not CHAT_ENTITY_RE.match(value):
+            bad("CHAT_LEGAL_ENTITY is not a legal entity code (letters, digits, '_' and '-' only, up to 64)")
+            return
+        if not _entity_lookup(env, value):
+            return
+    try:
+        cfg = _http_json_in("edu_ai_web_chat", f"{CHAT_BASE}/chat/api/config")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        bad(f"chat /chat/api/config failed inside the container ({exc})")
+        return
+    if not cfg.get("entity_picker"):
+        bad("CHAT_ENTITY_PICKER is on in .env but the running chat has browser selection off: "
+            "recreate edu_ai_web_chat")
+        return
+    setup = cfg.get("setup")
+    entities = cfg.get("entities") or []
+    if setup == "entities_unavailable":
+        bad("the chat could not load the list of active schools (search service or database error)")
+        return
+    if setup == "no_entities" or not entities:
+        bad("the chat's school list is empty: the database has no active legal entity")
+        return
+    if not unset:
+        if setup == "ready" and cfg.get("default") == value:
+            ok(f"chat default school {value} is offered; the browser may still choose another "
+               f"({len(entities)} active)")
+        else:
+            bad(f"the running chat does not accept CHAT_LEGAL_ENTITY={value} as a default "
+                f"(setup={setup}): recreate edu_ai_web_chat")
+        return
+
+    if setup != "awaiting_selection" or cfg.get("default"):
+        bad(f"CHAT_LEGAL_ENTITY is unset but the running chat reports setup={setup}, "
+            f"default={cfg.get('default')!r}: recreate edu_ai_web_chat")
+        return
+    ok(f"CHAT_AWAITS_SCHOOL_SELECTION: {len(entities)} active school(s) listed, no default school; "
+       "the visitor chooses in the browser")
+    # the server, not the dropdown, must refuse a question that names no school
+    try:
+        status, body = _http_post_in("edu_ai_web_chat", f"{CHAT_BASE}/chat/api/message",
+                                     {"message": "smoke"})
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        bad(f"chat /chat/api/message probe failed inside the container ({exc})")
+        return
+    code = (body.get("error") or {}).get("code") if isinstance(body, dict) else None
+    if status == 422 and code == "school_required":
+        ok("a question without a school is refused before any search (school_required)")
+    else:
+        bad(f"a question without a school was not refused as school_required (HTTP {status}, code={code})")
+    skip("browser search before the school is chosen: needs a person; try it in the chat after install")
+
+
+def check_chat_entity(env: dict[str, str]) -> None:
+    """The chat has one school fixed by .env, or lets the visitor choose; each must be a real, active one."""
+    print("\n4b. chat entity")
+    value = (env.get("CHAT_LEGAL_ENTITY") or "").strip()
+    unset = not value or is_placeholder(value)
+    if _truthy(env.get("CHAT_ENTITY_PICKER")):
+        _check_chat_picker(env, value, unset)
+        return
+    if unset:
+        bad("CHAT_LEGAL_ENTITY is not set and CHAT_ENTITY_PICKER is off: the chat is not configured "
+            "(it has no school to search); enable browser selection or name one legal entity, "
+            "then recreate edu_ai_web_chat")
+        return
+    if not CHAT_ENTITY_RE.match(value):
+        bad("CHAT_LEGAL_ENTITY is not a legal entity code (letters, digits, '_' and '-' only, up to 64)")
+        return
+    _entity_lookup(env, value)
+
+
 # ───────────────────────────────────────────────────────────────
 #  5. Dry-run ingest
 # ───────────────────────────────────────────────────────────────
@@ -279,7 +444,7 @@ def _multipart(fields: dict[str, str], filename: str, content: bytes) -> tuple[b
 
 
 def _a_real_principal(env: dict[str, str]) -> tuple[str, str] | None:
-    """Any (entity, user) the register actually knows, for the dry run to use.
+    """Any active (entity, user) pair the register knows, for the dry run to use.
 
     A made-up pair no longer reaches the upload path at all: /v1/ingest calls
     _validate_principal FIRST and answers 400 for an unknown entity or a user who
@@ -288,10 +453,11 @@ def _a_real_principal(env: dict[str, str]) -> tuple[str, str] | None:
     """
     result = run([
         "docker", "compose", "exec", "-T", "postgres",
-        "psql", "-U", env.get("POSTGRES_DB_USER", "edu_ai"),
+        "psql", "-U", MAINTENANCE_USER,
         "-d", env.get("POSTGRES_DB", "edu_ai"), "-tAc",
-        "SELECT legal_entity_code || ' ' || user_id FROM edu_ai.staff_user "
-        "WHERE is_active LIMIT 1;",
+        "SELECT s.legal_entity_code || ' ' || s.user_id FROM edu_ai.staff_user s "
+        "JOIN edu_ai.legal_entity e ON e.legal_entity_code = s.legal_entity_code "
+        "WHERE s.is_active AND e.is_active LIMIT 1;",
     ])
     if result.returncode != 0:
         return None
@@ -307,7 +473,7 @@ def check_dry_run_ingest(env: dict[str, str]) -> None:
     if principal is None:
         # NOT a pass: with no users the ingest path cannot be exercised at all,
         # and on a freshly migrated database that is the state to notice.
-        skip("no active staff_user in the register — nothing may ingest yet")
+        skip("no active staff_user in an active entity — nothing may ingest yet")
         return
     entity, user = principal
 
@@ -363,10 +529,9 @@ def check_dry_run_ingest(env: dict[str, str]) -> None:
 #  6. Variable resolution
 # ───────────────────────────────────────────────────────────────
 
-#: The only Global Variables that may exist, and their type. Anything else with
-#: type Credential is the failure mode described at the top of the Postgres block
-#: in .env: a non-secret name that got env-sourced (always as Credential) and now
-#: makes every StrInput bound to it reject its value.
+#: Required platform-managed Global Variables and their types. User-created
+#: variables may coexist. A managed non-secret connection name carrying type
+#: Credential makes the StrInput bound to it reject its value (see .env).
 EXPECTED_VARIABLES = {"OPENAI_API_KEY": "Credential", "POSTGRES_PASSWORD": "Credential"}
 
 #: Created as Generic by bootstrap.py step 7b. Optional: without them the flows
@@ -392,15 +557,14 @@ PROBE_EXPECTED = f"no manifest for pack_id='{PROBE_PACK_ID}'"
 def check_global_variables() -> None:
     result = run([
         "docker", "compose", "exec", "-T", "postgres",
-        "psql", "-U", "postgres", "-d", "langflow", "-tAc",
+        "psql", "-U", MAINTENANCE_USER, "-d", "langflow", "-tAc",
         "SELECT name || '=' || type FROM variable ORDER BY name;",
     ])
     if result.returncode != 0:
-        # Falls back to the application user: the postgres superuser name differs
-        # between images, and either can read the langflow database.
+        # Falls back to the role that owns the langflow database.
         result = run([
             "docker", "compose", "exec", "-T", "postgres",
-            "psql", "-U", read_env(ENV_PATH).get("POSTGRES_DB_USER", "edu_ai"),
+            "psql", "-U", "edu_ai_langflow",
             "-d", "langflow", "-tAc",
             "SELECT name || '=' || type FROM variable ORDER BY name;",
         ])
@@ -413,17 +577,14 @@ def check_global_variables() -> None:
         for line in (l.strip() for l in result.stdout.splitlines())
         if "=" in line
     )
-    allowed = {**EXPECTED_VARIABLES,
+    managed = {**EXPECTED_VARIABLES,
                **{n: "Generic" for n in OPTIONAL_GENERIC_VARIABLES}}
-    unexpected = {n: t for n, t in found.items() if n not in allowed}
+    user_variable_count = sum(n not in managed for n in found)
     wrong_type = {n: t for n, t in found.items()
-                  if n in allowed and t != allowed[n]}
+                  if n in managed and t != managed[n]}
     missing = [n for n in EXPECTED_VARIABLES if n not in found]
 
-    if unexpected:
-        bad(f"unexpected Global Variables: {unexpected} — a Credential here breaks "
-            f"every StrInput bound to that name (see the rules in .env)")
-    elif wrong_type:
+    if wrong_type:
         bad(f"Global Variables have the wrong type: {wrong_type} — a Credential "
             f"where Generic is expected makes every StrInput bound to that name "
             f"reject its value (see the rules in .env)")
@@ -432,7 +593,15 @@ def check_global_variables() -> None:
             f"check LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT and restart edu_ai")
     else:
         ok("Global Variables have the expected types: "
-           + ", ".join(f"{n}={found[n]}" for n in sorted(found)))
+           + ", ".join(f"{n}={found[n]}" for n in sorted(found) if n in managed)
+           + f"; user variables preserved: {user_variable_count}")
+
+
+def probe_request_body() -> dict:
+    """Fresh synthetic scope; this deliberately nonexistent pack creates no file."""
+    return {"output_type": "any", "output_component": "ChatOutput-qa011",
+            "tweaks": {PROBE_NODE: {"pack_id": PROBE_PACK_ID,
+                                     "legal_entity": "SMOKE_" + uuid.uuid4().hex}}}
 
 
 def check_connectivity_probe(langflow_base: str | None, api_key: str) -> None:
@@ -443,12 +612,7 @@ def check_connectivity_probe(langflow_base: str | None, api_key: str) -> None:
         skip("LANGFLOW_API_KEY is not set — cannot run the connectivity probe")
         return
 
-    body = json.dumps({
-        "output_type": "text",
-        "input_type": "text",
-        "input_value": "trigger",
-        "tweaks": {PROBE_NODE: {"pack_id": PROBE_PACK_ID}},
-    }).encode()
+    body = json.dumps(probe_request_body()).encode()
 
     try:
         payload = http_json(
@@ -527,7 +691,22 @@ def resolve_langflow_url(override: str | None) -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--langflow-url", default=None)
+    eduai_layout.add_arguments(parser)
     args = parser.parse_args()
+
+    global ROOT, ENV_PATH, _layout
+    try:
+        chosen = eduai_layout.resolve(args, os.environ, ROOT)
+    except eduai_layout.LayoutError as exc:
+        bad(f"invalid layout ({exc.code}: {exc.field})")
+        return 1
+    if any(origin != "default" for origin in chosen.origin.values()):
+        findings = eduai_layout.validate(chosen, links="require")
+        for finding in findings:
+            bad(f"layout: {finding.code} ({finding.level}) {finding.detail}")
+        if findings:
+            return 1
+        ROOT, ENV_PATH, _layout = chosen.source_root, chosen.env_path, chosen
 
     env = read_env(ENV_PATH)
     langflow_base = resolve_langflow_url(args.langflow_url)
@@ -538,6 +717,8 @@ def main() -> int:
     check_health_endpoints(langflow_base)
     check_flows(langflow_base, env.get("LANGFLOW_API_KEY", ""))
     check_database(env)
+    check_db_roles(env)
+    check_chat_entity(env)
     check_dry_run_ingest(env)
     check_variable_resolution(langflow_base, env.get("LANGFLOW_API_KEY", ""))
 

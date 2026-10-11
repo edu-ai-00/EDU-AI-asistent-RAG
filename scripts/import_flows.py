@@ -11,9 +11,12 @@ opaque and never need to leave this script or be pasted into .env.
 
 Re-running this script is idempotent: a flow whose endpoint_name already
 exists on the instance is PATCHed in place instead of creating a duplicate.
+Bootstrap uses --missing-only instead: existing aliases, including user-edited
+vendor flows, are preserved and only missing aliases are created.
 
 Usage:
     python3 scripts/import_flows.py
+    python3 scripts/import_flows.py --missing-only
 
 Credentials come from .env, the same as every other script here — this is the
 recovery command for a flow that was broken in the UI, so it must work on its
@@ -26,6 +29,7 @@ the key it has just minted.
 Requires only the Python standard library.
 """
 
+import argparse
 import gzip
 import json
 import os
@@ -36,6 +40,7 @@ import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from envfile import is_placeholder, read_env  # noqa: E402
+from http_safe import open_url  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 ROOT = REPO / "langflow_flows"
@@ -75,7 +80,7 @@ def call(method: str, path: str, body: dict | None = None) -> dict:
         headers={"Content-Type": "application/json", "x-api-key": KEY},
     )
     try:
-        with urllib.request.urlopen(req) as r:
+        with open_url(req) as r:
             raw = r.read()
             if r.headers.get("Content-Encoding") == "gzip":
                 raw = gzip.decompress(raw)
@@ -93,15 +98,29 @@ def list_flows() -> list[dict]:
     while True:
         res = call("GET", f"/api/v1/flows/?page={page}&size=100")
         if isinstance(res, list):
+            if page != 1:
+                sys.exit("ERROR: inconsistent Langflow flow pagination; no flows imported")
             return res  # unpaginated — everything comes back at once
-        items = res.get("items", [])
+        if (not isinstance(res, dict) or not isinstance(res.get("items"), list)
+                or "pages" not in res):
+            sys.exit("ERROR: unrecognized Langflow flow inventory; no flows imported")
+        items = res["items"]
+        pages = res["pages"]
+        if (type(pages) is not int or pages < 0
+                or (pages < page and not (page == 1 and pages == 0 and not items))
+                or (not items and page < pages)):
+            sys.exit("ERROR: incomplete or invalid Langflow flow pagination; no flows imported")
         flows.extend(items)
-        if page >= res.get("pages", 1) or not items:
+        if page >= pages:
             return flows
         page += 1
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--missing-only", action="store_true",
+                        help="create missing aliases and preserve every existing flow (bootstrap/resume)")
+    args = parser.parse_args(argv)
     if not KEY:
         sys.exit(
             "No LANGFLOW_API_KEY. Expected it in .env (scripts/bootstrap.py puts "
@@ -109,11 +128,18 @@ def main() -> None:
         )
 
     print(f"Importing {len(FLOW_FILES)} flows into {BASE}")
-    existing = {
-        f.get("endpoint_name"): f["id"]
-        for f in list_flows()
-        if f.get("endpoint_name")
-    }
+    existing = {}
+    for item in list_flows():
+        if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not item["id"] or (item.get("endpoint_name") is not None
+                                     and not isinstance(item["endpoint_name"], str))):
+            sys.exit("ERROR: invalid Langflow flow inventory row; no flows imported")
+        alias = item.get("endpoint_name")
+        if not alias:
+            continue  # drafts have no endpoint alias and must remain untouched
+        if alias in existing:
+            sys.exit("ERROR: duplicate Langflow endpoint aliases; no flows imported")
+        existing[alias] = item["id"]
 
     for rel in FLOW_FILES:
         flow = json.loads((ROOT / rel).read_text(encoding="utf-8"))
@@ -122,6 +148,9 @@ def main() -> None:
             flow.pop(k, None)
 
         if alias in existing:
+            if args.missing_only:
+                print(f"  [skip] endpoint_name={alias} (existing flow preserved)")
+                continue
             body = {"name": flow.get("name"), "data": flow.get("data"), "endpoint_name": alias}
             call("PATCH", f"/api/v1/flows/{existing[alias]}", body)
             print(f"  ~ {flow.get('name', rel):40s} endpoint_name={alias} (updated)")

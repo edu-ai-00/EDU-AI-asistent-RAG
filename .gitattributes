@@ -1,0 +1,16 @@
+# SQL and shell scripts are always checked out with LF, also on Windows
+# with core.autocrlf=true. CRLF in a checkout ends up inside multi-line
+# seed literals (prompts) and breaks migrations that match on that text.
+*.sql text eol=lf
+*.sh  text eol=lf
+
+# Generated manifests must keep canonical bytes in Windows checkouts too.
+postgres/baseline/*.json text eol=lf
+postgres/releases/*.json text eol=lf
+
+# nginx reads these through a directory bind mount: LF everywhere, also in Windows
+# checkouts. mime.types must stay byte-identical to the one inside the nginx image.
+nginx/conf/* text eol=lf
+
+scripts/host_preflight.py text eol=lf
+scripts/setup.py text eol=lf

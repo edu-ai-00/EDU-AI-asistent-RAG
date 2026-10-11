@@ -1,4 +1,6 @@
-FROM pgvector/pgvector:0.7.4-pg16
+# Pinned by index digest (amd64 + arm64): the migration fingerprints in
+# postgres/baseline/B216.json are bound to this image. Change it deliberately.
+FROM pgvector/pgvector:0.7.4-pg16@sha256:7bbb2558b9b73d23c4a7795d7a016cbb531ef5fb1e231115fa1aeac5129caf10
 
 # Czech locale for correct collation / sorting.
 RUN apt-get update \

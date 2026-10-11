@@ -1,0 +1,20 @@
+flowchart LR
+  accTitle: Síťové vstupy a perimetr EDU-AI
+  accDescr: Compose publikuje nginx porty 80, 8443 a 8444 a výchozí loopback port Bifrostu 8099. Cloudflare a Access jsou volitelné, perimetr spravuje operátor mimo stack.
+  lan["Oprávněný klient<br/>VPN / omezená síť"] --> perimeter["Perimetr provozovatele<br/>firewall / VPN / TLS<br/>mimo Docker Compose"]
+  perimeter -->|"host: 80 · 8443 · 8444"| ng["nginx<br/>edge + tunnel"]
+  ng -->|"80"| private["/search/ · /api/ · /chat/<br/>/qa/ · /qa-api/v1/"]
+  ng -->|"8443 / 8444"| admin["pgAdmin / Langflow<br/>vlastní přihlášení"]
+  internet["Internet"] -.-> access["Cloudflare Access + TLS<br/>externí politika"]
+  access -.-> cf["cloudflared<br/>profil cloudflare"]
+  cf -.->|"tunnel: nginx :81"| ng
+  ng -->|"81: pouze allowlist /search/"| public["Search API<br/>nepublikuje port 81 na hostu"]
+  cf -.->|"volitelný hostname → app"| bi["Bifrost :8080<br/>bez vlastní autentizace"]
+  local["Lokální správce<br/>nebo SSH tunnel"] -->|"127.0.0.1:8099 výchozí"| bi
+  bi -->|"bifrost_egress"| provider["Poskytovatel LLM"]
+  classDef stack fill:#edf2fa,stroke:#466489,color:#16364a;
+  classDef optional fill:#f3f3f3,stroke:#777,color:#333,stroke-dasharray:5 4;
+  classDef external fill:#e6f5f5,stroke:#16868b,color:#16364a;
+  class ng,private,admin,public,bi stack;
+  class access,cf optional;
+  class lan,local,internet,perimeter,provider external;

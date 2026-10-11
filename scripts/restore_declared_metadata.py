@@ -7,7 +7,7 @@ document_type_user and valid_from/to come back empty or different. This turns an
 inventory JSON (codes, not ids) into an UPDATE that puts them back.
 
     python scripts/restore_declared_metadata.py inventory.json > restore.sql
-    docker compose exec -T postgres psql -U edu_ai -d edu_ai -v ON_ERROR_STOP=1 < restore.sql
+    docker compose exec -T postgres psql -U edu_ai_admin -d edu_ai -v ON_ERROR_STOP=1 < restore.sql
 
 Two things the generated SQL is careful about, both of which fail silently otherwise:
 

@@ -1,7 +1,8 @@
 # ---------------------------------------------------------
 # Base image
 # ---------------------------------------------------------
-FROM python:3.11-slim
+# Pinned by digest: the tag alone is rebuilt upstream (Debian point releases).
+FROM python:3.11.16-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
 
 # ---------------------------------------------------------
 # Environment settings
@@ -13,6 +14,7 @@ ENV PIP_NO_CACHE_DIR=1
 # ---------------------------------------------------------
 # System dependencies
 # ---------------------------------------------------------
+# NOT pinned: each build takes current Debian 13 security and maintenance updates.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libxml2 \
@@ -28,19 +30,14 @@ WORKDIR /app
 # ---------------------------------------------------------
 # Upgrade pip (important for wheels like lxml)
 # ---------------------------------------------------------
-RUN pip install --upgrade pip
+RUN pip install pip==26.2.1
 
 # ---------------------------------------------------------
 # Install Python dependencies
 # ---------------------------------------------------------
-RUN pip install \
-    fastapi \
-    uvicorn[standard] \
-    requests \
-    python-multipart \
-    validators \
-    beautifulsoup4 \
-    lxml
+# The full resolved set (uvicorn[standard] extras included), pinned exactly.
+COPY requirements.txt /app/requirements.txt
+RUN pip install -r /app/requirements.txt
 
 # ---------------------------------------------------------
 # Copy application code

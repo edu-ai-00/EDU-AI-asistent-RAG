@@ -10,6 +10,7 @@ import json
 import logging
 
 from .. import config
+from .. import scope
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,10 @@ def pack_filter(pack_ids, alias: str = "e", language: str | None = None):
     Empty pack_ids → all active packs (single-pack today).
     `language` (číselník code, validated upstream) additionally restricts to
     packs whose manifest lang matches — the /search language filter.
+
+    NOTE for anyone adding a caller: an empty pack_ids means NO PACK RESTRICTION,
+    which is why route._scope returns the `~none~` sentinel rather than [] when
+    it finds nothing or fails. Do not "simplify" that away.
     """
     frag = f"{alias}.is_active"
     params: list = []
@@ -80,6 +85,26 @@ def pack_filter(pack_ids, alias: str = "e", language: str | None = None):
                  "WHERE is_active AND lang = %s)")
         params.append(language)
     return frag, params
+
+
+def domain_filter(state, alias: str):
+    """(fragment, params) restricting a SCANNED QA row to the chosen areas.
+
+    Thin, and that is the point: every QA query in the cascade — the three
+    stages, the trgm typo fallback, the IDF denominator, the category siblings
+    and the other-ročník net — gets its area predicate from this one call, so a
+    new query cannot be written without one and the six cannot drift apart.
+    Which was the actual failure mode before: the visibility rule was correct in
+    six places and absent in the seventh for months.
+
+    `alias` is the table being SCANNED (v = qa_variants, q = qa_embedding,
+    e = qa_entries). It is a constant at each call site, never a request value.
+    The column is `domain_ids` on all three — migrations 140 and 144 denormalised
+    it onto both scan surfaces precisely so a filter need not reach through a
+    join, which for the ANN scan in qa_vector would mean filtering AFTER the
+    index has already picked the neighbours.
+    """
+    return scope.domain_where(alias, "domain_ids", state.get("domain_ids"))
 
 
 def load_synonym_groups(cur, lang: str | None = None):
@@ -261,6 +286,24 @@ def concept_idf_weights(cur, concept_sets, frag, params) -> list[float]:
     df = number of ACTIVE entries whose variants contain any of the concept's
     tokens; one grouped query over the scoped packs, so the cost is one cheap
     aggregate per request.
+
+    NOT NARROWED BY THE CHOSEN AREAS, deliberately (2026-09-06). It is tempting:
+    the numerator is a row drawn from the area-filtered candidates, so matching
+    the denominator to them looks like the consistent thing to do. It measured
+    worse, and badly. A weight here is "how discriminative is this word in the
+    material route selected", and that feeds the A/B/C threshold — so
+    re-measuring it inside a narrow area moves a calibrated bar with the user's
+    choice of area. In the sibling case on the document side a three-chunk area
+    made every query token exceed the genericity share, the gate marked them all
+    generic and a correct filter turned into a no_answer. Eligibility is the
+    ranked query's job and that IS filtered, so nothing out of area can be an
+    answer; only the weights among admitted rows are computed pack-wide.
+    See the long note in document_lexical for the measurement.
+
+    Not scoped by entity/role either — PRE-EXISTING, not introduced here: this
+    counts over the packs route already selected for the caller, and adding
+    scope.where() would change the numbers for every existing request. Recorded
+    as a known asymmetry rather than fixed under an unrelated change.
     """
     import math
     if not concept_sets:
@@ -302,6 +345,165 @@ def weighted_coverage(concept_sets, entry_tokens: set[str], weights) -> float:
         return coverage(concept_sets, entry_tokens)
     covered = sum(w for ms, w in zip(concept_sets, weights) if ms & entry_tokens)
     return covered / sum(weights)
+
+
+def category_siblings(cur, entry_id, frag, pack_params, scope_cond, scope_params,
+                      form=None, concept_sets=None, weights=None) -> list[tuple]:
+    """Other curated questions a CURATOR filed under the same category.
+
+    The last resort when the ranking offers nothing: for "Co když dítě přijde až
+    po 8.00" the pack holds eleven more questions about Docházka, and the lexical
+    ranking found none of them above the bar (production 2026-09-04, Marek). This
+    does not ask what the query resembles — it asks what a person decided belongs
+    together, which is the one signal in the corpus that scoring cannot fake.
+
+    Ranked by overlap with the query, because the category says which entries
+    belong together and never which of fifteen to show. `weights` (IDF, when the
+    caller has them) makes a rare shared concept count for more than "škola".
+    Ordering them by entry_key looked stable and was arbitrary: on "Co když dítě
+    přijde až po 8.00" it surfaced the three alphabetically first entries of
+    Provoz (teacher absence, epidemics, breaks) and buried "V kolik se otevírá
+    škola?" and "V kolik začíná vyučování?" under `v` (2026-09-04).
+
+    WITHIN ONE PACK. A category name means whatever its own pack's author meant
+    by it, and the names collide across packs: faq-provoz files school report
+    cards under "Hodnocení" and retake exams under "Zkoušky", so a JPZ question
+    about points would draw siblings about vysvědčení. Worse with the per-school
+    packs, where 31 of 33 questions are the same text in three packs — matching
+    across them offers the same question back under another entity's answer.
+    Pack-local is also what the data IS: `cat` is a column in one pack's CSV.
+
+    Empty when the entry has no category — a pack whose authors left it blank
+    gets no siblings, and inventing a grouping belongs in the pack, not here.
+    """
+    cur.execute(
+        f"SELECT nullif(trim(tags->>'category'), ''), pack_id, school_grade_ids "
+        f"FROM {config.QA_ENTRIES_TABLE} WHERE entry_id = %s", (entry_id,))
+    row = cur.fetchone()
+    if not row or not row[0]:
+        return []
+    # A sibling is offered as this school's own material, so it passes the same
+    # pack/scope/validity predicate as an answer would — and, since 2026-09-06,
+    # the same AREA predicate: `scope_cond` arrives from _scope_frags with
+    # domain_where already appended, so the category top-up cannot reach outside
+    # the chosen areas. A curator's category is a grouping WITHIN a pack and says
+    # nothing about areas: in a mixed pack, "Provoz" legitimately holds both a
+    # catering and an attendance question, so without this a "Stravování" search
+    # would have offered the attendance one as a related chip.
+    #
+    # Grade is tied to the ANSWERED ENTRY, not to the caller. Matching the
+    # caller's ročník ids was tried and was wrong twice over: route resolves them
+    # for pack selection and the sets do not line up entry-side, so a caller with
+    # a ročník got NO siblings at all — and it was redundant anyway, because every
+    # active pack carries exactly one ročník set across its variants (checked
+    # 2026-09-04), and route already picked the pack by the caller's year. Keyed
+    # to the answer, it stays right if a mixed pack ever appears: what is offered
+    # is for the same years as the answer just given.
+    grade_cond, grade_param = "", []
+    if row[2]:
+        grade_cond = (" AND (e.school_grade_ids IS NULL"
+                      " OR cardinality(e.school_grade_ids) = 0"
+                      " OR e.school_grade_ids && %s::bigint[])")
+        grade_param = [list(row[2])]
+    # No LIMIT: the caller ranks the whole category, and a category is small
+    # (the largest in production is 20). Cutting to top_n here would cut by the
+    # arbitrary order this function no longer claims to have.
+    text = form_text_concat(form or _DEFAULT_FORM, "v")
+    cur.execute(
+        f"""
+        SELECT e.entry_id, e.canonical_q, string_agg({text}, ' ')
+          FROM {config.QA_ENTRIES_TABLE} e
+          JOIN {config.QA_VARIANTS_TABLE} v ON v.entry_id = e.entry_id
+         WHERE v.is_active AND {frag}{scope_cond}{grade_cond}
+           AND e.entry_id <> %s
+           AND e.pack_id = %s
+           AND nullif(trim(e.tags->>'category'), '') = %s
+         GROUP BY e.entry_id, e.canonical_q, e.entry_key
+         ORDER BY e.entry_key
+        """,
+        [*pack_params, *scope_params, *grade_param, entry_id, row[1], row[0]])
+    cands = [(str(r[0]), r[1], {t for t in (r[2] or "").split() if t})
+             for r in cur.fetchall()]
+    if not concept_sets:
+        return [(eid, q, None) for eid, q, _toks in cands]
+    w = weights or [1.0] * len(concept_sets)
+    scored = sorted(((weighted_coverage(concept_sets, toks, w), eid, q)
+                     for eid, q, toks in cands), key=lambda t: -t[0])
+    return [(eid, q, cov) for cov, eid, q in scored]
+
+
+def _scope_frags(state):
+    """(frag, pack_params, scope_cond, scope_params) as every QA query builds them.
+
+    scope_cond now carries the AREA predicate too, appended to the identity one.
+    Both are AND-fragments on the same scanned `v` row, and every caller
+    interpolates the pair together — so adding it here reaches the paths that
+    build their SQL through this helper (category_siblings via finalize_chips,
+    i.e. the related chips on all three answering paths) without each of them
+    having to remember.
+    """
+    frag, pack_params = pack_filter(state.get("pack_ids", []), alias="e",
+                                    language=state.get("language_filter"))
+    scope_cond, scope_params = scope.where(
+        "v", state.get("entity_scope") or [],
+        state.get("organization_entities") or [], state.get("user_id"),
+        state.get("user_role"), validity=True)
+    dom_cond, dom_params = domain_filter(state, "v")
+    return (frag, pack_params, scope_cond + dom_cond,
+            [*scope_params, *dom_params])
+
+
+def packs_of(cur, entry_ids) -> dict:
+    """{entry_id: pack_id} — which body of material each chip came from."""
+    ids = [e for e in (entry_ids or []) if e]
+    if not ids:
+        return {}
+    cur.execute(f"SELECT entry_id::text, pack_id FROM {config.QA_ENTRIES_TABLE} "
+                f"WHERE entry_id::text = ANY(%s)", (ids,))
+    return {r[0]: r[1] for r in cur.fetchall()}
+
+
+def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> list[dict]:
+    """The chip row for an answer, from whatever chips were parked for it.
+
+    One place for the three rules a chip row obeys, because they were landing on
+    one path at a time and the paths drifted: qa_exact had all three while
+    qa_vector — which answers the vaguest questions, the ones most in need of a
+    good chip — had none (2026-09-04, "Co když přijde dítě pozdě?" came back with
+    two chips, one of them from the JPZ pack, in the wrong order).
+
+      1. a chip from ANOTHER pack needs a higher score (related_cross_pack_min);
+         within the answer's own pack the ranking's bar already applied
+      2. a short row is topped up from the answered entry's own category
+      3. the row is ordered by the number it shows
+
+    `parked` is whatever the caller gathered — the ranking's runners-up, or the
+    deferred list a later step inherited.
+    """
+    items = list(parked or [])
+    xmin = float(params.get("related_cross_pack_min", 0.7) or 0.0)
+    by_pack = packs_of(cur, [i.get("entry_id") for i in items] + [entry_id])
+    own = by_pack.get(str(entry_id))
+    if own and xmin:
+        items = [i for i in items
+                 if by_pack.get(str(i.get("entry_id") or "")) == own
+                 or (i.get("score") or 0.0) >= xmin]
+    want = top_n if params.get("related_category_topup", True) else (
+        0 if items else top_n)
+    if len(items) < want:
+        seen = {i.get("entry_id") for i in items}
+        seen_q = {(i.get("question") or "").strip().casefold() for i in items}
+        extra = category_siblings(cur, entry_id, *_scope_frags(state), form,
+                                  [{t} for t in content_tokens(state, form or
+                                                               _DEFAULT_FORM) if t])
+        items += [{"kind": "qa", "entry_id": eid, "question": q,
+                   "score": round(float(cov), 4) if cov is not None else None}
+                  for eid, q, cov in extra
+                  if eid not in seen
+                  and (q or "").strip().casefold() not in seen_q][:want - len(items)]
+    if items and all(i.get("score") is not None for i in items):
+        items.sort(key=lambda i: -float(i["score"]))
+    return items[:top_n]
 
 
 def fetch_answer(cur, entry_id: str):

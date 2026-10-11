@@ -7,9 +7,12 @@
 #    data           – database tier                   (internal, no internet)
 #    bifrost_egress – LLM gateway → providers. Its own network, NOT edge:
 #                     nginx lives on edge and has no business reaching Bifrost.
+#    tunnel         – nginx <-> cloudflared ONLY (internal): the trust boundary of
+#                     CF-Connecting-IP; its subnet is the setting EDU_AI_TUNNEL_SUBNET (R2).
+#    tunnel_egress  – cloudflared -> Cloudflare ONLY.
 #
 #  Only Nginx ports (80, 8443, 8444) are published to the host.
-#  nginx is on `edge` ONLY → it cannot reach Postgres directly.
+#  nginx is on `edge` and `tunnel` only → it cannot reach Postgres directly.
 #  Postgres is on `data` ONLY → no internet, unreachable from the edge.
 #  All secrets come from  .env  (never hardcoded).
 # ══════════════════════════════════════════════════════════════
@@ -26,45 +29,45 @@ services:
       - "80:80"         # Public API (plain HTTP — TLS terminates in front of nginx)
       - "8443:8443"     # Admin: pgAdmin (VPN-only via the AWS security group)
       - "8444:8444"     # Admin: Langflow UI at root (VPN-only via the AWS security group)
+    # nginx/conf/ IS /etc/nginx: nginx.conf, search_api.conf and mime.types, nothing
+    # else. A DIRECTORY, not single files: a bind-mounted FILE keeps pointing at the
+    # old inode once git (or any atomic rename) replaces it, so `nginx -s reload`
+    # silently reloaded stale config (observed on production, 2026-10-01). The
+    # parent nginx/ is NOT mounted: it can hold the retired .htpasswd and
+    # auth_keys.conf. Replace FILES inside nginx/conf, never the directory itself.
+    # The superseded nginx/nginx.conf and nginx/search_api.conf stay in git until
+    # S2b, so a container created from the previous definition can still restart.
+    # create_host_path: false — a missing source is an error, not an empty
+    # root-owned directory that makes nginx die with a misleading message.
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/search_api.conf:/etc/nginx/search_api.conf:ro # /search/ surface, shared by ports 80 and 81 (in git)
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro          # Basic auth for /api/ (not in git)
-      - ./nginx/auth_keys.conf:/etc/nginx/auth_keys.conf:ro # API-key map for /search/ (not in git)
-    # Preflight before nginx starts. Both paths above are gitignored, so on a
-    # fresh clone they do not exist — and Docker silently creates a bind-mount
-    # source that is missing as an empty DIRECTORY. nginx then dies with
-    # `pread() "/etc/nginx/auth_keys.conf" failed (21: Is a directory)`, which
-    # reads like a config bug rather than a missing file. This turns that into
-    # one actionable line. Inline (not a mounted script) so the check itself
-    # cannot become the very footgun it guards against.
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        for f in /etc/nginx/.htpasswd /etc/nginx/auth_keys.conf; do
-          [ -f "$$f" ] || {
-            echo "FATAL: $$f is missing (Docker created an empty directory in its place)."
-            echo "  Fix on the host, from the repo root:"
-            echo "    python3 scripts/bootstrap.py"
-            echo "    docker compose up -d --force-recreate nginx"
-            echo "  --force-recreate is required: a plain restart keeps the old mount."
-            exit 1
-          }
-        done
-        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+      - type: bind
+        source: ./nginx/conf
+        target: /etc/nginx
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
-      - edge            # edge ONLY — cannot reach the data tier
-    # service_started, NOT service_healthy: nginx resolves upstream names at
-    # startup and hard-fails if they do not resolve — that is why depends_on is
-    # here at all. Waiting for `healthy` would mean an unhealthy backend keeps
-    # nginx down entirely, taking the edge /health with it — exactly when
-    # monitoring needs to reach it.
-    depends_on:
-      edu_ai_api:      { condition: service_started }
-      edu_ai:          { condition: service_started }
-      pgadmin:         { condition: service_started }
-      edu_ai_web_chat: { condition: service_started }
+      edge: {}          # the upstreams; cannot reach the data tier
+      tunnel:           # the tunnel hop: shared ONLY with cloudflared (R2)
+        aliases:
+          # The tunnel's public hostname targets http://edu_ai_nginx:81. The alias keeps that name valid here
+          # whatever container_name says (cloudflared is no longer on `edge`).
+          - edu_ai_nginx
+    configs:
+      # R2: the range nginx trusts for CF-Connecting-IP. Same variable as the subnet of `tunnel`.
+      - source: tunnel_trust
+        target: /etc/edu_ai/tunnel/trust.conf
+    # No depends_on. Upstream names are resolved at request time (resolver and
+    # `resolve` in nginx/conf/nginx.conf), so nginx starts and answers /health with
+    # no backend present, and an absent or replaced backend costs only its own path.
+    # The healthcheck covers nginx itself (/health is answered by nginx, not proxied);
+    # each check is one ordinary access-log line, S2 filters nothing.
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
 
   # ─────────────────────────────────────────────
@@ -143,10 +146,9 @@ services:
       # file stays in ./langflow_data as an instant rollback (switch the URL
       # back). Config dir mount is unchanged, so the secret_key (which
       # encrypts Global Variables) is the same — migrated rows decrypt fine.
-      # User/host/port come from .env (the same keys the flows resolve), so this
-      # URL cannot drift from the rest of the stack. Only the database name is a
-      # constant: `langflow` is Langflow's own state DB, separate from edu_ai.
-      - LANGFLOW_DATABASE_URL=postgresql://${POSTGRES_DB_USER:-edu_ai}:${POSTGRES_PASSWORD}@${POSTGRES_DB_SERVER:-edu_ai_postgres}:${POSTGRES_SERVER_PORT:-5432}/langflow
+      # Own role: it owns only this database. Host/port come from .env; the database
+      # name is a constant: `langflow` is Langflow's own state DB, separate from edu_ai.
+      - LANGFLOW_DATABASE_URL=postgresql://edu_ai_langflow:${POSTGRES_LANGFLOW_PASSWORD}@${POSTGRES_DB_SERVER:-edu_ai_postgres}:${POSTGRES_SERVER_PORT:-5432}/langflow
       # Real auth switch (LANGFLOW_AUTH_ENABLED is not a Langflow variable):
       # AUTO_LOGIN=false enforces login + API keys and creates the superuser
       # below on first start.
@@ -157,6 +159,12 @@ services:
       # env_file) — flows reference them by name via load_from_db, so a fresh
       # instance needs no manual variable setup. Existing variables win.
       - LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT=OPENAI_API_KEY,POSTGRES_PASSWORD
+      # env_file hands over the whole .env; the role secrets this service does not
+      # use are emptied here (the flows need only the ingest pair, POSTGRES_DB_USER / POSTGRES_PASSWORD).
+      - POSTGRES_ADMIN_PASSWORD=
+      - POSTGRES_SEARCH_PASSWORD=
+      - POSTGRES_LANGFLOW_PASSWORD=
+      - POSTGRES_MIGRATOR_PASSWORD=
       - LANGFLOW_CACHE_EXPIRE=1
       - LANGFLOW_LANGCHAIN_CACHE=false
       # Langflow 1.10 added SSRF protection to the API Request component, which
@@ -256,6 +264,8 @@ services:
   # Cloudflare tunnel → Bifrost UI
   # ─────────────────────────────────────────────
   cloudflared:
+    # Optional: enable explicitly with COMPOSE_PROFILES=cloudflare in .env.
+    profiles: [cloudflare]
     image: cloudflare/cloudflared:2026.8.1   # pinned for the same reason bifrost is
     container_name: cloudflared
     command: tunnel --no-autoupdate run
@@ -268,9 +278,14 @@ services:
       # published <server>:8090 is a separate door for WireGuard peers and this
       # service does not use it.
       - app
-      # `app` is internal:true and has no route out, so without `edge` cloudflared
-      # cannot reach Cloudflare at all and the tunnel never registers.
-      - edge
+      # The ONLY network it shares with nginx. nginx trusts CF-Connecting-IP from this
+      # network and from nothing else (R2). The tunnel's public hostname keeps pointing at
+      # http://edu_ai_nginx:81: the name resolves here to nginx's `tunnel` address only,
+      # because cloudflared is no longer on `edge`.
+      - tunnel
+      # `app` and `tunnel` are internal:true and have no route out, so cloudflared needs a
+      # network of its own to reach Cloudflare. Nothing else is on it.
+      - tunnel_egress
     # BIFROST HAS NO AUTHENTICATION — see its ports comment above. A tunnel only
     # publishes; it authenticates nothing. The hostname is therefore protected by
     # a Cloudflare Access policy, configured in the Zero Trust dashboard, and that
@@ -301,11 +316,16 @@ services:
       - "5432"                       # internal only
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-edu_ai}
-      # POSTGRES_DB_USER, not POSTGRES_USER: .env carries one canonical DB user
-      # and the flows already resolve that name. The value here only takes effect
-      # on a first start with an empty data volume.
-      POSTGRES_USER: ${POSTGRES_DB_USER:-edu_ai}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # The bootstrap role is the maintenance superuser, never an application
+      # credential. The other roles and their grants come from postgres/init_clean
+      # (role contract); their passwords reach it as environment, on a first start
+      # with an empty data volume only. The ingest secret is .env POSTGRES_PASSWORD.
+      POSTGRES_USER: edu_ai_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_INGEST_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_SEARCH_PASSWORD: ${POSTGRES_SEARCH_PASSWORD}
+      POSTGRES_LANGFLOW_PASSWORD: ${POSTGRES_LANGFLOW_PASSWORD}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Schema bootstrap: runs ONLY on first start with an empty data volume.
@@ -314,7 +334,11 @@ services:
       # hand to databases that already have data and is no longer executed here.
       - ./postgres/init_clean:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_DB_USER:-edu_ai} -d ${POSTGRES_DB:-edu_ai}"]
+      # Healthy only once the role contract is applied (marker on the database), so a
+      # half-initialised volume cannot pass for a working one.
+      test:
+        - CMD-SHELL
+        - psql -U edu_ai_admin -d ${POSTGRES_DB:-edu_ai} -tAc "select 1 from pg_database where datname = 'edu_ai' and shobj_description(oid, 'pg_database') like 'role-contract:%'" | grep -q 1
       interval: 10s
       timeout: 5s
       retries: 12          # ~2 min for the first-start schema init
@@ -385,8 +409,8 @@ services:
       # (its /health does not touch the DB).
       - PG_HOST=${POSTGRES_DB_SERVER:-edu_ai_postgres}
       - PG_PORT=${POSTGRES_SERVER_PORT:-5432}
-      - PG_USER=${POSTGRES_DB_USER:-edu_ai}
-      - PG_PASSWORD=${POSTGRES_PASSWORD}
+      - PG_USER=edu_ai_search
+      - PG_PASSWORD=${POSTGRES_SEARCH_PASSWORD}
       - PG_DATABASE=${POSTGRES_DB:-edu_ai}
       - PG_SCHEMA=${POSTGRES_DB_SCHEMA:-edu_ai}
       # ── GLOBAL retrieval switches (platform-wide defaults) ──
@@ -453,6 +477,56 @@ services:
       - app                          # internal call to edu_ai_search
     restart: unless-stopped
 
+  # ─────────────────────────────────────────────
+  # VPN-only QA portal  (admin API + built frontends, one container)
+  # ─────────────────────────────────────────────
+  edu_ai_qa_admin:
+    build:
+      context: ./qa_portal
+      dockerfile: Dockerfile
+    image: edu_ai_qa_admin:0.1
+    container_name: edu_ai_qa_admin
+    expose:
+      - "8082"                       # internal only — no host port for UI, API or DB
+    environment:
+      # The portal holds NO database credentials and is not on the `data`
+      # network. Everything it knows about the data it asks these two for.
+      # Names must match qa_portal/backend/app/config.py exactly. They did not
+      # before: the service read QA_PORTAL_* and silently fell back to its own
+      # defaults, so anything set here looked configured but did nothing.
+      - QA_PORTAL_SEARCH_BASE_URL=http://edu_ai_search:8090
+      - QA_PORTAL_SEARCH_V1_BASE_URL=http://edu_ai_search:8090/v1
+      - QA_PORTAL_INGEST_BASE_URL=http://edu_ai_api:8080
+      # Same origin as the SPA, so CORS stays closed. This is the allow-list the
+      # CSRF check compares Origin/Referer against — a write from anywhere else
+      # is refused even though there is no login (contracts/qa-portal/CONTRACT.md §8).
+      - QA_PORTAL_ALLOWED_ORIGINS=${QA_PORTAL_ALLOWED_ORIGINS:-}
+      - QA_ADMIN_STATE_DIR=/var/lib/qa_admin_state
+      # The synchronous ingest call is the long pole; keep the portal's own
+      # timeout under the nginx proxy_read_timeout so the caller gets the
+      # portal's error envelope rather than an nginx 504.
+      - QA_PORTAL_HTTP_TIMEOUT_SECONDS=${QA_PORTAL_HTTP_TIMEOUT_SECONDS:-120}
+      - QA_PORTAL_UI_DEFAULT_LANG=${QA_PORTAL_UI_DEFAULT_LANG:-cs}
+    volumes:
+      # Import previews, operation state and temporary exports. NOT a second
+      # database of published QA — short-lived state only, reachable by the
+      # service alone and deliberately outside the static frontend directory.
+      - qa_admin_state:/var/lib/qa_admin_state
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8082/qa-api/v1/health',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      edu_ai_search:
+        condition: service_healthy
+    networks:
+      - edge                         # reachable by nginx
+      - app                          # internal calls to search + ingest gateway
+    restart: unless-stopped
+
 # ══════════════════════════════════════════════════════════════
 #  Networks
 # ══════════════════════════════════════════════════════════════
@@ -469,6 +543,22 @@ networks:
     driver: bridge                   # gateway → LLM providers; `app` alone is
                                      # internal, and Bifrost dies at startup if
                                      # it cannot fetch its pricing data.
+  tunnel:
+    driver: bridge
+    internal: true                   # nginx <-> cloudflared only; the trust boundary of R2
+    ipam:
+      config:
+        # One setting per installation, never shared and never a constant here. It is allocated and
+        # checked by the subnet preflight (no overlap with host routes, Docker networks or pools).
+        - subnet: ${EDU_AI_TUNNEL_SUBNET:?EDU_AI_TUNNEL_SUBNET is not set; run the subnet preflight}
+  tunnel_egress:
+    driver: bridge                   # cloudflared -> Cloudflare; no other member
+
+# The trust range of nginx for CF-Connecting-IP: the SAME variable as the subnet of `tunnel`.
+configs:
+  tunnel_trust:
+    content: |
+      set_real_ip_from ${EDU_AI_TUNNEL_SUBNET};
 
 # ══════════════════════════════════════════════════════════════
 #  Volumes
@@ -477,3 +567,4 @@ volumes:
   postgres_data:
   pgadmin_data:
   reranker_models:      # HF model cache for the in-process cross-encoder reranker
+  qa_admin_state:       # QA portal: import previews, operation state, temp exports

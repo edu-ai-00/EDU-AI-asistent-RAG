@@ -448,6 +448,20 @@ def call_langflow(flow_id: str, pipeline_input: dict, timeout: int = 600,
     return r.json()
 
 
+def _gateway_status_for_pipeline(pipeline_status: dict | None) -> str:
+    """OK from Langflow's side, but a soft per-stage failure (e.g. QA/vector
+    insert) is reported by the pipeline itself → reflect it here. Pulled out of
+    the inline ternary at the /v1/ingest call site so it has one place a test
+    can call directly instead of re-typing the condition.
+
+    A missing pipeline_status (None) is a genuinely different case from a
+    per-stage PARTIAL_FAILURE: document flows have no QAFinalResult at all, so
+    None here is the EXPECTED shape for them and must read as ok — this
+    function must not be repurposed to flag "no status found" as an error for
+    the QA flow too; that ambiguity belongs to _extract_pipeline_status."""
+    return "error" if (pipeline_status or {}).get("status") == "PARTIAL_FAILURE" else "ok"
+
+
 def _extract_pipeline_status(response_json: dict):
     """Best-effort pull of the QAFinalResult status (surfaced via ChatOutput) out
     of a Langflow /run response. Returns the parsed dict, or None (e.g. for the
@@ -870,9 +884,7 @@ def process_file(
             "source_url": source_url,
             "source_type": source_type,
             "page_role": page_role,
-            # OK from Langflow's side, but a soft per-stage failure (e.g. QA/vector
-            # insert) is reported by the pipeline itself → reflect it here.
-            "status": "error" if (pipeline_status or {}).get("status") == "PARTIAL_FAILURE" else "ok",
+            "status": _gateway_status_for_pipeline(pipeline_status),
             "langflow_session_id": response_json.get("session_id"),
             "pipeline_status": pipeline_status,
         }
@@ -1011,8 +1023,9 @@ def qa_packs(legal_entity: str):
     response_class=Response,
     responses={
         200: {"content": {"text/csv": {"schema": {"type": "string"}}},
-              "description": "The pack as a CSV file (UTF-8 with BOM, ';' "
-                             "delimited), ready to edit and upload back."},
+              "description": "The pack as a CSV file (UTF-8 with BOM, ',' "
+                             "delimited; readers still accept ';' too), "
+                             "ready to edit and upload back."},
         404: {"description": "No active pack of that name for this entity."},
     },
 )

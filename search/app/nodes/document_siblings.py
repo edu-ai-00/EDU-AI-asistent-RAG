@@ -155,6 +155,18 @@ def document_siblings(state: SearchState, params: dict | None = None) -> dict:
         "t", state.get("entity_scope") or [],
         state.get("organization_entities") or [], state.get("user_id"),
         state.get("user_role"), validity=True)
+    # A SIBLING IS STILL A SOURCE. This step widens a hit to its neighbouring
+    # chunks, and a neighbour reached by file_item_uuid would otherwise skip the
+    # area filter entirely — the one shape of leak a "we only expand what we
+    # already found" step invites. In practice a document's chunks share its
+    # labels, so this changes nothing for a correctly-labelled corpus and
+    # everything for a half-migrated one. Appended to scope_cond, so the grade
+    # recall query below (which receives that string) is covered too.
+    # Off in every active setting today (migration 164); tested forced on.
+    dom_cond, dom_params = scope.domain_where("t", "document_domain_id",
+                                              state.get("domain_ids"))
+    scope_cond += dom_cond
+    scope_params = [*scope_params, *dom_params]
     max_per = int(cfg.get("max_chunks_per_element", 6))
     window = int(cfg.get("window", 0) or 0)      # 0 = no hard distance cap
 
