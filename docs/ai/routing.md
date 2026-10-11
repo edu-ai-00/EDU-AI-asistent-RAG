@@ -66,7 +66,7 @@ standalone question using the recent turns of the session. It is **not a pipelin
 step**: it must run before the token forms are built, and the pipeline starts
 after that.
 
-It is **disabled in the reference configuration** (`intended`). With it off, a
+It is **enabled in the reference configuration** (`context.enabled: true` in all active seed rows; code default is also on; it needs a `conversation_id` with prior turns and costs one small LLM call when a rewrite is needed). If disabled in an organisation's settings, a
 follow-up is answered by retrieval alone, so a question that carries no subject
 of its own depends on whatever the words it does contain retrieve.
 

@@ -3,6 +3,10 @@
 Veřejná kopie vynechává interní akceptační reporty a odkazy na ně; tento návrh není důkazem aktuálního nasazení.
 
 Datum: 2026-10-04 (varianta 1: 2026-10-03), pracovní větev `clean_init`.
+**Pozn. auditu (SHA c8fe0543): stav níže je překonaný.** Varianta 2 je v tomto stromu implementovaná: `docker-compose.yml` má sítě `tunnel` a
+`tunnel_egress`, config `tunnel_trust` a vyžaduje `EDU_AI_TUNNEL_SUBNET`; skutečný nástroj je `scripts/tunnel_subnet.py` (soubor
+`tests/nginx_r2/tunnel_subnet.py` je jen zástupce pro test). Oddíl „1. Problém, jak je dnes“ popisuje stav před R2. Že je R2 nasazeno na
+konkrétním hostiteli, z repozitáře ověřit nelze.
 **Stav: opravená varianta 2 je laboratorně ověřená a revize R2-R1–R3 uzavřená v doloženém rozsahu. Je podkladem pro přípravu implementačního kandidáta; není implementovaná ani nasazená.**
 **Následná revize Codex 2026-10-04:** R2-R3 potvrzené, vlastní selfcheck 38/38,
 tři vadné varianty nezávisle odhalené; převzatých 105 PASS a devět hashů zkontrolováno. Výsledky po opravě.

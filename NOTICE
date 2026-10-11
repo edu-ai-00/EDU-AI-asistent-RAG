@@ -37,7 +37,7 @@ Section 4 of the License requires this NOTICE file to be carried along with any
 distribution of this work or of derivative works based on it.
 
 A large part of this project is Langflow component code that lives INSIDE the
-flow definitions in langflow_flows/*.json (field data.node.template.code.value),
+flow definitions in langflow_flows/ingestion/*.json (field data.node.template.code.value),
 not in .py files. Exporting a single flow, or copying one component's code into
 another project, therefore separates that code from this file. Every component
 AUTHORED for this project (91 of 106) carries a one-line header naming who last

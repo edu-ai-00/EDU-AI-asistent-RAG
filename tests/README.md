@@ -14,7 +14,7 @@ Ordered by what they need — run the free ones first:
 | [`test_domain_migration.py`](test_domain_migration.py) | dev stack; runs on the host | a label migration under a concurrent write, a killed process, and a rollback's blast radius |
 | [`test_resilience.py`](test_resilience.py) | running dev stack + `requests` | ungraceful failure under injected faults |
 | [`nginx_s2/run_s2.py`](nginx_s2/README.md) | Docker + Python, own isolated lab (synthetic upstreams, no `.env`, no ports) | nginx config drift vs the production behaviour, DNS/IP-change fragility, stale file mounts; the deploy/return script `scripts/nginx_s2_switch.sh` (`nginx_s2/clean_clone.py` runs the suite from a clean clone) |
-| [`nginx_r2/r2lab.py`](nginx_r2/README.md) | Docker + Python, own isolated lab (synthetic upstreams, no `.env`, no ports); `selfcheck` and `candidate.py check` need no Docker | R2 trust boundary of the proxy headers (`CF-Connecting-IP`, `X-Forwarded-*`): the S2 config vs the design (variant 2; its implementation candidate is rehearsed by `rehearsal_linux.py` below, **not deployed**), with forged headers, a replaced proxy, a stopped tunnel, real uvicorn, per-installation subnet allocation/preflight, two concurrent installations and a cleanup that only removes what a run owns (labels verified) |
+| [`nginx_r2/r2lab.py`](nginx_r2/README.md) | Docker + Python, own isolated lab (synthetic upstreams, no `.env`, no ports); `selfcheck` and `candidate.py check` need no Docker but read fixed historical Git SHAs that a public checkout lacks (they fail there) | R2 trust boundary of the proxy headers (`CF-Connecting-IP`, `X-Forwarded-*`): the S2 config vs the design (variant 2; its implementation candidate is rehearsed by `rehearsal_linux.py` below, present in this tree's `docker-compose.yml` and `nginx/conf`; deployment on a host cannot be verified from the repository), with forged headers, a replaced proxy, a stopped tunnel, real uvicorn, per-installation subnet allocation/preflight, two concurrent installations and a cleanup that only removes what a run owns (labels verified) |
 | [`nginx_r2/rehearsal_linux.py`](nginx_r2/README.md) | Docker + isolated Linux executor (Compose 5.3.1), own throw-away servers, no `.env`, no tunnel token; `host_iproute2.py` needs a Linux with `unshare -Urn` | the R2 implementation candidate: the REAL step commits and the REAL `scripts/nginx_r2_switch.sh` rehearsed through install, refusals before any change, failures during a step, interruptions with real signals, two installations and the return from every phase; `nginx_r2/candidate.py verify` proves the commits equal the derived design |
 
 ---
@@ -267,7 +267,7 @@ R11 (partial: tables ok / embeddings fail), plus a fast **unit** layer
 
 `eval_search.py` posílá jen otázku; `eval_rag.py` posílá i **roli, ročník a entitu**,
 protože ty rozhodují o odpovědi stejně jako formulace — a bez nich se vlastníkovy nálezy
-nedaly reprodukovat. Set (`eval_rag_regression.jsonl`, 38 případů) je vlastníkových 9
+nedaly reprodukovat. **Veřejný checkout:** `eval_rag_regression.jsonl` obsahuje jen 3 syntetické případy s `ENTITY_CODE`; soukromý set o 38 případech a snapshoty `eval_out/` (Git je ignoruje) zde nejsou, `--only M` proto nevybere nic a `baseline-20260822.json` neexistuje. Níže popsaný privátní set je vlastníkových 9
 otázek + 29 ručních dotazů z testování 21.–22. 8. 2026, každý se slovním očekáváním
 (`expect`) a tím, co systém udělal tu noc (`observed_21_8`).
 

@@ -17,7 +17,7 @@ Před spuštěním ověřte konkrétní režim v docstringu: například `bootst
 | `install.py` | offline příprava externí konfigurace instalace z konkrétního commitu | [OPERATIONS_LINUX.md](../docs/OPERATIONS_LINUX.md) |
 | `bootstrap.py` | čistý checkout → běžící stack jedním idempotentním příkazem | [ONBOARDING.md](../ONBOARDING.md) |
 | `create_api_key.py` | klíč Langflow přes REST do `.env` (volá ho bootstrap) | [ONBOARDING.md](../ONBOARDING.md) |
-| `import_flows.py` | import flow z `langflow_flows/` do Langflow (volá ho bootstrap) | [ONBOARDING.md](../ONBOARDING.md) |
+| `import_flows.py` | import 6 flow z `langflow_flows/ingestion/`: bez `--missing-only` **přepíše** (PATCH) každý existující flow včetně ručních úprav, s `--missing-only` (tak ho volá bootstrap) vytvoří jen chybějící; cílená výměna změněných uzlů je `flow_rollout.py` | [ONBOARDING.md](../ONBOARDING.md) |
 | `smoke.py` | ověření běžícího stacku bez placených volání | [ONBOARDING.md](../ONBOARDING.md) |
 | `db_roles.py` | kontrakt databázových rolí: generátor SQL, kontrola a převzetí izolované syntetické instalace | [b06-c2-role-contract.md](../docs/plans/b06-c2-role-contract.md) |
 | `eduai_layout.py`, `envfile.py`, `http_safe.py` | sdílené moduly (umístění instalace, úprava `.env`, HTTP bez následování přesměrování); nespouštějí se samostatně | docstringy |
@@ -31,11 +31,11 @@ Migrační runner se nepoužívá na produkci ani na školní instalaci (viz [AG
 | `migrate.py`, `migrate.sh`, `eduai_migrate/` | registr migrací a runner (`status`, `plan`, `apply`, generátory); `migrate.sh` je tenký obal. Specifikace: [spec.migration-registry.md](../specs/active/spec.migration-registry.md) |
 | `flow_rollout.py` | cílená výměna změněných uzlů flow z vydání A do B v nainstalovaném Langflow; co se rozešlo, odmítne |
 | `gen_clean_install.sh` | regeneruje `postgres/init_clean/` z řízené referenční databáze (generované soubory se needitují ručně) |
-| `align_existing_db.sh` | dotažení existující databáze na základ `init_clean` průchodem `postgres/init` |
+| `align_existing_db.sh` | **nepodporovaný, nevratný historický skript pro jednu konkrétní databázi**: spouští `postgres/init` od 31 (neodskakuje 201/202), vkládá pevné entity `SKOLA_NOVA_VES…` a hromadně doplňuje `legal_entity_code`; nepoužívat na produkci ani na školní instalaci, podporovaný upgrade neexistuje |
 
 ## Síť a nginx (R2, S2)
 
-Nasazené kroky a jejich záznam jsou v [docs/plans](../docs/plans/README.md). Skripty se na produkci nespouštějí bez schválení.
+Záznam nasazení tento checkout neobsahuje, [docs/plans](../docs/plans/README.md) má jen návrhy a historické záznamy. Skripty se na produkci nespouštějí bez schválení.
 
 | Skript | K čemu |
 |---|---|
@@ -54,7 +54,7 @@ Nasazené kroky a jejich záznam jsou v [docs/plans](../docs/plans/README.md). S
 | `qa_deactivate_packs.py` | výpis a vyřazení QA packů (API na to není) |
 | `qa_set_categories.py` | nastavení `tags->>'category'` jednoho packu z CSV |
 | `restore_declared_metadata.py` | SQL, které po reingestu vrátí ručně zadaná metadata dokumentů z exportu inventáře |
-| `domain_inventory.py`, `domain_migration.py` | přehled oblastí na školu a reprodukovatelná, vratná migrace rozhodnutí kurátora; postup: [2026-09-06_domain_scope.md](../docs/nasazeni/2026-09-06_domain_scope.md) |
+| `domain_inventory.py`, `domain_migration.py` | přehled oblastí na školu a reprodukovatelná, vratná migrace rozhodnutí kurátora; historický záznam postupu: [2026-09-06_domain_scope.md](../docs/nasazeni/2026-09-06_domain_scope.md) |
 
 Historické postupy zmiňují externí skill `qa-pack-variants`, který tento checkout nedistribuuje. Skripty výše pracují s již připravenými packy nebo opravují jejich metadata.
 
@@ -62,7 +62,7 @@ Historické postupy zmiňují externí skill `qa-pack-variants`, který tento ch
 
 Aktuální regresní harness je **[tests/eval_rag.py](../tests/eval_rag.py)** (viz [DEVELOPMENT.md](../docs/DEVELOPMENT.md), oddíl 3, vrstva 5).
 Skripty níže jsou starší a čtou vstupní soubory z `eval/` nebo `QA/`. Ty jsou ignorované Gitem a ve sledovaném stromu
-nejsou (`eval/` byl ze sledovaného stromu vyřazen commitem `caff33a`; jeho starší verze v Git historii zůstávají), takže bez vlastních vstupů se nespustí.
+nejsou, takže bez vlastních vstupů se nespustí.
 
 | Skript | K čemu |
 |---|---|
@@ -72,7 +72,7 @@ nejsou (`eval/` byl ze sledovaného stromu vyřazen commitem `caff33a`; jeho sta
 | `run_negative.py` | negativní případy: každý musí skončit `no_answer` (únik mezi školami) |
 | `run_selfvariants.py` | každá uložená varianta QA musí vrátit vlastní záznam (kontrola ingestu) |
 | `qa_pack_probe.py` | které QA odpovědělo volajícímu; vstup `QA/probe_cases.json` |
-| `param_liveness.py` | má každý parametr `settings.config->pipeline` pozorovatelný účinek |
+| `param_liveness.py` | má každý parametr `settings.config->pipeline` pozorovatelný účinek; za běhu **mění aktivní řádek `settings`** (nespouštět na sdíleném prostředí ani na produkci) |
 | `chunk_analysis.sql`, `chunk_analysis_summary.sql` | kvalita chunků jednoho dokumentu a celého korpusu (spouští se v `psql`) |
 
 ## Údržba závislostí

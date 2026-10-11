@@ -119,8 +119,8 @@ Until it exists, treat every request as a cold computation.
 
 Conversation and session identifiers are accepted and logged, and they are what
 `resolve_context` would read to rewrite an elliptical follow-up into a standalone
-question. **That step is disabled in the reference configuration**, so today each
-request is answered independently, with no prior-turn context (`intended`).
+question. That step is **enabled in the reference configuration** (`context.enabled: true` in all active seed rows; code default is also on; it needs a `conversation_id` with prior turns and costs one small LLM call when a rewrite is needed); where a deployment turns it off, each
+request is answered independently, with no prior-turn context.
 
 Nothing is cached across turns in either case: the follow-up mechanism rewrites
 the *question*, it does not reuse a previous *answer*.

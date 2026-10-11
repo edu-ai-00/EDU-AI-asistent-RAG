@@ -36,7 +36,7 @@ rozsah, testovací vstupy a zaznamenaný výsledek.
 
 ## QA export
 
-Exportérem je Langflow flow `langflow_flows/export/export_csv_admin.json`.
+Exportérem je Langflow flow `langflow_flows/ingestion/EDU_AI_EXPORT_QA_PACK.json` (alias `edu-ai-export-qa-pack`).
 Nástroje a rozhraní najdete v [scripts/README.md](../scripts/README.md),
 [tools/README.md](../tools/README.md) a [indexu testů](../tests/README.md).
 SQLite export obsahuje QA data; je soukromým výstupem konkrétní instalace.

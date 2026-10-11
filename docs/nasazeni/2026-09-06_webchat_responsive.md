@@ -1,5 +1,7 @@
 # Webchat: responzivní CSS — 6. 9. 2026
 
+> **Historický záznam (6. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+
 Na výslovnou žádost uživatele nasazena pouze změna
 `web_chat/frontend/src/styles.css` přes SCP do `/opt/edu_ai`, následovaná
 `docker compose build edu_ai_web_chat` a

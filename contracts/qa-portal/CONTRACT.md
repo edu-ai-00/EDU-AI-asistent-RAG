@@ -577,7 +577,7 @@ odpovídat jeho vlastnická entita.
 |---|---|
 | `GET /internal/qa-admin/pack-state?legal_entity&pack_id` | `pack_version`, `pack_etag`, `built_at`, packová metadata, `metadata_uniform`, `divergent_fields` |
 | `GET /internal/qa-admin/entries?legal_entity&pack_id&limit&cursor` | Položky se vším: `entry_key`, `entry_id`, `canonical_q`, `answer_md`, `variants[]`, `sources[]`, `domains[]` (kódy), `category_code`, `category_label`, `category_is_active`, `cat_legacy`, `owner_user_id`, `visibility`, `audience_roles`, `school_grade_ids`, `school_subject_ids`, `valid_from`, `valid_to`, `is_active` |
-| `GET /internal/qa-admin/uploader?legal_entity` | `{user_id, display_name}` — get-or-create dle §2.2 |
+| `GET /internal/qa-admin/uploader?legal_entity` | `{user_id, display_name, created}` — get-or-create dle §2.2 |
 | `GET /internal/qa-admin/categories?lang` | Celý `qa_category` katalog včetně neaktivních |
 | `POST /internal/qa-admin/categories` | Založení kategorie (kód, labels, sort_order, notes) |
 

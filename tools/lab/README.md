@@ -5,7 +5,7 @@
 > produkci, na školní instalaci ani proti cizímu stacku**. Obnova je destruktivní (maže projekt, config i state).
 > Ověření platí jen pro přesné bajty uvedené v oddíle 1; každá úprava je nové, neověřené chování.
 
-Provozní kontext: [docs/OPERATIONS_LINUX.md](../../docs/OPERATIONS_LINUX.md), oddíl 5.
+Provozní kontext: [docs/OPERATIONS_LINUX.md](../../docs/OPERATIONS_LINUX.md) (oddíl o záloze a obnově).
 Pro layout `edu_ai_final` (izolované laboratoři) s ověřením vlastního stacku viz [`cycle/`](cycle/README.md); skripty níže zůstávají beze změny.
 
 ## 1. Soubory, původ a SHA-256

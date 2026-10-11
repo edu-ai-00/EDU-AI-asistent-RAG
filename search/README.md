@@ -8,8 +8,8 @@ call).
 - **Consumers:** the web chat BFF and the Flutter app (via the nginx `/search/`
   edge).
 - **Not in scope:** content ingestion (that is the Langflow ingestion module) and
-  any UI (separate repos). This module has no DB writes except append-only query
-  logging.
+  any UI (separate repos). The query path has no DB writes except append-only query
+  logging and the idempotency cache; the internal `/internal/qa-admin` router used by the QA portal also writes QA data.
 
 > Using an AI coding assistant? Direct it to [`AGENTS.md`](../AGENTS.md) first.
 
@@ -26,7 +26,7 @@ flowchart LR
 ```
 
 **Textual equivalent:** a request enters `server.py`, which calls the
-config-driven `executor`. The executor loads the active `search_setting`, builds
+config-driven `executor`. The executor loads the active `settings` row, builds
 Czech norm/lemma/stem query tokens, then runs the guard/scope router, the curated
 QA steps (which return author-written answers with no LLM), and — only if those
 miss — the document RAG gatherers, ending at one terminal LLM answer or a polite
@@ -43,7 +43,7 @@ docker compose up -d edu_ai_search
 curl -s http://localhost:8090/health
 curl -s -X POST http://localhost:8090/v1/ask \
   -H 'content-type: application/json' \
-  -d '{"question": "Kdy začíná školní rok?", "legal_entity": "<ENTITY_CODE>"}'
+  -d '{"question": "Kdy začíná školní rok?", "legal_entity": "<ENTITY_CODE>", "user_role": "STUDENT"}'
 ```
 
 Replace `<ENTITY_CODE>` with an active entity code from your installation; `legal_entity` is required.
@@ -59,10 +59,10 @@ python3 tests/test_resilience.py     # fault-injection (dev stack only)
 
 | Path | Responsibility |
 |---|---|
-| `app/server.py` | FastAPI: `/search`, `/health`, `/explain` + background logging |
-| `app/executor.py` · `settings.py` | Config-driven pipeline walk; active `search_setting` |
+| `app/server.py` | FastAPI: `/v1/ask`, `/v1/ask/stream`, `/v1/explain`, `/health`, lookup endpoints + background logging |
+| `app/executor.py` · `settings.py` | Config-driven pipeline walk; active row of `edu_ai.settings` |
 | `app/nodes/` | Cascade steps: `route`, `qa_*`, `rag_*`, `answer` |
-| `app/{normalize,stemmer,lemmatizer,text_norm}.py` | Czech norm/lemma/stem (parity contract) |
+| `app/text_norm.py` (re-exports `eduai_normalize/eduai_normalize/{normalize,stemmer,lemmatizer}.py`) | Czech norm/lemma/stem (parity contract) |
 | `../contracts/` | OpenAPI, error codes, JSON schemas, parity vectors |
 | `../docs/` | Architecture + per-stage AI behavior pages |
 | `../specs/` | Feature specs (active / completed) |

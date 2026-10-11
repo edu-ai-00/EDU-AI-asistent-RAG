@@ -28,7 +28,7 @@ Z Dockerfilů (`COPY`) vychází, že image nesou pouze aplikační kód a jeho 
 | Image | Zdroj kopírovaný do image |
 |---|---|
 | `edu_ai` (Langflow, `Dockerfile`) | `requirements-langflow.txt`, `search/eduai_normalize` |
-| `edu_ai_langgraph` (`Dockerfile.langgraph`) | `langgraph_entrypoint.sh` |
+| `edu_ai_langgraph` (`Dockerfile.langgraph`; není službou v `docker-compose.yml`, samostatný dev kontejner) | `langgraph_entrypoint.sh` |
 | `edu_ai_api` | `api/requirements.txt`, `api/app` |
 | `edu_ai_search` | `search/requirements.txt`, `search/eduai_normalize`, `search/app` |
 | `edu_ai_web_chat` | `web_chat/frontend` (build), `web_chat/requirements.txt`, `web_chat/web_chat.py` |
@@ -40,9 +40,11 @@ Testy v image **nejsou**. Testy, které běží v image, se do něj kopírují n
 
 Provozní soubory, které se berou ze **zdrojového checkoutu** (ne z image) při instalaci a provozu:
 `docker-compose.yml` a `.env.example` (instalátor), `scripts/` (`setup.py`, `install.py`, `host_preflight.py`,
-`bootstrap.py`, `smoke.py`, `import_flows.py`, `flow_rollout.py`, `db_roles.py`), `langflow_flows/ingestion`
-(import flow), `postgres/init_clean` a `postgres/role_contract` (inicializace databáze, kontrakt rolí),
-`nginx/conf` (bind mount) a build kontexty služeb. Vynechání kteréhokoli z nich z checkoutu rozbije instalaci.
+`bootstrap.py`, `smoke.py`, `import_flows.py`, `create_api_key.py`, `db_roles.py`, `tunnel_subnet.py`, sdílené moduly
+`eduai_layout.py`, `envfile.py`, `http_safe.py`, `prepare_ubuntu.sh`; `flow_rollout.py` slouží aktualizaci flow, ne instalaci),
+`langflow_flows/ingestion` (import flow), `postgres/init_clean`, `postgres/role_contract` a `postgres/seed` (inicializace
+databáze, kontrakt rolí, schválená data organizací), `nginx/conf` (bind mount) a build kontexty služeb. Výčet je doplněný podle importů
+v `setup.py` a `host_preflight.py`; vynechání kteréhokoli z nich z checkoutu rozbije instalaci.
 
 ## Ověření vydání
 

@@ -2,6 +2,9 @@
 
 Veřejná kopie vynechává interní akceptační reporty a odkazy na ně; tento návrh není důkazem aktuálního nasazení.
 
+Pozn. auditu (SHA c8fe0543): věta o „nikdy nespuštěno proti skutečnému Dockeru“ je historická; `host_preflight.py` běžel v průvodci `setup.py`
+na skutečných VM ([public-source.md](../releases/public-source.md)), finální veřejný SHA ale vlastní VM průchod nemá.
+
 Datum: 2026-10-07. **Stav: kandidát implementovaný jen offline, ověřený jen zástupnými objekty (fake Host). Nikdy nebyl spuštěn proti skutečnému Dockeru.**
 Navazuje na [návrh B06](b06-clean-install-proposal.md) (oddíly 2, 4, 5, 6, 8, 10) a sdílené rozložení `scripts/eduai_layout.py`. Rozsah je **první instalace**;
 podporované aktualizace nejsou součástí ([B06-U](b06-upgrade-strategy.md)). Nic z toho není schválení nasazení.

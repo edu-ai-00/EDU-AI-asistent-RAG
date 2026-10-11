@@ -10,6 +10,10 @@ upřesněny (R3) a faktická upřesnění jsou zapracována. Nejde o schválení
 R3 `git replace`, R4 signál po `rename`) jsou opraveny ve třech kolech a pokryty regresními testy (oddíl 10). Druhé kolo (2026-10-06) opravilo mezery prvního;
 třetí kolo byly tři nezávislé revize (záznam), z nichž revize A prokázala, že úklid mohl smazat cizí adresář (nesplněné R1). To je uzavřeno.
 
+Pozn. auditu (SHA c8fe0543): stav níže je historický. B06-2 existuje (`scripts/host_preflight.py`, `scripts/setup.py`) a průvodce byl doložen
+na skutečných VM, viz [public-source.md](../releases/public-source.md); tvrzení „B06-2 a B06-3 neexistují“ a „bootstrap neproběhl“ už neplatí.
+Odkazy na neveřejné soubory (`production-readiness.md`, `b03*-progress.md`, `audit-04a`, `r2-lab-results-v3.md`) nelze ve veřejném stromu ověřit.
+
 Stav (2026-10-06): **kandidát B06-1 + bootstrap (oddíl 10), publikováno na `origin/clean_init` (kód a testy v commitu `d2cc0c70d6bc669cc5ebd64744d0327ba7e3992f`, dokumentace v následujícím commitu; jeho SHA nelze uvést uvnitř něj, viz `git log` těchto souborů). B06-1 je implementováno offline a prošlo třemi nezávislými revizemi a závěrečnou revizí Codex (pět nálezů uzavřeno); bootstrap je zpevněn (klíč Langflow, tajnosti ve výstupu, atomický zápis `.env`) a API klíčů bylo laboratorně ověřeno proti Langflow 1.10.1. Není to hotová instalace ani podporovaná aktualizace školy; celý bootstrap, PostgreSQL a B06-2 jsou další etapa, B06-3 neexistuje a zbytek je návrh. Podporované aktualizace řeší jen návrh [B06-U](b06-upgrade-strategy.md), který nic neimplementuje.** Starší stavy v tomto dokumentu jsou historie.
 Datum: 2026-10-06 (původní návrh 2026-10-05). Výchozí SHA návrhu: `a19f9716dfb681e2cfb39a5ff6c74bd0dcc09250` (`clean_init`); opravy R1–R4 vznikly nad publikovaným `cfd6f7de5b23d37e61efbfba119d6c905bde147d`.
 Vlastník 2026-10-06 schválil publikaci tohoto kandidáta a ponechání pravidel pro API klíč (oddíl 10.7); jinak nic neschválil. D12–D20 se považují za neschválené; podklady z B04a jsou uvedeny jen jako neschválený vstup.

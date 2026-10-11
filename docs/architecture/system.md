@@ -110,7 +110,9 @@ been sent.
 - **Postgres:** the retrieval path reads. The service writes in exactly two
   places — an append-only row per query in `question_answer_log`, and the claim
   and result rows of `idempotency_key`. **The query path performs no updates to
-  content**, so an answer can never be rewritten after the fact.
+  content**, so an answer can never be rewritten after the fact. The separate internal-only router
+  `/internal/qa-admin` (`search/app/qa_admin.py`, used by the QA portal, not by queries) does write QA entries,
+  embeddings and code lists.
 - **Model provider:** embeddings, an optional rerank judge or prefilter, and
   generation when the document answer path is reached. QA hits do not generate
   their author-written answer.

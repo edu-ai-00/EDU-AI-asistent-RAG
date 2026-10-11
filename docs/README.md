@@ -3,7 +3,7 @@
 | Potřebuji | Stránka |
 |---|---|
 | Čistě instalovat na Ubuntu | [CLEAN_INSTALL.md](CLEAN_INSTALL.md) |
-| Provozovat, exportovat a zálohovat | [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md) |
+| Provozní kontroly, QA export a požadavky na zálohu (bez postupu zálohy a obnovy) | [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md) |
 | Vyvíjet a testovat | [DEVELOPMENT.md](DEVELOPMENT.md) · [ONBOARDING.md](../ONBOARDING.md) |
 | Připravit vydání | [RELEASING.md](RELEASING.md) · [rozsah ověření](releases/public-source.md) |
 | Nastavit organizaci a data | [DATA_MODEL_AND_SETUP.md](DATA_MODEL_AND_SETUP.md) |

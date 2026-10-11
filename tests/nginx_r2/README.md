@@ -1,9 +1,9 @@
 # nginx R2: laboratoř hranice důvěry proxy hlavičkám
 
-Dokládá **návrh** R2, varianta 2 ([návrh](../../docs/plans/r2-trust-boundary-proposal.md)):
+Dokládá R2, varianta 2 (v tomto stromu implementovaná v `docker-compose.yml` a `nginx/conf`; nasazení na konkrétního hostitele z repozitáře ověřit nelze) ([návrh](../../docs/plans/r2-trust-boundary-proposal.md)):
 komu smí nginx věřit adresu klienta (`CF-Connecting-IP`) a co z `X-Forwarded-*` smí dojít k aplikacím; jak se instalaci přidělí a ověří podsíť
 důvěryhodné sítě; jak se laboratoř bezpečně uklízí.
-Návrh **není nasazený**; laboratoř (`r2lab.py`) nemění `docker-compose.yml`, `nginx/conf` ani žádný běžící stack.
+Laboratoř (`r2lab.py`) nemění `docker-compose.yml`, `nginx/conf` ani žádný běžící stack.
 **Žádný přístup na produkci, žádné `.env`, klíče, tunelové údaje ani LLM.**
 
 Implementační kandidát leží ve třech samostatných commitech konfigurace (kroky 1 až 3) a v provozních nástrojích `scripts/nginx_r2_switch.sh`
@@ -125,5 +125,6 @@ na L2 (raw sockety, ARP) se netestuje; preflight vidí jen to, co hostitel ví. 
 Historické odvozování kandidátů přes pevné baseline Git SHA vyžaduje odpovídající
 předky. Čistý veřejný kořen privátní historii neobsahuje. Tyto historické varianty
 proto nejsou podporovaným testem nového veřejného checkoutu; potřebují vlastní
-prověřený baseline. Instalace, runtime konfigurace a běžné offline unit testy
-na této historické odvozovací cestě nezávisí.
+prověřený baseline. Instalace a runtime konfigurace na ní nezávisí, ale `candidate.py check`, `switch_offline.py`,
+`offline_tests.py` a `r2lab.py selfcheck` čtou přes `git show` pevné historické SHA, které čistý veřejný checkout nemá;
+v něm selžou (audit: `candidate.py check` hlásí `git show af5f491…` failed, `switch_offline.py` 0/16 PASS).

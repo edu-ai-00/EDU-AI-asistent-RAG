@@ -1,5 +1,7 @@
 # Stabilní výběr školy a oblasti — 7. 9. 2026
 
+> **Historický záznam (7. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+
 Navazuje na autorizované nasazení responzivity. Uživatel upřesnil, že na
 počítači při výběru školy a oblasti ovládání skáče. Izolovaný Chromium test
 reprodukoval posun výběru oblasti o 78 px při šířce viewportu 700 px.

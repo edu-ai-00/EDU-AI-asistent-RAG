@@ -195,8 +195,8 @@ content signal available.
 ## Vector search (rag_vector, qa_vector)
 
 - The embedding model and target table come from `edu_ai.embedding_registry`
-  (`status = 'active'`). `document_chunks.embedding` is the only vector store in
-  the system.
+  (`status = 'active'`). `document_chunks.embedding` is the only vector store for
+  documents; curated QA vectors live in `qa_embedding` (`qa_vector`).
 - Search is `ORDER BY embedding <=> query::vector LIMIT fetch_k`, with cosine
   similarity `1 - (embedding <=> query)`. The ANN index type and its parameters
   are defined in the chunk DDL, which is their canonical owner.

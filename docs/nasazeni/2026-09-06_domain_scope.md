@@ -1,5 +1,7 @@
 # Nasazení: doménový scope (výběr oblasti hledání)
 
+> **Historický záznam (6. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Funkce je implementovaná; viz [specifikaci](../../specs/draft/spec.search-domain-scope.md). Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+
 **Pro:** Jan Drozd
 **Větev:** `chunking-config`, výchozí commit `e0316a6`
 **Sepsáno:** 6. 9. 2026
@@ -429,7 +431,7 @@ transakce migrace, kterou žádný zámek nechrání.
 
 ```bash
 docker compose exec -T postgres psql -U edu_ai -d edu_ai -c "\
-select query_id, outcome_or_stage := stage, domains, matched_entry_id, latency_ms \
+select query_id, stage, domains, matched_entry_id, latency_ms \
   from edu_ai.question_answer_log \
  where query_id like 'smoke-domain-%' order by created_at desc limit 20"
 ```

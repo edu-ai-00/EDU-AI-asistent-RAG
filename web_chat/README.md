@@ -175,6 +175,7 @@ Errors are **fixable or not, and say which**:
 |---|---|---|
 | 422 (bad/retired area code) | `422 invalid_scope` with `fields` | the user can correct it in one click; it used to be flattened into a 500 saying "chyba na naší straně, opakování nepomůže" |
 | 503 (catalog unreadable) | `503 scope_unavailable`, `retryable: true` | the narrower search could not be applied — and the BFF does **not** retry without the filter, because a wider answer is a different answer |
+| 503 on `GET /chat/api/domains` (catalog could not be read) | `503 domains_unavailable`, `retryable: true` | the picker has no list to show; the code is not in `contracts/errors.yaml` (report only) |
 | the BFF's own validation | `422 invalid_request` with `fields` | same status and shape as search, so a client switches on one thing |
 
 `ChatResponse.effective_scope` carries what search actually ran with (five

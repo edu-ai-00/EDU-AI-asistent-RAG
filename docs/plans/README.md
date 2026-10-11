@@ -1,6 +1,6 @@
 # Technické návrhy
 
-Veřejný výběr návrhů popisuje technické kontrakty. Pro aktuální postup použijte
+Veřejný výběr obsahuje technické návrhy, historické záznamy a jeden kontrakt rolí (`b06-c2-role-contract.md`); stav každé stránky je v jejím záhlaví. Pro aktuální postup použijte
 [čistou instalaci](../CLEAN_INSTALL.md) a [provozní návod](../OPERATIONS_LINUX.md).
 Interní inventáře, audity a agentí předání jsou uchovány mimo veřejný zdroj.
 

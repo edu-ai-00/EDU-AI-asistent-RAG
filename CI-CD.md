@@ -1,5 +1,15 @@
 # Návrh automatizace CI/CD
 
+> **Stav: budoucí návrh, ne návod.** Nic z navržené CI/CD automatizace není
+> implementované a stránka není podporovaný produkční postup, automatický upgrade
+> ani doložená obnova. Neexistují `.github/workflows/`, `deploy/services.yml`,
+> `deploy/docker-compose.prod.yml` ani `scripts/deploy.sh`. Existuje jen
+> `scripts/migrate.py` (B03e-1) a jeho rozsah je **omezen na izolované syntetické
+> databáze**, nikoli produkci nebo školní instalace
+> ([AGENTS.md](AGENTS.md), [spec.migration-registry](specs/active/spec.migration-registry.md)).
+> Skutečný postup instalace je [CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md), stav
+> aktualizací [b06-upgrade-strategy.md](docs/plans/b06-upgrade-strategy.md).
+
 ## Shrnutí
 
 Nasazovací mechaniku projektu lze automatizovat téměř úplně. Kód není příliš
@@ -95,8 +105,10 @@ má pipeline zastavit, nikoli být potichu ignorována.
 | `web_chat/**` | pytest, frontend build a rebuild `edu_ai_web_chat` |
 | `requirements-langflow.txt`, kořenový `Dockerfile` | rebuild `edu_ai` |
 | `Dockerfile.postgres` | rebuild Postgres image; nasazovat se zvýšenou opatrností |
-| `postgres/init/*.sql` | spustit migration runner |
-| `langflow_flows/**` | test invariantů a import flows |
+| `postgres/migrations/*.sql` (číslo ≥ 217) | migration runner; jen izolované syntetické DB, viz [Databázové migrace](#databázové-migrace) |
+| `postgres/init/*.sql`, `postgres/init_clean/**` | jen historie a generovaný základ B216; runner je nespouští, změna vyžaduje schválení a regeneraci |
+| `qa_portal/**` | test a rebuild `edu_ai_qa_admin` (služba v návrhu chyběla) |
+| `langflow_flows/**` | test invariantů a nasazení flow podle [Langflow flows](#langflow-flows) |
 | `nginx/**` | validace `nginx -t` a nasazení nginx konfigurace/image |
 | Compose soubory | validace konfigurace a vyhodnocení dotčených služeb |
 | `docs/**`, `README.md` | bez produkčního deploye |
@@ -126,35 +138,40 @@ override. Produkční Compose má používat pouze hotové images.
 
 ## Databázové migrace
 
-Adresář `postgres/init/` se na existující produkční databázi automaticky
-nespouští. Je proto potřeba zavést migration ledger, například:
+Adresář `postgres/init/` (historie do 216) se na existující databázi automaticky
+nespouští. Evidenci migrací už zavádí B03e-1: tabulka `edu_ai.schema_migration`
+(`migration_id`, `kind`, `checksum`, `release`, `applied_at`, `applied_by`,
+`notes`; původní návrh `schema_migrations` s `release_sha` neexistuje) a
+`scripts/migrate.py` (`status`, `plan`, `init`, `apply`, generátory). Runner
+pracuje jen s baseline B216 (`postgres/init_clean`) a soubory
+`postgres/migrations/NNN_*.sql` s číslem ≥ 217 a **je schválen pouze pro izolované
+syntetické databáze**; produkce, školní instalace a převzetí existující instalace
+(`adopt`, D11) nejsou pokryté a `adopt` není implementován. Manifest vydání
+`postgres/releases/<release>.json`, který `apply` vyžaduje, tento veřejný strom
+nepublikuje.
 
-```sql
-CREATE TABLE IF NOT EXISTS edu_ai.schema_migrations (
-    migration_name text PRIMARY KEY,
-    checksum text NOT NULL,
-    applied_at timestamptz NOT NULL DEFAULT now(),
-    release_sha text NOT NULL
-);
-```
+Runner dnes už provádí (podle kódu v `scripts/eduai_migrate/` a specifikace;
+na produkci se nespouští):
 
-Nový `scripts/migrate.py` by měl:
+1. drží PostgreSQL advisory lock, takže druhý `apply` skončí;
+2. načítá migrace v deterministickém pořadí podle manifestu vydání;
+3. porovnává SHA-256 checksum s manifestem a aplikovanými řádky;
+4. odmítne změněný nebo neočekávaný stav, než cokoli spustí;
+5. každou migraci a její řádek v registru provede v jedné transakci;
+6. zapíše `migration_id`, `kind`, `checksum` a `release`.
 
-1. Získat PostgreSQL advisory lock, aby nemohly běžet dva deploye současně.
-2. Načíst migrace v deterministickém pořadí.
-3. Porovnat jejich SHA-256 checksum s již aplikovanými migracemi.
-4. Odmítnout historickou migraci, jejíž obsah byl po aplikaci změněn.
-5. Každou novou migraci provést v transakci.
-6. Po úspěchu zapsat název, checksum a release SHA.
+Z návrhu zůstává budoucí: jednorázové převzetí existující produkční databáze
+(baseline/adopt) a jakékoli použití na produkci. Původní představa „označit již
+aplikované migrace“ proto není podporovaný postup.
 
-Před prvním automatickým deployem se musí jednorázově vytvořit baseline:
-ověřit stav produkčního schématu a označit již aplikované migrace.
-
-Automaticky lze povolit dopředně kompatibilní změny, například:
+Navrhované pravidlo „automaticky povolit dopředně kompatibilní změny“ je pouze
+návrh a pro DB platí přísnější pravidla repozitáře: jakákoli změna schématu nebo
+indexu se podle [AGENTS.md](AGENTS.md) předem schvaluje. Příklady z původního návrhu:
 
 - `CREATE TABLE IF NOT EXISTS`;
 - nový nullable sloupec;
-- nový index vytvořený způsobem vhodným pro produkční provoz;
+- nový index „vhodný pro produkční provoz“ — `CREATE INDEX CONCURRENTLY` a
+  `VACUUM` ale runner v migraci od 217 odmítne, protože transakci řídí on;
 - přidání nové hodnoty nebo seed dat pomocí idempotentního `ON CONFLICT`.
 
 Destruktivní změny, přejmenování a okamžité odstranění sloupců nemají projít
@@ -182,12 +199,21 @@ Je potřeba jednorázově:
 4. Produkční změnu provedenou přes UI nejprve exportovat, zkontrolovat a
    commitnout.
 
-Potom může deployer použít existující idempotentní
-`scripts/import_flows.py`, který aktualizuje flow podle stabilního
-`endpoint_name`. Před importem se vytvoří backup dotčených DB řádků nebo export
-flows a po importu se spustí nemutující end-to-end probe.
+Existují tři různé nástroje s rozdílným chováním a návrh musí vybrat to správné:
 
-Při selhání lze znovu importovat flows z předchozího release.
+| Nástroj | Chování |
+|---|---|
+| `scripts/import_flows.py --missing-only` (používá bootstrap) | vytvoří jen chybějící `endpoint_name`; existující flow, i uživatelsky upravené, zachová |
+| `scripts/import_flows.py` (explicitní import) | každý flow se stejným `endpoint_name` **přepíše** (PATCH) obsahem z Gitu; je idempotentní, ale ruční změny v UI zahodí |
+| `scripts/flow_rollout.py --from-dir A --to-dir B (--check \| --apply)` | cílená výměna změněných uzlů z vydání A do B; flow, který se od A rozešel, odmítne; `--apply` vyžaduje `--confirm-maintenance-window` |
+
+Návrh proto nemá deployeru dávat plný `import_flows.py` jako běžný update: po
+převzetí Gitu za zdroj pravdy je určen na obnovu rozbitého flow, malou změnu
+flow nasazuje `flow_rollout.py`. Před nasazením se vytvoří backup dotčených DB
+řádků nebo export flows a po něm se spustí nemutující end-to-end probe.
+
+Při selhání se flows vracejí z předchozího release; automatizovaný postup
+neexistuje a návrat nebyl na produkci ověřen.
 
 ## Nginx a produkční drift
 
@@ -200,6 +226,8 @@ nginx nemountuje žádný secret (`.htpasswd` ani `auth_keys.conf`), takže do i
 jde celá konfigurace bez výjimek. Pipeline před nasazením spustí `nginx -t`
 a po nasazení `scripts/perimeter_check.py --strict` z runneru mimo VPN.
 
+Dnes (`docker-compose.yml`) nginx image nevzniká: adresář `nginx/conf` se
+mountuje do `/etc/nginx` jen pro čtení, rodičovský `nginx/` se nemountuje.
 Pokud konfigurace zůstane bind-mounted, deployer musí aktualizovat jen
 verzovanou konfiguraci a nikdy nesmí přepisovat autentizační soubory.
 
@@ -260,12 +288,12 @@ automatické větve vůbec přijata.
 ## Navržené soubory
 
 ```text
-.github/workflows/ci.yml
-.github/workflows/deploy-production.yml
-deploy/services.yml
-deploy/docker-compose.prod.yml
-scripts/deploy.sh
-scripts/migrate.py
+.github/workflows/ci.yml                 # NEEXISTUJE
+.github/workflows/deploy-production.yml  # NEEXISTUJE
+deploy/services.yml                      # NEEXISTUJE
+deploy/docker-compose.prod.yml           # NEEXISTUJE
+scripts/deploy.sh                        # NEEXISTUJE
+scripts/migrate.py                       # existuje (B03e-1), jen izolované syntetické DB
 ```
 
 ### `ci.yml`

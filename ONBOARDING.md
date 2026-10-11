@@ -1,11 +1,21 @@
 # edu_ai — Onboarding: cloning and bringing up the whole stack
 
 > **Scope:** this page is the **local development** onboarding (clone, bring the stack up, understand each step).
-> To install and operate on a Linux server use [docs/OPERATIONS_LINUX.md](docs/OPERATIONS_LINUX.md) (current, lab-verified).
+> To install on a fresh Ubuntu host use [docs/CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md) (`scripts/setup.py`); operating checks and
+> requirements are in [docs/OPERATIONS_LINUX.md](docs/OPERATIONS_LINUX.md). Neither is a supported production upgrade procedure.
 > Tests and the definition of done: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Release and packaging rules: [docs/RELEASING.md](docs/RELEASING.md).
 
-Goal: from a clean clone to a fully functional local environment — 7 Docker containers
-(nginx, FastAPI, Langflow, Postgres+pgvector, pgAdmin, search, web chat) with imported
+> **Status: development walk-through, last revised 2026-07-25, partly behind the code.** Known differences (audit of
+> c8fe0543): `scripts/bootstrap.py` alone does **not** finish on a clean clone, because `docker-compose.yml` requires
+> `EDU_AI_TUNNEL_SUBNET` (set by `host_preflight.py pin-env --allocate-tunnel-subnet`, which the `setup.py` wizard runs)
+> and `.env.example` leaves `CHAT_LEGAL_ENTITY` as `CHANGE_ME…`, so the smoke test reports the chat as not configured.
+> The LLM provider and its key are configured in the **Bifrost** UI, not through `OPENAI_API_KEY` in `.env`
+> ([CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md)). The stack has 9 services (plus optional `cloudflared`); numbers such as
+> "7 containers", "24 tables" and "seven paths" below are older snapshots. Section 6 describes three different flow-import
+> behaviours; read it before re-running the import.
+
+Goal: from a clean clone to a fully functional local environment — 7 Docker containers (at the time of writing; today 9 services:
+nginx, FastAPI, Langflow, Bifrost, Postgres+pgvector, pgAdmin, search, web chat, QA portal) with imported
 Langflow flows and correctly configured keys and IDs.
 
 Estimated time: 30–45 minutes (most of it = docker build).
@@ -16,8 +26,9 @@ Estimated time: 30–45 minutes (most of it = docker build).
 
 - **Docker Desktop** (macOS/Windows) or Docker Engine + compose plugin (Linux)
 - **git**, **python3**
-- **Your own OpenAI API key** (https://platform.openai.com/api-keys)
-- Access to the `github.com/<ORG>/edu_ai` repo (collaborator invitation)
+- An LLM provider key for the **paid** features (embeddings, generated answers), configured in the Bifrost UI. Curated QA
+  exact matches work without one.
+- The repository: `github.com/edu-ai-00/EDU-AI-asistent-RAG` (public)
 
 ---
 
@@ -45,14 +56,13 @@ smoke still flags leftover broken containers. Preserve all other services and da
 # The short way
 
 ```bash
-git clone https://github.com/<ORG>/edu_ai.git
-cd edu_ai
+git clone https://github.com/edu-ai-00/EDU-AI-asistent-RAG.git
+cd EDU-AI-asistent-RAG
 python3 scripts/bootstrap.py
 ```
 
-That is the whole first deployment. It generates `.env` with strong passwords, creates
-the nginx auth files, brings the stack up waiting for each service
-to report *healthy*, creates the Langflow API key over REST, imports the 6 flows, runs
+That was the whole first deployment when this page was written; see the status note at the top for what it no longer covers. It generates `.env` with strong passwords, brings the stack up waiting for each service
+to report *healthy*, creates the Langflow API key over REST, imports the missing flows (`--missing-only`), runs
 a smoke test, and prints the URLs and the path to `.env` at the end. The passwords and
 keys this run generated are shown once there too, but only at an interactive terminal (never
 in CI, with `--no-input` or with redirected output, and never values that already existed or
@@ -90,13 +100,13 @@ python3 scripts/smoke.py      # no OpenAI cost — safe to run from cron
 # The long way, step by step
 
 Useful when bootstrap fails at some step, or when you want to understand what it did.
-Each section matches one bootstrap step.
+Sections follow the order of the original bootstrap; the current `bootstrap.py` steps differ in numbering and add the Langflow connectivity variables.
 
 ## 1) Clone
 
 ```bash
-git clone https://github.com/<ORG>/edu_ai.git
-cd edu_ai
+git clone https://github.com/edu-ai-00/EDU-AI-asistent-RAG.git
+cd EDU-AI-asistent-RAG
 ```
 
 ## 2) Environment configuration — `.env` (phase 1)
@@ -289,8 +299,10 @@ python3 scripts/import_flows.py
 ```
 
 The script imports the **6 ingestion flows** (MARKDOWN, PDF, OFFICE, WEB, QA,
-EXPORT_QA_PACK). Re-running it is idempotent — a flow whose `endpoint_name`
-already exists gets PATCHed in place instead of duplicated. Nothing to paste
+EXPORT_QA_PACK). Re-running it creates no duplicates, but it is **not** harmless: a flow whose `endpoint_name`
+already exists is PATCHed in place, i.e. overwritten with the repository version, and edits made in the Langflow UI are lost.
+`bootstrap.py` itself calls `import_flows.py --missing-only` (creates only missing aliases, keeps existing flows), and
+`scripts/flow_rollout.py` is the targeted A → B tool for an installed Langflow (refuses flows that drifted). Nothing to paste
 into `.env`: run the script, done.
 
 > Retrieval no longer runs through Langflow (the old search/agent flows are gone) —

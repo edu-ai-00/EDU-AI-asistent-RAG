@@ -13,6 +13,13 @@ last_verified: 2026-08-01
 
 # One database, several legal entities
 
+> **Stav implementace (audit dokumentace, SHA c8fe0543): text je návrh z 2026-08-01, ne popis dnešního systému.**
+> V `postgres/init_clean/01_schema.sql` **není** dělení `PARTITION BY`, `CREATE POLICY` ani row-level security, ani entita
+> `_TEMPLATE`. Izolaci entit dnes zajišťuje jen aplikační kód (`search/app/scope.py`, viditelnost `private`/`entity`/`organization`),
+> proto nelze spoléhat na to, že databáze zachytí zapomenuté `WHERE`. Nastavení je v tabulce `edu_ai.settings` s `legal_entity_code`
+> (ne `search_setting`), viditelnost `public` byla zrušena (migrace 91) a parametr požadavku `scope=all` neexistuje.
+> Rozpor mezi `status: active` a skutečností je nutné rozhodnout vlastníkem; viz zpráva auditu.
+
 ## Problem
 
 One company operates the platform and operates it for its subsidiaries as well —

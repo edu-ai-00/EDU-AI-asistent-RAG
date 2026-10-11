@@ -46,6 +46,11 @@ last_verified: 2026-09-06
 
 # Výběr oblasti hledání pro mobilní aplikaci a webchat
 
+> **Pozn. auditu (SHA c8fe0543):** funkce je implementovaná (`search/app/scope.py`, `search/app/domain_scope.py`, migrace
+> `postgres/init/213_log_domains.sql`, testy `tests/test_domain_scope*.py`) a podle
+> [záznamu nasazení](../../docs/nasazeni/2026-09-06_domain_scope.md) nasazená 6. 9. 2026; `status: draft` a věta „Nasazeno není nic“
+> níže popisují stav před nasazením. Tvrzení o mobilním klientu: viz [mobile-domain-scope.md](../../docs/integrations/mobile-domain-scope.md).
+>
 > **Stav 6. 9. 2026 (aktualizováno po implementaci).** Backend, webchat,
 > kontrakty, migrace logu, nástroje a testy jsou **hotové a ověřené na dev
 > stacku a přes skutečné HTTP na třech cestách** (interní, nginx, BFF).

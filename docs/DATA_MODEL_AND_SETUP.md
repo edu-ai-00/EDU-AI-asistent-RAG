@@ -207,7 +207,7 @@ Two things worth knowing:
 | `question_answer_log` | Append-only record of every query: the question, the route taken, the candidates, the answer, and (since migration 213) the thematic AREAS it was restricted to. Written by the search service. |
 | `qa_feedback` | A rating attached to a logged answer. |
 | `qa_conversation_v` | A view assembling a session's turns into a conversation. |
-| `idempotency_key` | Replay cache for `POST /search`, so a retried request does not produce a second answer. 24-hour retention. |
+| `idempotency_key` | Replay cache for `POST /v1/ask`, so a retried request does not produce a second answer. 24-hour retention. |
 
 The query path performs **no `UPDATE`s** — the log is append-only by design, so
 an answer can never be rewritten after the fact.
@@ -606,8 +606,9 @@ Two settings govern what crosses between the units — both in
   document `organization`, which then reaches the parent **and the sibling
   unit** — the secondary school sees what the primary school published
   organisation-wide.
-* `entity_visible_to_parent` (enforced at query time) lets the parent, and
-  through it the siblings, see a unit's own `entity` documents.
+* `entity_visible_to_parent` is described as letting the parent, and through it the siblings, see a unit's own
+  `entity` documents, but the search code does not read it: `server.py` `_prepare_search` makes `entity` documents
+  visible to the owning entity only (audit c8fe0543; conflict with decision D-18 unresolved).
 
 Neither ever crosses to another legal person. Between `SKOLA_NOVA_VES` and
 `ZAKLADNI_SKOLA_BOROVA` nothing is shared under any configuration.

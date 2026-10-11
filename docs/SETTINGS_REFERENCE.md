@@ -70,12 +70,14 @@ afterwards. Existing chunks keep the shape they were written with.
 
 ### Changing a value
 
-Configuration is data, so it changes through a **numbered migration** in
-`postgres/init/`, never through an ad-hoc `UPDATE`. Two traps:
+Configuration is data, so it changes through a **numbered migration**, never through an ad-hoc `UPDATE`. Two traps:
 
 1. **Settings are per organisation.** A new flag must be written to *every*
    active row, not only the platform-wide one. A migration that updates one row
    silently leaves the other organisations on the old behaviour.
+   (Numbers up to 216 are history in `postgres/init/` and never run on a new installation; new ones go to
+   `postgres/migrations/` from 217 on, see its README. `scripts/migrate.py` is approved only for isolated synthetic
+   databases, never for production or a school installation.)
 2. **`jsonb_set` does not create intermediate objects.** Adding
    `params.rerank_prefilter.backend` to a step that has no `rerank_prefilter`
    object writes nothing and reports success.
@@ -139,7 +141,7 @@ present. The stop-word list itself is a code list, not code and not config.
 | Key | Reference | Meaning |
 |---|---|---|
 | `search_requires_user` | `false` | Whether a query must carry an authenticated user. |
-| `entity_visible_to_parent` | `true` | Enforced at query time: a unit's `entity` documents are visible to its parent organisation and, through it, to sibling units. |
+| `entity_visible_to_parent` | `true` | **Not read by the search code** (audit c8fe0543): `server.py` `_prepare_search` applies a strict model where `entity` documents reach only the owning entity. Older text, `spec.multi-entity` and decision D-18 describe parent/sibling visibility; the conflict is unresolved. |
 | `child_may_publish_organization` | `true` | Enforced at ingest: a unit may mark a document `organization`, which reaches the parent and the siblings — never another legal person. |
 
 Both tighten when set to `false`. Cross-tenant isolation is not configurable.
@@ -283,7 +285,7 @@ the first passage in 2 cases while adding 134 chunks to the pool.
 | `only_if_max_coverage_below` | `0.75` | Run only when the lexical pool is weak. |
 | `run_on_timespan` | `true` | Run for date questions even so. |
 
-`document_chunks.embedding` is the only vector store in the system.
+`document_chunks.embedding` is the only vector store for documents (curated QA vectors live in `qa_embedding`).
 
 ### 3.8 `document_siblings` — neighbouring chunks
 
@@ -595,7 +597,7 @@ Moving the model into the settings and matching it to the writer fixed it.
 **Embeddings: one multilingual model for all languages.**
 `text-embedding-3-small` covers cs/en/de/es from a single registry row, so
 adding a language does not mean a second vector space. `document_chunks.embedding`
-is the only vector store in the system.
+is the only vector store for documents (curated QA vectors live in `qa_embedding`).
 
 **Ingestion chunker: `gpt-5-mini`.** `gpt-5.1-mini` returns 404 on this account,
 and that family does not accept `temperature = 0`, so the chunking prompt is

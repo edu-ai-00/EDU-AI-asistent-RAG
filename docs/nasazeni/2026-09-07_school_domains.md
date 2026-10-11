@@ -1,5 +1,7 @@
 # Číselník: Provoz školy a Bezpečnost a zdraví
 
+> **Historický záznam (7. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+
 Následně nasazeno na produkci společně s
 [doménami jednotlivých QA odpovědí a reingestem](2026-09-07_qa_entry_domains.md).
 Níže je původní záznam přípravy migrace.

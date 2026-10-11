@@ -33,7 +33,7 @@ on planning notes outside the tracked tree.
 
 ## Model
 
-A new installation is one logical baseline, **B216** (`postgres/init_clean/00–03`).
+A new installation is one logical baseline, **B216** (`postgres/init_clean/00–04`).
 Migrations before 217 are never run on it and never listed in the registry.
 Migrations from 217 on live in `postgres/migrations/` and are recorded one by
 one in `edu_ai.schema_migration`. The table is **not** part of B216: the runner
@@ -68,7 +68,7 @@ migration that changes data must carry its own targeted self-check
 
 ## Manifests (generated, never hand-edited)
 
-- `postgres/baseline/B216.json`: sha256 of `00–03` (line endings normalized to
+- `postgres/baseline/B216.json`: sha256 of `00–04` (line endings normalized to
   LF before hashing, as git stores them), schema and configuration fingerprints,
   the fingerprint algorithm and its pg_dump arguments, server and pg_dump
   version, extension versions and the **digest-pinned** base image from
@@ -77,7 +77,7 @@ migration that changes data must carry its own targeted self-check
 - **Source commit.** The manifest cannot name the commit that adds it. It
   records `base_commit`, the commit the inputs were generated from (the parent of
   the commit that adds the manifest). It is informational. Identity is carried by
-  the file hashes, and the generator refuses to run when `00–03` differ from that
+  the file hashes, and the generator refuses to run when `00–04` differ from that
   commit.
 - `postgres/releases/<release>.json`: cumulative from B216; per migration the id,
   file sha256 and `schema_after`, measured on an isolated reference after each

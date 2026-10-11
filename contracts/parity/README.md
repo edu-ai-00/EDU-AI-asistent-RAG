@@ -3,7 +3,7 @@
 **Track:** contract · **Language:** English
 
 The server implements Czech normalization + the Dolamic–Savoy light stemmer
-(Python, `search/app/normalize.py` · `stemmer.py` · `lemmatizer.py`, unified by
+(Python, `search/eduai_normalize/eduai_normalize/normalize.py` · `stemmer.py` · `lemmatizer.py`, unified by
 `search/app/text_norm.py`). A compatible offline Flutter/Dart QA engine MUST reduce
 the same input to the same `norm` / `lemma` / `stem` tokens: this equality is a
 **contract**, not proof that the client port already exists. The known
@@ -44,7 +44,7 @@ CZ/SK, the `přijímačka` family, stopword dropping.
 Any change to normalization or stemming MUST update these vectors first
 (spec-style), then both implementations (Python + Dart). Order-of-operations
 note: reducers run on the diacritics-intact word and ASCII folding is the LAST
-step (`search/app/normalize.py`), because simplemma's dictionary and the
+step (`search/eduai_normalize/eduai_normalize/normalize.py`), because simplemma's dictionary and the
 CzechStemmer rules both need the diacritics.
 
 All example inputs are synthetic. Never add real learner content or real school

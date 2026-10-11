@@ -13,7 +13,7 @@ nesrovnávají s historickým privátním benchmarkem. Licence a attribution not
 
 ## Doložený skutečný VM průchod
 
-| Kontrola | Původní zdroj e40a1c0 | Opravený zdroj06de66d |
+| Kontrola | Původní zdroj e40a1c0 | Opravený zdroj 06de66d |
 |---|---|---|
 | Instalace, 9 služeb, role MATCH | PASS, studený build | PASS, build cache |
 | Smoke | 26 PASS / 0 FAIL / 3 SKIP | 26 / 0 / 3 |
@@ -33,7 +33,7 @@ Cloudflare a nový VM průchod finálního kombinovaného veřejného SHA jsou N
 
 Upstream spojuje opravu souhrnu preflightu, přesnou kontrolu zkopírovaných inline
 Compose configů a odmítnutí komprimovaného taru v `docker cp`. Společné testy průvodce
-64/64, další instalační offline sady, BFF57/57 a skutečný SQLite export25/25 prošly.
+64/64, další instalační offline sady, BFF 57/57 a skutečný SQLite export 25/25 prošly.
 Veřejný checkout má vlastní kontrolu součtů, dokumentace a instalačního preflightu.
 Tato offline kontrola není nový VM PASS ani schválení produkčního upgradu.
 

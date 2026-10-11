@@ -1,5 +1,7 @@
 # Nasazení: stoplist, eduai_normalize 3.0.0, oprava synonym
 
+> **Historický záznam (5. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Stav „init_clean nenese nové sloupce“ a „prompt v15 běží mimo repo“ je překonán: migrace 211 a 212 jsou v repu a součástí základu B216. Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+
 **Pro:** Jan Drozd
 **Od:** Martin Safránek
 **Větev:** `chunking-config`, commit `3cc33ec`
