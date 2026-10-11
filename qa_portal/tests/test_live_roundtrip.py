@@ -15,7 +15,7 @@ Scope guardrails baked into this file:
 
 Run:
     cd qa_portal/tests
-    "qa_portal/backend/.venv/Scripts/python.exe" \
+    "../backend/.venv/Scripts/python.exe" \
         -m pytest -q test_live_roundtrip.py
 """
 from __future__ import annotations

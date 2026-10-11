@@ -1,7 +1,7 @@
 # Veřejný zdroj a rozsah ověření
 
 Zdroj publikace z 11. 10. 2026: upstream integrační commit
-`7220dd908fe9c326dae490ac47b5458b82d90c52`. Veřejný Git má vlastní SHA; pro instalaci
+`c079bd8065061a0a6e58f8468f4233014d0d71f1`. Veřejný Git má vlastní SHA; pro instalaci
 použijte skutečný commit tohoto repozitáře z `git rev-parse HEAD`.
 
 Runtime kód, konfigurace a role, čistý DB seed, flow, kontrakty, normalizace,
