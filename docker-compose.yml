@@ -23,7 +23,7 @@ services:
   # Nginx reverse proxy  (single entry point)
   # ─────────────────────────────────────────────
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.30.5-alpine
     container_name: edu_ai_nginx
     ports:
       - "80:80"         # Public API (plain HTTP — TLS terminates in front of nginx)

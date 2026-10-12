@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -52,7 +53,7 @@ import tunnel_subnet as TS  # noqa: E402
 import offline_tests as OFF  # noqa: E402
 
 PURPOSE = OW.PURPOSE
-PROD_NGINX_IMAGE_ID = "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
+PROD_NGINX_IMAGE_ID = os.environ.get("EDU_AI_LAB_NGINX_ID", "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10")  # production unless rehearsing a bump
 NGINX_NAME = "edu_ai_nginx"          # the DNS name every client and the tunnel ingress use
 SPOOF_CF = "203.0.113.77"            # TEST-NET-3 addresses: nothing in the lab has them
 LEGIT_CF = "203.0.113.9"

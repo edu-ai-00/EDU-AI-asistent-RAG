@@ -31,7 +31,7 @@ import uuid
 REPO = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 PURPOSE = "b04s2-nginx-lab"
-NGINX_IMAGE = "nginx:1.27-alpine"       # the tag docker-compose.yml uses
+NGINX_IMAGE = os.environ.get("EDU_AI_LAB_NGINX_IMAGE", "nginx:1.27-alpine")   # the image the S2/R2 evidence ran on; set it to docker-compose.yml's tag to rehearse a bump
 PY_IMAGE = "python:3.12-slim"
 
 # upstream name used by nginx.conf -> (short name, port the real service listens on)

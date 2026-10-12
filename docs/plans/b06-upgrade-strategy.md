@@ -24,7 +24,7 @@ The table describes declarations in the local source tree, not versions found li
 |---|---|---|
 | Langflow | base `1.10.1`, local image `edu_ai:1.1.0`; base tag without a digest; the added packages partly have loose versions, constraints are produced from `pip freeze` of the base image during the build | [Dockerfile](../../Dockerfile), [requirements-langflow.txt](../../requirements-langflow.txt), [Compose](../../docker-compose.yml) |
 | PostgreSQL and extensions | base `pgvector:0.7.4-pg16` with a digest, `PG_SEARCH_VERSION=0.25.1`; the `.deb` is tied to PostgreSQL 16, downloaded without a checksum verification in the Dockerfile | [Dockerfile.postgres](../../Dockerfile.postgres) |
-| Proxy and tunnel | `nginx:1.27-alpine` and `cloudflared:2026.8.1`; tags alone do not guarantee immutable content | [Compose](../../docker-compose.yml) |
+| Proxy and tunnel | `nginx:1.30.5-alpine` and `cloudflared:2026.8.1`; tags alone do not guarantee immutable content | [Compose](../../docker-compose.yml) |
 | Bifrost and pgAdmin | `bifrost:v1.6.7`, `pgadmin4:9.11.0`; persistent state and compatibility must be verified separately | [Compose](../../docker-compose.yml) |
 | Ingest API | Python base `3.11.16` with a digest and exact Python dependencies; apt system packages are resolved at build time | [API Dockerfile](../../api/Dockerfile), [API requirements](../../api/requirements.txt) |
 | Search | Python base `3.12-slim` with a digest; a number of dependencies use a `>=` lower bound, the lemma engine `simplemma==2.0.0` is pinned | [Search Dockerfile](../../search/Dockerfile), [Search requirements](../../search/requirements.txt) |

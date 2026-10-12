@@ -37,7 +37,7 @@ import labkit as L  # noqa: E402
 from labkit import REPO, run  # noqa: E402
 
 # the image the production nginx container runs (read from production, 2026-10-01)
-PROD_NGINX_IMAGE_ID = "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
+PROD_NGINX_IMAGE_ID = os.environ.get("EDU_AI_LAB_NGINX_ID", "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10")  # production unless rehearsing a bump
 CONF_DIR = REPO / "nginx" / "conf"
 
 

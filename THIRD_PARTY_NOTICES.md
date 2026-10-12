@@ -25,7 +25,7 @@ inventory is not a blanket conclusion about redistribution obligations.
 | cloudflared (optional Compose profile) | unpinned image tag latest | [Apache-2.0](https://github.com/cloudflare/cloudflared/blob/master/LICENSE), upstream checked 2026-10-12 | Cloudflare contributors |
 | pg_trgm, unaccent (extensions) | bundled with 16.3 | PostgreSQL License | PostgreSQL Global Development Group |
 | pgAdmin 4 (image `dpage/pgadmin4`) | 9.11.0 | PostgreSQL License | pgAdmin Development Team (Dave Page et al.) |
-| nginx | 1.27.5 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
+| nginx | 1.30.5 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
 | CPython runtime / base images | 3.11 / 3.12 slim | PSF-2.0 | Python Software Foundation |
 | Node.js (frontend build stage only) | 24.18 alpine | MIT | OpenJS Foundation |
 | Debian (image OS layer) | 12 | various | Debian contributors |
