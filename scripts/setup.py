@@ -521,7 +521,7 @@ def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
     changed = _changed_sources(layout, record)
     if changed:
         st.notes.append("CONFIG_SOURCES_CHANGED: " + ", ".join(changed) + " differ from the files the configuration was created from; "
-                        "the .env has every template key, existing data is reused as it is")
+                        "existing values and data are reused as they are")
     return "own"
 
 
