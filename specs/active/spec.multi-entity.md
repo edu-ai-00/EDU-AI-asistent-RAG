@@ -13,12 +13,12 @@ last_verified: 2026-08-01
 
 # One database, several legal entities
 
-> **Stav implementace (audit dokumentace, SHA c8fe0543): text je návrh z 2026-08-01, ne popis dnešního systému.**
-> V `postgres/init_clean/01_schema.sql` **není** dělení `PARTITION BY`, `CREATE POLICY` ani row-level security, ani entita
-> `_TEMPLATE`. Izolaci entit dnes zajišťuje jen aplikační kód (`search/app/scope.py`, viditelnost `private`/`entity`/`organization`),
-> proto nelze spoléhat na to, že databáze zachytí zapomenuté `WHERE`. Nastavení je v tabulce `edu_ai.settings` s `legal_entity_code`
-> (ne `search_setting`), viditelnost `public` byla zrušena (migrace 91) a parametr požadavku `scope=all` neexistuje.
-> Tento historický návrh je supersedovaný skutečným produkčním modelem, který vlastník potvrdil 2026-10-12. Závaznou viditelnost popisuje D-19 v docs/architecture/decisions.md; tato stránka není návodem k zavedení RLS, partition ani širšího scope.
+> **Implementation status (documentation audit, SHA c8fe0543): the text is a proposal from 2026-08-01, not a description of today's system.**
+> `postgres/init_clean/01_schema.sql` contains **no** `PARTITION BY` partitioning, `CREATE POLICY` or row-level security, and no
+> `_TEMPLATE` entity. Today entity isolation is provided only by application code (`search/app/scope.py`, `private`/`entity`/`organization` visibility),
+> so one cannot rely on the database catching a forgotten `WHERE`. Settings live in the `edu_ai.settings` table with `legal_entity_code`
+> (not `search_setting`), `public` visibility was removed (migration 91) and the `scope=all` request parameter does not exist.
+> This historical proposal is superseded by the actual production model, which the owner confirmed on 2026-10-12. Binding visibility is described by D-19 in docs/architecture/decisions.md; this page is not a guide to introducing RLS, partitioning or a broader scope.
 
 ## Problem
 
@@ -28,7 +28,7 @@ schools. Today every table is single-tenant by omission: there is no attribute
 saying whose a document is, so a second entity's material would simply be found
 by the first entity's queries.
 
-produktový vlastník's requirement, as settled in the design conversation of 2026-08-01:
+The product owner's requirement, as settled in the design conversation of 2026-08-01:
 
 * one level of hierarchy (parent and subsidiaries), and the operator may itself
   be a subsidiary — so the hierarchy is descriptive, not a permission structure

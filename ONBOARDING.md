@@ -188,7 +188,7 @@ What happens automatically:
   consolidated baseline: the `langflow` database, then the schema (24 tables + the
   `qa_conversation_v` view, `vector` + `pg_trgm` + `unaccent`, Czech locale
   `cs_CZ.UTF-8`), then the config seed — **four active languages (cs, en, de, es)**,
-  one `search_setting`, and the číselníky. No documents and no Q&A data; content
+  one `search_setting`, and the code lists. No documents and no Q&A data; content
   arrives through the ingestion API.
   > Runs **only on an empty volume**. `postgres/init/` holds the numbered migration
   > history and is no longer executed — on a database that already has data, apply

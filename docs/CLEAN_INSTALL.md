@@ -1,16 +1,17 @@
-# Čisté nasazení na nové Ubuntu VM
+# Clean deployment on a new Ubuntu VM
 
-Postup je pro nový izolovaný Linux hostitel bez jiného stacku. Zdroj je Git checkout
-přesného schváleného veřejného commitu; ZIP bez `.git` instalátor nepřijme.
-Ověření konkrétního vydání musí uvádět jeho SHA. Offline testy nejsou VM akceptace.
+The procedure is for a new isolated Linux host with no other stack. The source is a
+Git checkout of the exact approved public commit; the installer does not accept a
+ZIP without `.git`. Verification of a specific release must state its SHA. Offline
+tests are not a VM acceptance.
 
-## Rychlá cesta od čisté VM
+## Quick path from a clean VM
 
-Přihlaste se přes SSH jako běžný uživatel se `sudo`. Následující postup používá
-veřejný HTTPS klon, nový adresář zdroje a oddělený config/state. Bloky spouštějte
-postupně, při chybě nejprve vyřešte její příčinu.
+Log in over SSH as a regular user with `sudo`. The following procedure uses a
+public HTTPS clone, a new source directory and a separate config/state. Run the
+blocks one at a time; on an error, resolve its cause first.
 
-1. **Git a přesný zdroj.**
+1. **Git and the exact source.**
 
    ```bash
    sudo apt-get update
@@ -25,70 +26,76 @@ postupně, při chybě nejprve vyřešte její příčinu.
    git status --short
    ```
 
-   Zdrojový adresář musí být nový, strom čistý. Zaznamenejte celý SHA pro testy
-   a předání. `umask 022` vytvoří nový rodičovský adresář s právy 0755; existující
-   rodič se tím nemění a preflight jeho nevyhovující práva odmítne. `.env` ani
-   config předem nevytvářejte, nekopírujte tajnosti a runtime z jiné instalace.
-2. **Připravit hostitele a znovu se přihlásit.**
+   The source directory must be new and the tree clean. Record the full SHA for
+   tests and handover. `umask 022` creates a new parent directory with permissions
+   0755; an existing parent is not changed by it, and the preflight rejects its
+   unsuitable permissions. Do not create `.env` or the config in advance, and do
+   not copy secrets and runtime from another installation.
+2. **Prepare the host and log in again.**
 
    ```bash
    bash scripts/prepare_ubuntu.sh --check
    bash scripts/prepare_ubuntu.sh --apply
    ```
 
-   Skript doplní Python, Docker Engine, Compose, Buildx a další nástroje. Po
-   přidání do skupiny `docker` se odhlaste a přihlaste přes SSH znovu; Docker
-   musí fungovat bez `sudo`.
-3. **Spustit průvodce.** Po novém přihlášení:
+   The script adds Python, Docker Engine, Compose, Buildx and other tools. After
+   being added to the `docker` group, log out and log in over SSH again; Docker
+   must work without `sudo`.
+3. **Run the wizard.** After logging in again:
 
    ```bash
    cd "$HOME/edu-ai/src"
    python3 scripts/setup.py install
    ```
 
-   Potvrďte plán Enterem. Průvodce připraví konfiguraci `~/edu-ai/config`, stav
-   `~/edu-ai/state`, projekt `edu_ai`, bootstrap se smoke a kontrolu rolí.
-   `NETWORK_POOLS` lze přijmout slovem `ano` jen jako jediný neověřený nález na
-   izolované VM. Jiný problém instalaci zastaví. Volitelný čtecí přehled:
+   Confirm the plan with Enter. The wizard prepares the configuration
+   `~/edu-ai/config`, the state `~/edu-ai/state`, the project `edu_ai`, the
+   bootstrap with smoke and the roles check. `NETWORK_POOLS` may be accepted with
+   the word `ano` only as the single unverified finding on an isolated VM. Any
+   other problem stops the installation. Optional read-only overview:
    `python3 scripts/setup.py plan`.
-4. **Otevřít chat a ověřit výsledek.** Vyžadujte `BACKEND_READY: yes`, role
-   `MATCH` a smoke bez FAIL. Otevřete vypsanou adresu `http://<adresa VM>/chat/`
-   a vyberte školu; do výběru je odesílání vypnuté. Ověřte reload a změnu školy
-   s vyčištěním konverzace. Osm služeb má být healthy, pgAdmin running bez
-   healthchecku. Čistý seed nemá QA ani dokumentový corpus.
+4. **Open the chat and verify the result.** Require `BACKEND_READY: yes`, roles
+   `MATCH` and a smoke without FAIL. Open the printed address
+   `http://<VM address>/chat/` and select a school; sending is disabled until a
+   selection is made. Verify a reload and a school change with the conversation
+   cleared. Eight services should be healthy, pgAdmin running without a
+   healthcheck. The clean seed has no QA or document corpus.
 
-QA exact může po importu QA odpovědět bez placeného LLM. Embeddingy a generované
-odpovědi vyžadují poskytovatele a klíč v Bifrostu. Instalace a kvalita odpovědí
-jsou samostatné kontroly. [Rozsah doložených běhů](releases/public-source.md).
+QA exact can answer without a paid LLM after a QA import. Embeddings and generated
+answers require a provider and a key in Bifrost. The installation and the answer
+quality are separate checks. [Scope of the documented runs](releases/public-source.md).
 
-## Síť a konfigurace
+## Network and configuration
 
-Výchozí Compose publikuje porty 80, 8443 a 8444. Omezte přístup na síťovém
-perimetru před startem. Průvodce nekontroluje firewall ani izolaci a nezapíná
-Cloudflare. `NETWORK_POOLS` zůstává neověřené: automatické Docker sítě se neměří
-proti LAN/VPN. Na izolované VM lze přijmout pouze tento jediný nález odpovědí `ano`.
-Jiné odmítnutí nebo neověřený nález musí zastavit instalaci.
+The default Compose publishes ports 80, 8443 and 8444. Restrict access at the
+network perimeter before starting. The wizard does not check the firewall or the
+isolation and does not enable Cloudflare. `NETWORK_POOLS` remains unverified: the
+automatic Docker networks are not measured against the LAN/VPN. On an isolated VM,
+only this single finding may be accepted by answering `ano`. Any other rejection
+or unverified finding must stop the installation.
 
-Neinteraktivní ekvivalent pro operátora, který toto omezení výslovně přijímá:
+Non-interactive equivalent for an operator who explicitly accepts this limitation:
 
 ```bash
 python3 scripts/setup.py install --no-input --accept-unmeasured-network-pools
 ```
 
-Nová konfigurace dostane `CHAT_ENTITY_PICKER=true`; `CHAT_LEGAL_ENTITY` zůstává
-nenastavené. Výběr školy není autentizace. Backend dál kontroluje entitu, role a
-viditelnost. Pevně nastavenou školu ani existující volbu pickeru průvodce nepřepíná.
-Nenastavený nebo neplatný registr škol má vlastní stav; první školu automaticky nevolí.
+A new configuration gets `CHAT_ENTITY_PICKER=true`; `CHAT_LEGAL_ENTITY` stays
+unset. The school selection is not authentication. The backend still checks the
+entity, roles and visibility. The wizard does not override a fixed school or an
+existing picker choice. An unset or invalid school registry has its own state; the
+first school is not chosen automatically.
 
-## Chyba a opakování
+## Failure and retry
 
-Nenulový návrat bootstrapu je chyba. Neobcházejte smoke. Průvodce nic nemaže a
-nevrací; opakování připustí jen pro vlastní konfiguraci stejného commitu, klíče a
-projektu. Ověřuje lokální Docker engine, vlastnictví kontejnerů, mountů, sítí a
-volumes. Cizí konfiguraci, změněný HEAD, špinavý strom nebo Compose overrides odmítne.
-Klíče se při opakování negenerují znovu.
+A non-zero return of the bootstrap is an error. Do not bypass the smoke. The
+wizard deletes and reverts nothing; it allows a retry only for its own
+configuration of the same commit, keys and project. It verifies the local Docker
+engine and the ownership of containers, mounts, networks and volumes. It rejects a
+foreign configuration, a changed HEAD, a dirty tree or Compose overrides. The keys
+are not generated again on a retry.
 
-Pro diagnostiku po úspěšném průchodu:
+For diagnostics after a successful run:
 
 ```bash
 python3 scripts/smoke.py --source-root "$HOME/edu-ai/src" --config-dir "$HOME/edu-ai/config" --state-dir "$HOME/edu-ai/state" --project edu_ai
@@ -97,11 +104,12 @@ docker compose --project-directory "$HOME/edu-ai/src" --env-file "$HOME/edu-ai/c
 git rev-parse HEAD
 ```
 
-LLM poskytovatel se nastavuje samostatně v Bifrostu; klíč v klientském `.env` sám
-poskytovatele nenastaví. Administrační UI zpřístupněte jen oprávněnému správci.
-Zdravé kontejnery ani smoke nedokládají placenou ingesci nebo kvalitu RAG.
+The LLM provider is configured separately in Bifrost; a key in the client `.env`
+does not configure the provider by itself. Expose the administration UI only to an
+authorised administrator. Healthy containers and a smoke do not document a paid
+ingestion or the RAG quality.
 
-Provoz a zálohy: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Vývoj a testy:
-[DEVELOPMENT.md](DEVELOPMENT.md). Balení: [RELEASING.md](RELEASING.md).
+Operations and backups: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Development and
+tests: [DEVELOPMENT.md](DEVELOPMENT.md). Packaging: [RELEASING.md](RELEASING.md).
 
-Repeated wizard installation was actually verified on upstream06de66d. Later public commits have separate offline evidence, not automatically a new live VM PASS.
+Repeated wizard installation was actually verified on upstream 06de66d. Later public commits have separate offline evidence, not automatically a new live VM PASS.

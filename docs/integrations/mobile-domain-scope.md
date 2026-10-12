@@ -1,45 +1,45 @@
-# Výběr oblasti hledání — kontrakt pro mobilní aplikaci
+# Search domain selection — contract for the mobile app
 
-Připraveno 6. 9. 2026. Popisuje **API, které je hotové a otestované** proti
-skutečnému nasazenému rozhraní; mobilní klient podle něj **ještě není
-implementovaný** a tento dokument je zadání pro mobilní tým, ne popis
-vydané funkce. Mobilní zdrojový kód není v tomto repozitáři. Existující Flutter
-aplikace je v [EDU-AI-asistent-APP](https://github.com/edu-ai-00/EDU-AI-asistent-APP);
-čtecí kontrola 11. 10. 2026 ověřila main `e653aea54d5e408bd3667f4ab087e0920814cc76`.
-Formulace „ještě není implementovaný“ se zde vztahuje k této integraci, nikoli
-k existenci aplikace jako celku. [QA offline audit](offline-qa-rules.md) popisuje
-ověřený online chat, lokální cache a chybějící QA-pack engine.
+Prepared 6 Sep 2026. Describes an **API that is finished and tested** against the
+real deployed interface; the mobile client is **not yet implemented** against it,
+and this document is a brief for the mobile team, not a description of a released
+feature. The mobile source code is not in this repository. The existing Flutter
+app is at [EDU-AI-asistent-APP](https://github.com/edu-ai-00/EDU-AI-asistent-APP);
+a read-only check on 11 Oct 2026 verified main `e653aea54d5e408bd3667f4ab087e0920814cc76`.
+The wording "not yet implemented" here refers to this integration, not to the
+existence of the app as a whole. The [QA offline audit](offline-qa-rules.md) describes
+the verified online chat, local cache and the missing QA-pack engine.
 
-Návrh a rozhodnutí: [`specs/draft/spec.search-domain-scope.md`](../../specs/draft/spec.search-domain-scope.md).
-Chování serveru: [`docs/ai/routing.md`](../ai/routing.md) §4–5.
-Chybové obálky: [`contracts/errors.yaml`](../../contracts/errors.yaml).
-
----
-
-## 1. Co to dělá
-
-Uživatel vybere jednu nebo více **oblastí** (docházka, stravování, přijímačky…)
-a hledání pak čerpá **jen ze zdrojů označených alespoň jednou z nich**. Mobil
-může oblast nastavit i podle otevřené sekce aplikace, aniž by uživatel volil
-ručně — je to obyčejný parametr požadavku.
-
-Tři věci, které to **nedělá**, protože každá z nich už byla někým očekávána:
-
-* **Není to oprávnění.** Filtr může zdroje jen odebírat. Škola, role,
-  viditelnost a platnost platí za ním nezměněné, takže volbou oblasti se nikdo
-  nedostane k ničemu, co by bez ní neviděl.
-* **Neroztřiďuje text.** Označení je na *dokumentu* a na *odpovědi*, ne na
-  jednotlivém odstavci. Dlouhý dokument (školní řád) může mít několik oblastí,
-  **nedělí se** a je dosažitelný v každé z nich celý; který odstavec odpoví,
-  rozhoduje jako dosud dotaz. Praktický důsledek: dotaz na docházku zadaný v
-  oblasti „Stravování“ může stále najít docházkovou pasáž takového dokumentu —
-  ten dokument je opravdu i o stravování.
-* **Samo se nerozšíří.** Když ve vybraných oblastech nic není, přijde
-  dosavadní `no_answer`. Nikdy se automaticky nehledá znovu bez filtru.
+Design and decisions: [`specs/draft/spec.search-domain-scope.md`](../../specs/draft/spec.search-domain-scope.md).
+Server behaviour: [`docs/ai/routing.md`](../ai/routing.md) §4–5.
+Error envelopes: [`contracts/errors.yaml`](../../contracts/errors.yaml).
 
 ---
 
-## 2. Katalog oblastí
+## 1. What it does
+
+The user selects one or more **domains** (attendance, catering, admissions…)
+and search then draws **only from sources labelled with at least one of them**. The
+mobile app can also set the domain according to the open section of the app, without
+the user choosing manually — it is an ordinary request parameter.
+
+Three things it **does not do**, because each of them has already been expected by someone:
+
+* **It is not a permission.** The filter can only remove sources. School, role,
+  visibility and validity apply behind it unchanged, so by choosing a domain nobody
+  gets access to anything they would not see without it.
+* **It does not classify text.** The label is on the *document* and on the *answer*,
+  not on an individual paragraph. A long document (the school rules) can have several
+  domains, **is not split**, and is reachable in each of them as a whole; which
+  paragraph answers is decided by the query, as before. Practical consequence: an
+  attendance query entered in the "Stravování" domain can still find the attendance
+  passage of such a document — that document really is also about catering.
+* **It does not widen by itself.** When there is nothing in the selected domains, the
+  existing `no_answer` is returned. Search is never automatically repeated without the filter.
+
+---
+
+## 2. Domain catalog
 
 ```
 GET https://<host>/search/v1/domains?legal_entity=ZS_KAVCI_HORY_ZS
@@ -58,34 +58,34 @@ GET https://<host>/search/v1/domains?legal_entity=ZS_KAVCI_HORY_ZS
 }
 ```
 
-**Kódy i názvy ber odsud.** V aplikaci nesmí být vlastní seznam kódů ani vlastní
-překlady: katalog je **per škola** (v produkci 8 globálních, 11 u obou jednotek
-Kavčích hor) a vlastní kopie by se s databází rozešla. Nový jazyk je v `labels`
-další klíč, ne nová verze aplikace; chybějící jazyk řeš fallbackem
-`labels[jazyk] → labels["cs"] → code`.
+**Take codes and names from here.** The app must not contain its own list of codes or
+its own translations: the catalog is **per school** (in production 8 global ones, 11 for
+both Kavčí hory units) and a private copy would drift away from the database. A new
+language is just another key in `labels`, not a new app version; handle a missing
+language with the fallback `labels[language] → labels["cs"] → code`.
 
-`legal_entity` v odpovědi je škola, pro kterou se katalog **skutečně** vyřešil.
-Ulož si volbu **pod tuto hodnotu**, ne pod tu, na kterou jsi se ptal. Katalog
-načtený pro jednu školu a použitý při hledání v jiné dá kódy, které server
-odmítne 422.
+`legal_entity` in the response is the school for which the catalog was **actually**
+resolved. Store the selection **under this value**, not under the one you asked about.
+A catalog loaded for one school and used in a search for another gives codes that the
+server rejects with 422.
 
-Endpoint je nově v allowlistu nginxu (6. 9. 2026); do té doby vracel 404. Je to
-referenční data jako `/search/v1/code-lists` — jde cachovat, žádný obsah
-uživatele neobsahuje. Bez `legal_entity` vrátí globální sadu, což je jen
-kompatibilita pro jiné volající; **klientské hledání vždy posílá skutečnou
-školu**.
+The endpoint has been in the nginx allowlist since 6 Sep 2026; until then it returned 404. It is
+reference data like `/search/v1/code-lists` — it can be cached and contains no user
+content. Without `legal_entity` it returns the global set, which is only
+compatibility for other callers; **client search always sends the real
+school**.
 
-Nedostupný katalog je `503 UNAVAILABLE` s `retryable: true`. Ukaž chybu a
-zkusit znovu — **ne** prázdný seznam: prázdný seznam se v UI přečte jako „škola
-nemá žádné oblasti“ a filtr tím potichu zmizí.
+An unavailable catalog is `503 UNAVAILABLE` with `retryable: true`. Show the error and
+offer a retry — **not** an empty list: an empty list reads in the UI as "the school
+has no domains" and the filter silently disappears.
 
 ---
 
-## 3. Dotaz
+## 3. Query
 
 ```
 POST https://<host>/search/v1/ask
-POST https://<host>/search/v1/ask/stream        (SSE, stejná sémantika)
+POST https://<host>/search/v1/ask/stream        (SSE, same semantics)
 ```
 
 ```json
@@ -100,22 +100,22 @@ POST https://<host>/search/v1/ask/stream        (SSE, stejná sémantika)
 }
 ```
 
-| `domains` | Význam |
+| `domains` | Meaning |
 |---|---|
-| pole chybí, nebo `null` | bez tematického omezení — **přesně dosavadní chování** |
-| neprázdné pole známých kódů | OR mezi oblastmi, AND se všemi dosavadními filtry |
+| field missing, or `null` | no topical restriction — **exactly the existing behaviour** |
+| non-empty array of known codes | OR between domains, AND with all existing filters |
 
-**Pole vynechávej, když filtr není** — neposílej `null`. Tělo je pak bajt po
-bajtu stejné jako dnes, což je to, co drží kompatibilitu `Idempotency-Key`
-(viz §6).
+**Omit the field when there is no filter** — do not send `null`. The body is then
+byte-for-byte the same as today, which is what keeps the `Idempotency-Key`
+compatibility (see §6).
 
-Server kódy **normalizuje**: trim, velká písmena, odstranění duplicit, stabilní
-seřazení. `[" attendance ", "ATTENDANCE", "CATERING"]` je totéž jako
-`["ATTENDANCE", "CATERING"]`, takže pořadí ani duplicity nemusíš řešit.
+The server **normalizes** the codes: trim, uppercase, removal of duplicates, stable
+ordering. `[" attendance ", "ATTENDANCE", "CATERING"]` is the same as
+`["ATTENDANCE", "CATERING"]`, so you do not have to deal with ordering or duplicates.
 
-### Odpověď
+### Response
 
-Přidané je jedno pole v `effective_scope`; ostatní se nemění.
+One field is added in `effective_scope`; the others do not change.
 
 ```json
 {
@@ -133,35 +133,35 @@ Přidané je jedno pole v `effective_scope`; ostatní se nemění.
 }
 ```
 
-`effective_scope.domains` je **kanonická množina, kterou server skutečně
-použil**, nebo `null` při neomezeném hledání. Vždy je to ověřená hodnota — i u
-`outcome: "role_required"`, kde validace oblastí schválně proběhla dřív než
-kontrola role. **Porovnávej ji s normalizovanou odeslanou množinou**:
-odstraň okrajové mezery, převeď kódy na velká písmena, odstraň duplicity
-a seřaď je. Například `[" attendance ", "ATTENDANCE"]` se správně vrátí
-jako `["ATTENDANCE"]`; to není změna scope ani problém s katalogem.
-Vynechané pole a `null` porovnávej jako stejnou neomezenou volbu.
+`effective_scope.domains` is the **canonical set the server actually used**, or `null`
+for unrestricted search. It is always a validated value — even for
+`outcome: "role_required"`, where domain validation deliberately ran before the
+role check. **Compare it with the normalized sent set**:
+strip surrounding whitespace, convert codes to uppercase, remove duplicates
+and sort them. For example `[" attendance ", "ATTENDANCE"]` correctly comes back
+as `["ATTENDANCE"]`; that is not a scope change or a catalog problem.
+Compare a missing field and `null` as the same unrestricted choice.
 
-Neznámý nebo neaktivní kód server odmítne odpovědí **422**; v úspěšné odpovědi
-jej potichu neodebere. Pokud se skutečná množina liší i po normalizaci,
-považuj to za nesoulad požadavku a odpovědi k prověření, ne automaticky za
-změnu katalogu. Filtr kvůli tomu sám neuvolňuj.
+An unknown or inactive code is rejected by the server with a **422** response; it is not
+silently removed in a successful response. If the actual set differs even after
+normalization, treat it as a mismatch between request and response to be investigated, not
+automatically as a catalog change. Do not loosen the filter yourself because of it.
 
-Interní databázová ID oblastí se nikdy neposílají a nepotřebuješ je.
+Internal database IDs of domains are never sent and you do not need them.
 
 ---
 
-## 4. Chyby
+## 4. Errors
 
-| Stav | Kód | Kdy | Co má klient udělat |
+| Status | Code | When | What the client should do |
 |---|---|---|---|
-| 422 | `VALIDATION_ERROR` | `[]`; prázdný nebo mezerový prvek; **neznámý/neaktivní kód pro tuhle školu**; špatný typ; jeden špatný kód mezi správnými | znovu načíst katalog a nechat uživatele vybrat; `fields[].field` je `domains` nebo `domains[1]` |
-| 503 | `UNAVAILABLE` | katalog se nepodařilo přečíst při validaci **explicitního** filtru | zkusit znovu se **stejnými** `domains` |
-| 409 | `IDEMPOTENCY_CONFLICT` | stejný `Idempotency-Key`, jiný scope | nový klíč — je to jiný dotaz |
-| 200 | `outcome: "no_answer"` | platný kód, ve kterém nic není | nabídnout výslovnou akci „Hledat ve všech oblastech“ (§5) |
+| 422 | `VALIDATION_ERROR` | `[]`; empty or whitespace-only element; **unknown/inactive code for this school**; wrong type; one bad code among correct ones | reload the catalog and let the user choose; `fields[].field` is `domains` or `domains[1]` |
+| 503 | `UNAVAILABLE` | the catalog could not be read while validating an **explicit** filter | retry with the **same** `domains` |
+| 409 | `IDEMPOTENCY_CONFLICT` | same `Idempotency-Key`, different scope | new key — it is a different query |
+| 200 | `outcome: "no_answer"` | valid code in which there is nothing | offer the explicit action "Hledat ve všech oblastech" (§5) |
 
-**Jeden špatný kód shodí celý dotaz.** Server množinu potichu nezmenší — odpověď
-na dotaz o třech oblastech vyřízená dvěma by byla odpověď na jinou otázku.
+**One bad code fails the whole query.** The server does not silently shrink the set — an
+answer to a query about three domains served from two would be an answer to a different question.
 
 ```json
 {"error": {
@@ -173,76 +173,76 @@ na dotaz o třech oblastech vyřízená dvěma by byla odpověď na jinou otázk
 }}
 ```
 
-**Nikdy neopakuj dotaz bez `domains`.** Ani po 422, ani po 503. Širší odpověď je
-jiná odpověď a vydávat ji za tu vyžádanou je přesně ta chyba, kvůli které tenhle
-filtr existuje. Rozšíření je rozhodnutí uživatele.
+**Never repeat the query without `domains`.** Not after a 422, not after a 503. A wider
+answer is a different answer, and passing it off as the one requested is exactly the
+mistake this filter exists to prevent. Widening is the user's decision.
 
-**U SSE (`/ask/stream`) přijde validační chyba jako obyčejná HTTP 422 ještě
-před prvním eventem** — stream se vůbec neotevře. Až po otevření streamu je
-selhání `event: error`.
-
----
-
-## 5. Životní cyklus v aplikaci
-
-Pět pravidel; každé z nich odpovídá jedné konkrétní chybě, kterou webová verze
-musela ošetřit (`web_chat/frontend/src/DomainPicker.tsx` je referenční
-implementace).
-
-1. **Pozdní katalog nepřepíše novější.** Když uživatel dvakrát rychle přepne
-   školu, může první odpověď dorazit poslední. Hlídej si generaci požadavku —
-   samotné zrušení nestačí, zrušený požadavek se ještě může dokončit.
-2. **Uloženou volbu ověř, nikdy jí nevěř.** Kódy jsou per škola a kurátor je
-   může vyřadit. Průnik s novým katalogem, a co vypadlo, **uživateli řekni** —
-   nevyhazuj to potichu, on si to vybral. Ukládej pod účinnou entitu.
-3. **Dokud katalog neznáš, scoped dotaz neposílej.** Ani se starými kódy (422),
-   ani bez filtru (potichu se hledá všude).
-4. **Změna školy nebo oblasti = nová konverzace.** Nové `conversation_id`,
-   oddělená historie, zrušený rozpracovaný dotaz. Server historii filtruje
-   podle oblasti také sám — na klientovo nové UUID se nespoléhá, protože ho
-   posílá klient — ale staré chips na obrazovce patří starému scope a nabízely
-   by dotazy do oblasti, kterou uživatel právě opustil.
-5. **„Všechny oblasti“ je skutečná, stále viditelná volba**, ne absence volby, a
-   je výchozí. Odznačení poslední oblasti se na ni vrací; **prázdné pole nikdy
-   neposílej** (je to 422). Samotná změna výběru **žádný dotaz neodesílá** —
-   jen určuje, kam bude patřit ten příští.
-
-Když po `no_answer` nabídneš „Hledat ve všech oblastech“, kliknutí odešle
-**nový** požadavek: `domains: null`, nové `conversation_id` a nový
-`Idempotency-Key`, pokud ho používáš.
+**With SSE (`/ask/stream`) the validation error arrives as a plain HTTP 422 before
+the first event** — the stream does not open at all. Only after the stream has opened is
+a failure an `event: error`.
 
 ---
 
-## 6. Idempotence a historie
+## 5. Lifecycle in the app
 
-**`Idempotency-Key` starých požadavků funguje dál.** Server před hašováním
-vynechá `domains`, když je `null`, takže digest neomezeného požadavku je stejný
-jako před touto změnou a opakování dotazu odeslaného starou verzí aplikace se
-korektně replayne. Ověřeno testem, který vytvoří claim hašovaný *starým* kódem
+Five rules; each corresponds to one specific bug that the web version
+had to handle (`web_chat/frontend/src/DomainPicker.tsx` is the reference
+implementation).
+
+1. **A late catalog does not overwrite a newer one.** When the user switches school
+   twice quickly, the first response may arrive last. Keep track of the request
+   generation — cancellation alone is not enough, a cancelled request can still complete.
+2. **Verify the stored selection, never trust it.** Codes are per school and the curator
+   can retire them. Intersect with the new catalog, and **tell the user** what
+   dropped out — do not discard it silently, they chose it. Store under the effective entity.
+3. **Until you know the catalog, do not send a scoped query.** Neither with old codes (422),
+   nor without a filter (it would silently search everywhere).
+4. **Changing the school or domain = a new conversation.** New `conversation_id`,
+   separated history, the in-flight query cancelled. The server also filters history
+   by domain itself — it does not rely on the client's new UUID, because the
+   client sends it — but the old chips on screen belong to the old scope and would
+   offer queries into a domain the user has just left.
+5. **"Všechny oblasti" is a real, always visible choice**, not the absence of a choice, and
+   it is the default. Deselecting the last domain returns to it; **never send an
+   empty array** (it is a 422). Changing the selection **sends no query by itself** —
+   it only determines where the next one will belong.
+
+When you offer "Hledat ve všech oblastech" after a `no_answer`, the click sends a
+**new** request: `domains: null`, a new `conversation_id` and a new
+`Idempotency-Key`, if you use one.
+
+---
+
+## 6. Idempotency and history
+
+**The `Idempotency-Key` of old requests keeps working.** Before hashing, the server
+omits `domains` when it is `null`, so the digest of an unrestricted request is the same
+as before this change and a repeat of a query sent by an old app version is
+correctly replayed. Verified by a test that creates a claim hashed with the *old* code
 (`tests/test_domain_scope_api.py`).
 
-Explicitní filtr do digestu vstupuje v kanonické podobě: `["B","a"]` a
-`["A","b"]` jsou tentýž dotaz a replaynou se navzájem, **stejný klíč s jiným
-scope je 409**. TTL, retence ani chování streamu se nemění.
+An explicit filter enters the digest in canonical form: `["B","a"]` and
+`["A","b"]` are the same query and replay each other, **the same key with a different
+scope is 409**. TTL, retention and stream behaviour do not change.
 
-**Historii server filtruje podle oblasti.** Návazný dotaz vidí jen předchozí
-kola téže konverzace zadaná **ve stejném scope**; kola bez filtru patří jen
-neomezenému hledání. Platí i tehdy, když `conversation_id` recykluješ.
+**The server filters history by domain.** A follow-up query sees only earlier
+turns of the same conversation entered **in the same scope**; turns without a filter belong only to
+unrestricted search. This also holds when you recycle a `conversation_id`.
 
 ---
 
-## 7. Co ještě není a co je potřeba domluvit
+## 7. What does not exist yet and what needs agreeing
 
-* **Mobilní aplikace existuje.** Doménová a offline QA integrace není v prohlédnutém APP snapshotu doložená; nejde o tvrzení, že mobilní aplikace neexistuje. API je hotové a ověřené přes skutečný
-  proxy hop; UI, ukládání volby a vydání je na mobilním týmu.
-* **Data.** Filtr je jen tak dobrý, jak jsou označené zdroje. Ke 6. 9. 2026 je
-  na produkci **pět aktivních QA packů (230 odpovědí) bez jakéhokoli označení** —
-  ty jsou pod explicitním filtrem nedosažitelné — a `ZS_KAVCI_HORY_SOS` má 104
-  aktivních chunků, z nichž **žádný** nemá oblast. Report:
-  `python3 scripts/domain_inventory.py --remote edu-ai`. **Nezapínejte výběr
-  oblastí ve škole, jejíž obsah není označený** — uživatel dostane `no_answer` na
-  otázky, na které systém odpovědět umí.
-* **„Přijímačky / Provoz“** jako dvě zkratky nejsou totéž co katalog DOMAIN.
-  Pokud je produkt potřebuje, jsou to samostatně schválené *pojmenované profily*
-  (kód, přeložené názvy, výslovná množina domén) — mobil je **nesmí** hádat z
-  názvu kódu a „Provoz“ nesmí znamenat doplněk všeho ostatního. Viz spec §8.
+* **The mobile app exists.** Its domain and offline QA integration is not evidenced in the inspected APP snapshot; this is not a claim that the mobile app does not exist. The API is finished and verified through the real
+  proxy hop; the UI, storing the selection and the release are up to the mobile team.
+* **Data.** The filter is only as good as the labelled sources. As of 6 Sep 2026
+  production has **five active QA packs (230 answers) without any labelling** —
+  they are unreachable under an explicit filter — and `ZS_KAVCI_HORY_SOS` has 104
+  active chunks, **none** of which has a domain. Report:
+  `python3 scripts/domain_inventory.py --remote edu-ai`. **Do not enable domain
+  selection at a school whose content is not labelled** — the user will get `no_answer` to
+  questions the system is able to answer.
+* **"Přijímačky / Provoz"** as two shortcuts are not the same thing as the DOMAIN catalog.
+  If the product needs them, they are separately approved *named profiles*
+  (code, translated names, an explicit set of domains) — mobile **must not** guess them from
+  the code name, and "Provoz" must not mean the complement of everything else. See spec §8.

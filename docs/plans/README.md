@@ -1,14 +1,14 @@
-# Technické návrhy
+# Technical proposals
 
-Veřejný výběr obsahuje technické návrhy, historické záznamy a jeden kontrakt rolí (`b06-c2-role-contract.md`); stav každé stránky je v jejím záhlaví. Pro aktuální postup použijte
-[čistou instalaci](../CLEAN_INSTALL.md) a [provozní návod](../OPERATIONS_LINUX.md).
-Interní inventáře, audity a agentí předání jsou uchovány mimo veřejný zdroj.
+The public selection contains technical proposals, historical records and one role contract (`b06-c2-role-contract.md`); the status of each page is in its header. For the current procedure use
+[clean install](../CLEAN_INSTALL.md) and the [operations guide](../OPERATIONS_LINUX.md).
+Internal inventories, audits and agent handoffs are kept outside the public source.
 
 - [B06 host preflight](b06-2-host-preflight.md)
 - [B06 bootstrap hardening](b06-bootstrap-hardening-20261006.md)
-- [B06 C2 kontrakt rolí](b06-c2-role-contract.md)
-- [B06 návrh čisté instalace](b06-clean-install-proposal.md)
-- [B06 strategie upgradu](b06-upgrade-strategy.md)
-- [R2 hranice důvěry proxy hlavičkám](r2-trust-boundary-proposal.md)
+- [B06 C2 role contract](b06-c2-role-contract.md)
+- [B06 clean install proposal](b06-clean-install-proposal.md)
+- [B06 upgrade strategy](b06-upgrade-strategy.md)
+- [R2 trust boundary for proxy headers](r2-trust-boundary-proposal.md)
 
-Návrh není potvrzením produkčního nasazení nebo podporovaného upgradu.
+A proposal is not a confirmation of a production deployment or a supported upgrade.

@@ -274,51 +274,51 @@ python3 tests/eval_rag.py --questions <local_metadata.jsonl> --baseline <existin
 # Historical --only M assumes private cases; public examples have no M IDs.
 ```
 
-`--baseline` vypíše, co se pohnulo (outcome, počet citovaných dokumentů, jiný 1. zdroj) —
-to je smysl setu: oprava je věrohodná teprve tehdy, když je proměřená celá sada.
+`--baseline` prints what moved (outcome, number of cited documents, a different 1st source) —
+that is the point of the set: a fix is credible only when the whole set has been measured.
 
-Čtení výstupu: sloupec **odkud** říká, kdo odpověděl. `qa_*` = kurátorská odpověď
-z QA balíčku (nemá dokumentové zdroje, proto `dok 0`), `rag` = dokumenty + LLM,
-`meta` = odpověď na „co umíš", `none` = no_answer. Baseline z 22. 8.: 8 z 38 dotazů
-jde přes RAG (median 4.7 s), zbytek odpoví QA balíčky do ~0.3 s.
+Reading the output: the **odkud** column says who answered. `qa_*` = a curated answer
+from a QA pack (it has no document sources, hence `dok 0`), `rag` = documents + LLM,
+`meta` = the answer to „co umíš", `none` = no_answer. Baseline from 22 Aug: 8 of 38 queries
+go through RAG (median 4.7 s), the rest are answered by the QA packs in ~0.3 s.
 
-### Případy s oblastmi (`domains`) — od 2026-09-06
+### Cases with areas (`domains`) — since 2026-09-06
 
-Případ může nést `domains` (seznam DOMAIN kódů) a hledání se pak omezí na tyto
-tematické oblasti. Scoped případy mají **vlastní soubor**, aby výchozí měření
-nezměnilo význam:
+A case can carry `domains` (a list of DOMAIN codes) and the search is then restricted to these
+topical areas. Scoped cases have **their own file**, so that the default measurement
+does not change its meaning:
 
 ```bash
 python3 tests/eval_rag.py --questions tests/eval_rag_domains.jsonl --repeat 3
 ```
 
-Neomezená sada zůstává neomezená — právě to z ní dělá kompatibilitní měření
-(klient, který `domains` neposílá, se musí chovat úplně stejně jako dřív).
-`tests/test_eval_payload.py` tuhle vlastnost souboru sám kontroluje.
+The unrestricted set stays unrestricted — that is exactly what makes it a compatibility measurement
+(a client that does not send `domains` must behave exactly as it did before).
+`tests/test_eval_payload.py` checks this property of the file itself.
 
-**Nestačilo přidat pole do JSONL.** `eval_rag.py` skládá tělo požadavku z několika
-pojmenovaných polí případu, takže pole přidané jen do JSONL se přijme, ignoruje
-a **nikdy neodešle** — a běh potom měří neomezenou kaskádu, zatímco report tvrdí
-opak. Proto:
+**Adding the field to the JSONL was not enough.** `eval_rag.py` assembles the request body from several
+named fields of the case, so a field added only to the JSONL is accepted, ignored
+and **never sent** — and the run then measures the unrestricted cascade, while the report claims
+the opposite. Therefore:
 
-* `build_payload` je samostatná funkce a `test_eval_payload.py` ji testuje přímo;
-* každý výsledek nese `domains_sent` **i** `domains_effective` (z `effective_scope`
-  odpovědi) a běh vypíše **scope failure**, když se ty dvě neshodují;
-* bez `domains` se pole do těla **nepřidá** (ne jako `null`), takže neomezené
-  tělo je bajt po bajtu stejné jako před změnou a starší baseline zůstává
-  srovnatelný;
-* 4xx se zaznamená s `http_status` a `error_code` — vyřazený kód (422) je jiný
-  nález než timeout.
+* `build_payload` is a standalone function and `test_eval_payload.py` tests it directly;
+* every result carries `domains_sent` **and** `domains_effective` (from the answer's
+  `effective_scope`) and the run prints a **scope failure** when the two do not match;
+* without `domains` the field is **not added** to the body (not even as `null`), so the unrestricted
+  body is byte for byte the same as before the change and an older baseline stays
+  comparable;
+* a 4xx is recorded with `http_status` and `error_code` — a rejected code (422) is a different
+  finding than a timeout.
 
-`expect` u scoped případu je **pár**: outcome a **který zdroj** odpověděl. Případ,
-který vrátí správnou větu ze zdroje mimo vybranou oblast, je přesně ta chyba,
-kvůli které filtr existuje, a pozná se jen podle identity zdroje.
+The `expect` of a scoped case is a **pair**: the outcome and **which source** answered. A case
+that returns the correct sentence from a source outside the selected area is exactly the error
+the filter exists for, and it can be recognised only by the identity of the source.
 
-**Omezení, které platí pro celou sadu:** snapshot je srovnatelný jen se snapshotem
-z **týchž dat**. Sada je kalibrovaná na konkrétní korpus dokumentů a packů, takže
-běh proti databázi s jiným korpusem (starší restore, čistá instalace jen s
-fixtures) vrátí téměř všude `no_answer` — je to číslo, ale není to měření. Měření
-změny kódu a měření změny dat jsou dva samostatné běhy.
+**A limitation that applies to the whole set:** a snapshot is comparable only with a snapshot
+from the **same data**. The set is calibrated to a specific corpus of documents and packs, so a
+run against a database with a different corpus (an older restore, a clean installation with only
+fixtures) returns `no_answer` almost everywhere — it is a number, but it is not a measurement. Measuring
+a code change and measuring a data change are two separate runs.
 
 This index is a selection of the main suites, not an exhaustive inventory. Legacy flat eval/resilience scripts have stale request/role/log-table assumptions; use the metadata eval harness and do not treat those scripts as supported fault-injection commands until repaired.
 

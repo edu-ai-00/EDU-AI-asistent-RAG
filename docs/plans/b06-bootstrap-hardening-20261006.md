@@ -1,157 +1,157 @@
-# B06: zpevnění bootstrapu (Langflow API klíč, `.env`, tajnosti ve výstupu)
+# B06: bootstrap hardening (Langflow API key, `.env`, secrets in the output)
 
-Veřejná kopie vynechává interní akceptační reporty a odkazy na ně; tento návrh není důkazem aktuálního nasazení.
+The public copy omits internal acceptance reports and links to them; this proposal is not evidence of the current deployment.
 
-**Stav (2026-10-06): součást kandidáta B06-1 + bootstrap, publikováno na `origin/clean_init` (kód a testy v commitu `d2cc0c70d6bc669cc5ebd64744d0327ba7e3992f`, dokumentace v následujícím commitu; jeho SHA nelze uvést uvnitř něj, viz `git log` těchto souborů), po třech nezávislých revizích, závěrečné revizi Codex (pět nálezů uzavřeno) a laboratorním ověření API klíčů proti Langflow 1.10.1. Není to schválená instalace, podporovaná aktualizace školy ani podklad pro nasazení.**
-Offline testy jsou mocky. Laboratorní ověření (oddíl 5 záznamu revizí) proběhlo v samostatném kontejneru bez sítě s vlastní dočasnou databází a syntetickou konfigurací a pokrylo jen API klíčů; skutečný `.env` se nečetl. Celý bootstrap proti stacku, PostgreSQL a B06-2 jsou další etapa. Vlastník 2026-10-06 výslovně ponechal pravidlo a další potvrzení nevyžaduje: HTTP 403 je neověřitelný stav (kód 3, žádná automatická výměna), ruční `--force` může vytvořit nový klíč a původní klíč se automaticky nemaže. Starší formulace níže („po třech revizích“, „neověřeno“) popisují stav v den vzniku a jsou historie.
-Datum: 2026-10-06. Původní samostatný kandidát vznikl nad technickým snapshotem `3b62a25daff65af2d9d59986d6f045ed8859b39c` (commit `fec7d8150c1b20f27331a54a7f3ce610b1ddf7d6`);
-tento text popisuje stav po integraci revizí nad `c93527e0d0ab833d3e3f81cac1f2cf043b31a305`. Navazuje na body „klíč Langflow" a „souhrn tajností" z
-[návrhu B06](b06-clean-install-proposal.md) (oddíl 2 řádky 6 a 11, oddíl 4, oddíl 10) a z revize návrhu; revize a uzavření nálezů: záznam.
+**Status (2026-10-06): part of the B06-1 + bootstrap candidate, published on `origin/clean_init` (code and tests in commit `d2cc0c70d6bc669cc5ebd64744d0327ba7e3992f`, documentation in the following commit; its SHA cannot be stated inside itself, see `git log` of these files), after three independent reviews, the final Codex review (five findings closed) and lab verification of the API keys against Langflow 1.10.1. It is not an approved installation, a supported school update or a basis for deployment.**
+The offline tests are mocks. The lab verification (section 5 of the review log) ran in a separate container without a network, with its own temporary database and a synthetic configuration, and covered only the API keys; the real `.env` was not read. The whole bootstrap against the stack, PostgreSQL and B06-2 are a further stage. On 2026-10-06 the owner explicitly kept the rule and requires no further confirmation: HTTP 403 is an unverifiable state (code 3, no automatic replacement), a manual `--force` may create a new key, and the original key is never deleted automatically. The older wording below ("after three reviews", "not verified") describes the state on the day it was written and is history.
+Date: 2026-10-06. The original standalone candidate was created on top of the technical snapshot `3b62a25daff65af2d9d59986d6f045ed8859b39c` (commit `fec7d8150c1b20f27331a54a7f3ce610b1ddf7d6`);
+this text describes the state after integrating the reviews on top of `c93527e0d0ab833d3e3f81cac1f2cf043b31a305`. It builds on the items "Langflow key" and "secrets summary" from the
+[B06 proposal](b06-clean-install-proposal.md) (section 2 rows 6 and 11, section 4, section 10) and from the review of the proposal; reviews and the closing of findings: the log.
 
-Řeší dva body (klíč Langflow a tajnosti ve výstupu) a z nich plynoucí zápis `.env`. Všechno ostatní je v oddílu 6 jako stav nálezů N1–N9.
+It addresses two items (the Langflow key and secrets in the output) and the resulting `.env` write. Everything else is in section 6 as the status of findings N1–N9.
 
-## 1. Co se změnilo
+## 1. What changed
 
-| Soubor | Změna |
+| File | Change |
 |---|---|
-| [`scripts/create_api_key.py`](../../scripts/create_api_key.py) | tři odpovědi místo dvou; neověřitelný stav nic nezmění; bezpečné pořadí výměny; neuložený nový klíč se smaže, jen když čtení `.env` prokáže, že se nezapsal; starý klíč se nemaže nikdy; 403 je neověřitelný stav; vložený klíč se ověří; `env_path` bez defaultu; zprávy bez těla odpovědi; `getpass`; kód 3 a epilog `--help` |
-| [`scripts/bootstrap.py`](../../scripts/bootstrap.py) | ošetření nového stavu; `redact()` na všem vypsaném (nikdy neselže otevřeně); `relay()` tvrdší; `.env` vzniká soukromě a zapisuje se atomicky; závěrečný přehled; opravené zprávy o `/health`; epilog `--help` |
-| [`scripts/envfile.py`](../../scripts/envfile.py) | `write_atomic`, `create_private`, `set_env` přepisuje všechny výskyty klíče; chování a parser jinak beze změny |
-| [`scripts/http_safe.py`](../../scripts/http_safe.py) | nový: opener, který nenásleduje přesměrování |
-| [`scripts/import_flows.py`](../../scripts/import_flows.py), [`scripts/smoke.py`](../../scripts/smoke.py) | autentizovaná volání přes `open_url` (dva řádky v každém) |
-| [`ONBOARDING.md`](../../ONBOARDING.md) | §1 a §5: chování klíče, přehled tajností, kód 3 |
-| `tests/test_bootstrap_key_safety.py` (57), `test_bootstrap_env_write.py` (24), `test_bootstrap_key_rotation.py` (30), `test_bootstrap_key_lifecycle.py` (39, nový), `test_bootstrap_output.py` (13) | 163 offline testů |
+| [`scripts/create_api_key.py`](../../scripts/create_api_key.py) | three answers instead of two; an unverifiable state changes nothing; safe replacement order; a new key that was not stored is deleted only when reading `.env` proves it was not written; the old key is never deleted; 403 is an unverifiable state; a pasted key is verified; `env_path` without a default; messages without the response body; `getpass`; code 3 and the `--help` epilog |
+| [`scripts/bootstrap.py`](../../scripts/bootstrap.py) | handling of the new state; `redact()` on everything printed (never fails open); stricter `relay()`; `.env` is created privately and written atomically; final summary; corrected `/health` messages; `--help` epilog |
+| [`scripts/envfile.py`](../../scripts/envfile.py) | `write_atomic`, `create_private`, `set_env` rewrites all occurrences of a key; behaviour and parser otherwise unchanged |
+| [`scripts/http_safe.py`](../../scripts/http_safe.py) | new: an opener that does not follow redirects |
+| [`scripts/import_flows.py`](../../scripts/import_flows.py), [`scripts/smoke.py`](../../scripts/smoke.py) | authenticated calls through `open_url` (two lines in each) |
+| [`ONBOARDING.md`](../../ONBOARDING.md) | §1 and §5: key behaviour, secrets summary, code 3 |
+| `tests/test_bootstrap_key_safety.py` (57), `test_bootstrap_env_write.py` (24), `test_bootstrap_key_rotation.py` (30), `test_bootstrap_key_lifecycle.py` (39, new), `test_bootstrap_output.py` (13) | 163 offline tests |
 
-Neměněno: Compose, nginx, R2, aplikace, databáze, schéma, společné stavové dokumenty (mimo B06 pasáže). Změny `install.py` jsou popsány v návrhu B06, ne tady.
+Unchanged: Compose, nginx, R2, applications, databases, schema, shared status documents (outside the B06 passages). Changes to `install.py` are described in the B06 proposal, not here.
 
-## 2. Langflow API klíč: tři stavy a bezpečná výměna
+## 2. Langflow API key: three states and a safe replacement
 
-`check_key()` volá `GET /api/v1/flows/?page=1&size=1` s klíčem v hlavičce `x-api-key` a **selhává bezpečně**: závěrečné jsou jen dvě odpovědi (`200` s JSON a `401`), všechno ostatní je „nevím".
+`check_key()` calls `GET /api/v1/flows/?page=1&size=1` with the key in the `x-api-key` header and **fails safe**: only two answers are conclusive (`200` with JSON and `401`), everything else is "unknown".
 
-| Stav klíče v `.env` | Důkaz | Co skript udělá |
+| State of the key in `.env` | Evidence | What the script does |
 |---|---|---|
-| chybí (žádný řádek, prázdná hodnota, `CHANGE_ME…`) | bez požadavku | **první vytvoření** (níže); žádný starý klíč se nemaže, protože se žádný nedá spojit s hodnotou |
-| platný | `200` a tělo je JSON objekt nebo pole | nic se nemění |
-| odmítnutý | `401` | **výměna** bez `--force` (níže) |
-| neověřitelný | **`403`** (`HTTP 403, access denied: not proof that the key is invalid`), timeout (i při čtení), spojení odmítnuto či přerušeno, DNS, TLS, jiný HTTP stav (**včetně 3xx: přesměrování se nenásleduje**), `200` s tělem, které není JSON objekt/pole, jiný 2xx, poškozený gzip, **klíč, který nejde poslat jako hlavička (znak mimo ASCII, řídicí znak)**, jakákoli jiná výjimka | **nic**: žádný požadavek na vytvoření či smazání (ani login), `.env` bajtově stejný, žádná výzva k ruční náhradě; `KeyUnverifiable`, CLI končí kódem **3**, bootstrap také 3 a zastaví se před startem zbylých služeb |
+| missing (no line, empty value, `CHANGE_ME…`) | no request | **first creation** (below); no old key is deleted, because none can be tied to a value |
+| valid | `200` and the body is a JSON object or array | nothing changes |
+| rejected | `401` | **replacement** without `--force` (below) |
+| unverifiable | **`403`** (`HTTP 403, access denied: not proof that the key is invalid`), timeout (including on read), connection refused or interrupted, DNS, TLS, any other HTTP status (**including 3xx: a redirect is not followed**), `200` with a body that is not a JSON object/array, any other 2xx, corrupted gzip, **a key that cannot be sent as a header (non-ASCII character, control character)**, any other exception | **nothing**: no request to create or delete (not even a login), `.env` byte-for-byte the same, no prompt for manual replacement; `KeyUnverifiable`, the CLI exits with code **3**, bootstrap also 3 and stops before starting the remaining services |
 
-### Pořadí výměny (N4)
+### Replacement order (N4)
 
-Nikdy „smazat starý, vytvořit nový". Pro první vytvoření, výměnu i `--force`:
+Never "delete the old one, create a new one". For first creation, replacement and `--force`:
 
-1. přihlášení superusera a **výpis** klíčů (jen čtení; selhaný výpis je „neznámý", nikdy „prázdný"),
-2. vytvoření nového klíče,
-3. ověření, že Langflow nový klíč **přijímá** (stejným požadavkem, který odmítl starý),
-4. **atomický zápis** do `.env` a přečtení zpět.
+1. superuser login and a **listing** of keys (read only; a failed listing is "unknown", never "empty"),
+2. creating the new key,
+3. verifying that Langflow **accepts** the new key (with the same request that rejected the old one),
+4. **atomic write** to `.env` and reading it back.
 
-**Starý klíč se nemaže nikdy** (ani po `replaced`, ani při `--force`). Maskovaná hodnota ve výpisu (`sk-m0fgI****`) ho spolehlivě neidentifikuje: klíče téhož jména mohou sdílet viditelnou předponu a odmítnutý starý klíč ve výpisu už vůbec není, takže shoda předpony může zasáhnout jen cizí klíč.
-Po výměně, při které `.env` měl předchozí klíč, skript na stderr jednou větou (bez hodnot a `id`) řekne, že předchozí klíč zůstal v Langflow a že ho operátor odstraní v Settings → API Keys, pokud ho nepoužívá.
+**The old key is never deleted** (neither after `replaced` nor with `--force`). The masked value in the listing (`sk-m0fgI****`) does not reliably identify it: keys of the same name may share a visible prefix, and the rejected old key is no longer in the listing at all, so a prefix match could hit only somebody else's key.
+After a replacement where `.env` held a previous key, the script says on stderr in one sentence (without values and `id`s) that the previous key remained in Langflow and that the operator removes it in Settings → API Keys if it is not in use.
 
-**Selhání před zápisem `.env`** (kroky 1 až 3, i Ctrl-C) nechá `.env` i všechny staré klíče beze změny a nově vytvořený klíč se smaže znovu: podle `id` z odpovědi na vytvoření, jinak podle jediné nové položky mezi dvěma **úspěšnými** výpisy (před a po vytvoření).
-Selhaný výpis, žádná nebo více nových položek vedou k tomu, že se klíč nesmaže a skript to řekne (bezpečná chyba). Nepřijetí nového klíče (proxy odmítá všechno, adresa nevede na Langflow) je `KeyUnverifiable`: kód 3, nic se nezměnilo, žádná výzva k vložení klíče.
+**A failure before the `.env` write** (steps 1 to 3, also Ctrl-C) leaves `.env` and all old keys unchanged and the newly created key is deleted again: by the `id` from the create response, otherwise by the single new entry between two **successful** listings (before and after creation).
+A failed listing, no new entry or more than one new entry means the key is not deleted and the script says so (a safe error). Non-acceptance of the new key (the proxy rejects everything, the address does not lead to Langflow) is `KeyUnverifiable`: code 3, nothing changed, no prompt to paste a key.
 
-**Selhání při zápisu `.env` nebo po něm** se neposuzuje podle typu výjimky (Ctrl-C nevypovídá, zda `os.replace` proběhl), ale podle **čerstvého čtení `.env`** po selhání:
+**A failure during or after the `.env` write** is not judged by the exception type (Ctrl-C says nothing about whether `os.replace` ran) but by a **fresh read of `.env`** after the failure:
 
-| Čerstvé čtení `.env` | Stav | Nový klíč | Výsledek |
+| Fresh read of `.env` | State | New key | Result |
 |---|---|---|---|
-| obsahuje nový klíč | uloženo | **nemaže se** | `KeyStateUncertain` (kód 1); Ctrl-C se po jedné řádce na stderr vyhodí beze změny |
-| nejde přečíst, nebo se soubor změnil a klíč v něm není | neznámo | **nemaže se** | totéž |
-| bajty jsou stejné jako těsně před zápisem | neuloženo (prokázáno) | smaže se | `KeyStoreError`: „.env is unchanged (compared byte for byte)" |
+| contains the new key | stored | **not deleted** | `KeyStateUncertain` (code 1); Ctrl-C is re-raised unchanged after one line on stderr |
+| cannot be read, or the file changed and the key is not in it | unknown | **not deleted** | the same |
+| bytes are the same as just before the write | not stored (proven) | deleted | `KeyStoreError`: ".env is unchanged (compared byte for byte)" |
 
-Chyba, která nastala dřív, než zápis začal (`.env` nešel ani přečíst), říká jen „nothing was written to .env". Tvrzení „unchanged" se nikde nepíše bez porovnání bajtů. `KeyStateUncertain` je podtřída `KeyStoreError`, takže nikdy nevede k výzvě k vložení klíče; říká, že nový klíč v Langflow zůstal, že nic nebylo smazáno,
-a že se má zkontrolovat `LANGFLOW_API_KEY` v `.env`, spustit skript znovu (nejdřív ověří klíč v `.env`) a `docker compose up -d`. Kód je **1**, ne 3: 3 slibuje, že se nic nezměnilo, což tu neplatí. Stejná logika platí pro ručně vložený klíč (tam není v Langflow co mazat).
+An error that occurred before the write began (`.env` could not even be read) says only "nothing was written to .env". The claim "unchanged" is never written without a byte comparison. `KeyStateUncertain` is a subclass of `KeyStoreError`, so it never leads to a prompt to paste a key; it says that the new key remained in Langflow, that nothing was deleted,
+and that `LANGFLOW_API_KEY` in `.env` should be checked, the script run again (it first verifies the key in `.env`) and `docker compose up -d` run. The code is **1**, not 3: 3 promises that nothing changed, which does not hold here. The same logic applies to a manually pasted key (there is nothing in Langflow to delete).
 
-Ručně vložený klíč (jen po selhání loginu nebo vytvoření a jen pro chybějící či odmítnutý klíč) se před uložením **ověří**; nepřijatý je kód 3 a `.env` zůstane.
+A manually pasted key (only after a login or create failure and only for a missing or rejected key) is **verified** before it is stored; a non-accepted one is code 3 and `.env` stays.
 
-`--force` v `create_api_key.py` zůstává **výslovnou volbou operátora** (kontrolu starého klíče přeskočí) a používá stejné pořadí. Automatická cesta ho nepředává; test to hlídá za běhu i ve zdroji (AST).
-Zpráva při neověřitelném stavu: klíč nešlo ověřit, příčina (jen stavový kód nebo pevná fráze), „Nothing was changed", spustit znovu, až Langflow odpovídá. Každý krok bootstrapu je idempotentní.
+`--force` in `create_api_key.py` remains an **explicit operator option** (it skips the check of the old key) and uses the same order. The automatic path does not pass it; a test guards this at run time and in the source (AST).
+Message in the unverifiable state: the key could not be verified, the cause (only a status code or a fixed phrase), "Nothing was changed", run again once Langflow responds. Every bootstrap step is idempotent.
 
-### Poznámka k 401/403 a loginu
+### Note on 401/403 and login
 
-Jen **401** je důvod k automatické výměně. **403** nemusí znamenat neplatný klíč (nedostatečné oprávnění, odpověď proxy) a úspěšný login superusera nedává právo cokoli zničit ani přepsat, proto je 403 v automatické cestě **neověřitelný stav**:
-kód 3, jediný požadavek (kontrola), žádný login, výpis, vytvoření, mazání ani zápis `.env`. Zpráva zmiňuje výslovnou ruční možnost: `scripts/create_api_key.py --force` (bootstrap ji záměrně nemá).
-Pro nový klíč při `--force` platí totéž: přijme se jen `200` s JSON, jinak je klíč „nepřijatý" (kód 3, smaže se podle `id`, `.env` zůstane).
-**Důsledek, laboratorně potvrzený na Langflow 1.10.1 (oddíl 5 záznamu revizí):** Langflow vrací pro neplatný, chybějící i prázdný `x-api-key` **403**, ne 401. Automatická výměna mrtvého klíče (typicky po `docker compose down -v`) se proto na této verzi nikdy nespustí a operátor musí spustit `create_api_key.py --force`; kód 3 a nezměněná konfigurace při 403 se na skutečném Langflow potvrdily.
+Only **401** is a reason for automatic replacement. **403** need not mean an invalid key (insufficient permission, a proxy response), and a successful superuser login gives no right to destroy or overwrite anything, so on the automatic path 403 is an **unverifiable state**:
+code 3, a single request (the check), no login, listing, creation, deletion or `.env` write. The message mentions the explicit manual option: `scripts/create_api_key.py --force` (bootstrap deliberately does not have it).
+For a new key with `--force` the same holds: only `200` with JSON is accepted, otherwise the key is "not accepted" (code 3, deleted by `id`, `.env` stays).
+**Consequence, confirmed in the lab on Langflow 1.10.1 (section 5 of the review log):** for an invalid, missing and empty `x-api-key` alike Langflow returns **403**, not 401. Automatic replacement of a dead key (typically after `docker compose down -v`) therefore never triggers on this version and the operator must run `create_api_key.py --force`; code 3 and an unchanged configuration on 403 were confirmed on a real Langflow.
 
-### Dotčení volající
+### Affected callers
 
-| Volající | Dopad |
+| Caller | Impact |
 |---|---|
-| `bootstrap.step_api_key` | zachytává `KeyUnverifiable` (kód 3, nově i při 403), `KeyStateUncertain` a `KeyStoreError` jako běžné selhání (kód 1, žádný další krok, žádné označení „recreate“), `replaced` jen po 401; klíč dál předává `step_langflow_vars` a `step_flows` v paměti; `env_path` předává výslovně |
-| `create_api_key.main` | totéž; `env_path` předává výslovně |
-| `ensure_api_key()` | `env_path` **nemá default** (test nad AST kontroluje všechny volající) |
-| `key_works()` | odstraněna (její `False` slévalo tři stavy) |
-| `import_flows.py`, `smoke.py` | čtou klíč z `.env`/prostředí; autentizovaná volání nenásledují přesměrování |
-| `install.py` | nic neimportuje (stávající test hlídá) |
+| `bootstrap.step_api_key` | catches `KeyUnverifiable` (code 3, now also on 403), `KeyStateUncertain` and `KeyStoreError` as an ordinary failure (code 1, no further step, no "recreate" marking), `replaced` only after 401; it keeps passing the key to `step_langflow_vars` and `step_flows` in memory; passes `env_path` explicitly |
+| `create_api_key.main` | the same; passes `env_path` explicitly |
+| `ensure_api_key()` | `env_path` **has no default** (an AST test checks all callers) |
+| `key_works()` | removed (its `False` merged three states) |
+| `import_flows.py`, `smoke.py` | read the key from `.env`/environment; authenticated calls do not follow redirects |
+| `install.py` | imports nothing (an existing test guards this) |
 
-## 3. `.env`, přesměrování a tajnosti ve výstupu
+## 3. `.env`, redirects and secrets in the output
 
-**`.env` (N2, N3).** Zápis je atomický: dočasný soubor ve stejném adresáři, `fsync`, `os.replace`; selhání (plný disk, přerušení) nechá původní bajty, mtime i výpis adresáře. Symlinkovaný `.env` zůstane symlinkem (zapisuje se soubor, na který míří). Existující mód se zachová.
-Nový `.env` vzniká 0600 od prvního bajtu (dočasný soubor + `link`, jinak výlučné vytvoření) a nikdy nepřepíše existující; na Linuxu se mód po vytvoření ověří. Existující `.env` s právy pro skupinu nebo ostatní se jen varuje (`chmod 600 .env`), nemění se.
-Na Windows `chmod` soukromé ACL nedokazuje, proto se tam nic netvrdí.
+**`.env` (N2, N3).** The write is atomic: a temporary file in the same directory, `fsync`, `os.replace`; a failure (full disk, interruption) leaves the original bytes, mtime and directory listing. A symlinked `.env` stays a symlink (the file it points to is written). An existing mode is preserved.
+A new `.env` is created 0600 from the first byte (temporary file + `link`, otherwise exclusive creation) and never overwrites an existing one; on Linux the mode is verified after creation. An existing `.env` with group or other permissions only produces a warning (`chmod 600 .env`), it is not changed.
+On Windows `chmod` does not prove private ACLs, so nothing is claimed there.
 
-**Přesměrování (N5).** `http_safe.open_url` odmítá každý 3xx u volání, která nesou `x-api-key` nebo `Authorization`; vznikne `HTTPError` se stavovým kódem a nic se neposílá jinam. `LANGFLOW_URL` proto musí být konečná adresa (hláška to říká).
+**Redirects (N5).** `http_safe.open_url` rejects every 3xx on calls that carry `x-api-key` or `Authorization`; an `HTTPError` with the status code is raised and nothing is sent elsewhere. `LANGFLOW_URL` must therefore be the final address (the message says so).
 
-**Průběh a chyby tajnosti nikdy neobsahují.** Zprávy se skládají ze stavových kódů a pevných frází (`describe_error`), nikdy z `str(exc)` ani z těla odpovědi. Navíc prochází vše vypsané `redact()`, která maskuje každou hodnotu,
-kterou `.env` označuje jako tajnou podle názvu (`PASSWORD`, `SECRET`, `TOKEN`, `KEY`, hodnoty od 6 znaků), klíč vytvořený v tomto běhu a **každou hodnotu, kterou `.env` za běh držel** (nečitelný nebo zmizelý soubor maskování nevypne).
-Výstup podprocesů (`import_flows.py`, `smoke.py`) prochází `relay()`: jen tvary řádků potomka (výsledek `[pass]`/`[skip]`/`[FAIL]`, očíslovaný nadpis, součty, řádky importu), zbytek víceřádkové zprávy za značkou (tělo) se zahodí, `[FAIL]` se useká před prvním `:`,
-řídicí znaky se mění na `?`, přihlašovací údaje v URL se odstraní a řádky se redigují **před** zkrácením. Z adres se odstraní přihlašovací údaje a dotaz (`display_url`). Vložený klíč se zadává přes `getpass`. První osmice znaků nového klíče se nevypisuje.
+**The progress output and errors never contain secrets.** Messages are composed of status codes and fixed phrases (`describe_error`), never of `str(exc)` or the response body. In addition, everything printed passes through `redact()`, which masks every value
+that `.env` marks as secret by name (`PASSWORD`, `SECRET`, `TOKEN`, `KEY`, values of 6 or more characters), the key created in this run and **every value that `.env` held during the run** (an unreadable or vanished file does not switch masking off).
+The output of subprocesses (`import_flows.py`, `smoke.py`) passes through `relay()`: only the line shapes of the child (result `[pass]`/`[skip]`/`[FAIL]`, numbered heading, totals, import lines), the rest of a multi-line message after the marker (the body) is discarded, `[FAIL]` is truncated before the first `:`,
+control characters are turned into `?`, credentials in URLs are removed and lines are redacted **before** truncation. Credentials and the query are removed from addresses (`display_url`). A pasted key is entered via `getpass`. The first eight characters of a new key are not printed.
 
-**Závěrečný přehled** (jediné místo, kde tajnosti smí být):
+**Final summary** (the only place where secrets may appear):
 
-| Situace | Přehled |
+| Situation | Summary |
 |---|---|
-| úspěšný první běh v interaktivním terminálu (stdin i stdout jsou TTY, bez `CI` a obdobných proměnných, bez `--no-input`) | cesta k `.env`, jména vytvořených hodnot a **jednorázový blok** s jejich hodnotami na úplném konci |
-| přesměrovaný stdout nebo stdin, CI (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `JENKINS_URL`, `BUILDKITE`, `TF_BUILD`), `--no-input`, běh s chybami | jen cesta k `.env` a jména vytvořených hodnot |
-| opakovaný běh | jen cesta; nic z toho, co už existovalo, se nevypíše |
+| successful first run in an interactive terminal (stdin and stdout are TTYs, no `CI` and similar variables, no `--no-input`) | the path to `.env`, the names of the created values and a **one-time block** with their values at the very end |
+| redirected stdout or stdin, CI (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `JENKINS_URL`, `BUILDKITE`, `TF_BUILD`), `--no-input`, a run with errors | only the path to `.env` and the names of the created values |
+| repeated run | only the path; nothing that already existed is printed |
 
-V bloku mohou být **jen hodnoty, které vytvořil tento běh**: `POSTGRES_PASSWORD`, `PGADMIN_DEFAULT_PASSWORD`, `LANGFLOW_SUPERUSER_PASSWORD`, `LANGFLOW_SECRET_KEY` (pokud byly `CHANGE_ME` a vygenerovaly se) a `LANGFLOW_API_KEY` po vytvoření nebo výměně.
-Nikdy: dodané externí hodnoty (`OPENAI_API_KEY`, token Cloudflare, `JINA_API_KEY`), vložený klíč, cokoli, co `.env` obsahovalo dřív. Provider klíče Bifrostu v `.env` nejsou vůbec. Rozhodnutí, zda blok vypsat, je uvnitř `step_summary` (`interactive_terminal`).
-Hodnoty se při zobrazení **znovu čtou z `.env`**; `.env` zůstává trvalým zdrojem. Detekce CI se liší od `install.py` (ten zná 13 proměnných); obě se zachovávají podle potvrzeného rozhodnutí vlastníka, srovnání je v [návrhu, oddíl 10.5](b06-clean-install-proposal.md#10-stav-implementace-b06-1-a-bootstrapu-kandidát).
+The block may contain **only values created by this run**: `POSTGRES_PASSWORD`, `PGADMIN_DEFAULT_PASSWORD`, `LANGFLOW_SUPERUSER_PASSWORD`, `LANGFLOW_SECRET_KEY` (if they were `CHANGE_ME` and got generated) and `LANGFLOW_API_KEY` after creation or replacement.
+Never: supplied external values (`OPENAI_API_KEY`, the Cloudflare token, `JINA_API_KEY`), a pasted key, anything that `.env` contained earlier. The Bifrost provider keys are not in `.env` at all. The decision whether to print the block is inside `step_summary` (`interactive_terminal`).
+The values are **re-read from `.env`** when displayed; `.env` remains the permanent source. CI detection differs from `install.py` (which knows 13 variables); both are kept according to the owner's confirmed decision, the comparison is in the [proposal, section 10.5](b06-clean-install-proposal.md#10-implementation-status-of-b06-1-and-bootstrap-candidate).
 
-## 4. Ověření (offline)
+## 4. Verification (offline)
 
-Syntetický `.env` v dočasném adresáři, mockované HTTP (náhrada `OpenerDirector.open` a `urlopen`), zákaz `subprocess`, soketů a přístupu ke skutečnému `.env` (porušení shodí test). Pro přesměrování fake transport pod skutečnou přesměrovací mechanikou `urllib`
-(kontrolní test dokazuje, že běžný opener klíč přeposílá). Syntetická hesla a klíče se hledají i s osmiznakovou předponou ve stdout i stderr. `.env` má smíšené konce řádků a chybí mu poslední nový řádek.
+A synthetic `.env` in a temporary directory, mocked HTTP (replacement of `OpenerDirector.open` and `urlopen`), a ban on `subprocess`, sockets and access to the real `.env` (a violation fails the test). For redirects, a fake transport under the real `urllib` redirect machinery
+(a control test proves that an ordinary opener forwards the key). Synthetic passwords and keys are searched for, including with the eight-character prefix, in both stdout and stderr. The `.env` has mixed line endings and lacks the final newline.
 
-| Oblast | Pokrytí |
+| Area | Coverage |
 |---|---|
-| Klasifikace | platný (objekt, pole), 401 (odmítnutý), 403 (neověřitelný), 8 stavových kódů 4xx/5xx, všech 5 přesměrování, timeouty, odmítnuté/přerušené spojení, DNS, TLS, odpojení, neúplné čtení, 201, 204, prázdné/HTML/useknuté/`null`/řetězcové/číselné/binární tělo, poškozený gzip, neznámá výjimka, klíč, který nejde poslat |
-| Neověřitelný stav (403 včetně) | `.env` bajtově i časem stejný, žádný požadavek mimo jediný `GET` (žádný login, výpis, vytvoření, mazání), žádná výzva, kód 3; na úrovni funkce, CLI, `step_api_key` i `main()`; 401 dál vymění, `--force` zůstává |
-| Životní cyklus | pořadí volání; selhání loginu, vytvoření, ověření (401, 403, 500, timeout, HTML) a zápisu; selhání čtení zpět a **skutečný SIGINT těsně po i těsně před `os.replace`** (`signal.raise_signal`): po zápisu se nic nemaže a stav se přizná, před zápisem se nový klíč smaže jen při shodných bajtech; čerstvé čtení, které selže nebo ukáže třetí hodnotu, je „neznámo“; smazání nového klíče podle `id` i podle rozdílu dvou úspěšných výpisů, nikdy hádání; **žádný starý klíč se nemaže v žádném tvaru výpisu** (dvě shodné předpony, jediná shoda, jiné jméno, chybí, nesrovnatelná maska, selhaný výpis); selhaný výpis není prázdný; `--force`; ruční klíč |
-| `.env` | všech pět selhání zápisu, symlink, mód, umask, vytvoření bez přepsání, duplicitní řádek, `step_env` |
-| Výstup a přehled | `redact` (nečitelný `.env`), `relay` (víceřádková těla, řídicí znaky, URL), `step_summary` (interaktivně × přesměrováno × CI × `--no-input` × běh s chybami × opakovaný běh), `main()` |
-| Volající a kód 3 | `env_path` bez defaultu a ve všech voláních, `bootstrap.main()` vrací 3 a nespustí další kroky, `--help` |
+| Classification | valid (object, array), 401 (rejected), 403 (unverifiable), 8 status codes 4xx/5xx, all 5 redirects, timeouts, refused/interrupted connection, DNS, TLS, disconnect, incomplete read, 201, 204, empty/HTML/truncated/`null`/string/numeric/binary body, corrupted gzip, unknown exception, a key that cannot be sent |
+| Unverifiable state (403 included) | `.env` identical in bytes and in time, no request other than the single `GET` (no login, listing, creation, deletion), no prompt, code 3; at the level of the function, the CLI, `step_api_key` and `main()`; 401 still replaces, `--force` remains |
+| Lifecycle | order of calls; failure of login, creation, verification (401, 403, 500, timeout, HTML) and write; failure of the read-back and a **real SIGINT right after and right before `os.replace`** (`signal.raise_signal`): after the write nothing is deleted and the state is admitted, before the write the new key is deleted only when the bytes are identical; a fresh read that fails or shows a third value is "unknown"; deletion of the new key by `id` and by the difference of two successful listings, never guessing; **no old key is deleted in any listing shape** (two identical prefixes, a single match, a different name, missing, incomparable mask, failed listing); a failed listing is not empty; `--force`; a manual key |
+| `.env` | all five write failures, symlink, mode, umask, creation without overwrite, duplicate line, `step_env` |
+| Output and summary | `redact` (unreadable `.env`), `relay` (multi-line bodies, control characters, URLs), `step_summary` (interactive × redirected × CI × `--no-input` × run with errors × repeated run), `main()` |
+| Callers and code 3 | `env_path` without a default and in all calls, `bootstrap.main()` returns 3 and does not start further steps, `--help` |
 
-Výsledky po závěrečné revizi Codex: viz záznam revizí a [návrh, oddíl 10.6](b06-clean-install-proposal.md#10-stav-implementace-b06-1-a-bootstrapu-kandidát). Dřívější kolo: Windows 127 testů OK, 11 přeskočeno, WSL 127 OK; cílená mutační kontrola nových chování 23 z 23 zachyceno
-(sdílená s B06-1, viz [návrh, oddíl 10.6](b06-clean-install-proposal.md#10-stav-implementace-b06-1-a-bootstrapu-kandidát)). Původní kandidát hlásil 57 testů a 18 mutantů; to jsou starší čísla.
+Results after the final Codex review: see the review log and the [proposal, section 10.6](b06-clean-install-proposal.md#10-implementation-status-of-b06-1-and-bootstrap-candidate). Earlier round: Windows 127 tests OK, 11 skipped, WSL 127 OK; targeted mutation check of the new behaviours 23 of 23 caught
+(shared with B06-1, see the [proposal, section 10.6](b06-clean-install-proposal.md#10-implementation-status-of-b06-1-and-bootstrap-candidate)). The original candidate reported 57 tests and 18 mutants; those are older numbers.
 
-## 5. Omezení a co ověřeno není
+## 5. Limitations and what is not verified
 
-- Offline testy jsou mocky. Proti skutečnému Langflow 1.10.1 se v laboratoři (2026-10-06, oddíl 5 záznamu revizí) potvrdilo: platný klíč dostane na `GET /api/v1/flows/?page=1&size=1` `200` (gzip, JSON list), neplatný **403**, odpověď na vytvoření nese `id` (UUID jako řetězec), výpis je maskovaný (`sk-` a 5 znaků, zbytek `*`). **Neověřeno zůstává:** proxy před Langflow, PostgreSQL, skutečný průchod `bootstrap.py`, práh omezení loginu (429).
-- 401 neprokáže, že odpověděl Langflow (stejně by vypadl front-end proxy). Mírní to pořadí: nový klíč musí být přijat stejným požadavkem a uložen a stará hodnota se nemaže nikdy.
-- Přerušení mezi návratem `create_key` a vstupem do `try` kolem `check_key` (a druhé Ctrl-C během posouzení nebo mazání) ztratí `id` a klíč `edu_ai-bootstrap` zůstane v Langflow bez hlášení; okno je několik bajtkódů.
-- Po `KeyStateUncertain` ve stavu „uloženo“ kontrola při dalším běhu vyjde „platný“ a krok se přeskočí; kontejnery klíč přečtou až po `docker compose up -d` (zpráva to říká). „Uloženo“ se pozná podřetězcem hodnoty v bajtech, ne parsováním řádku (falešná shoda znamená jen, že se nic nesmaže).
-- Hodnoty vytvořené během, který pak skončil chybou, se **už nikdy nenabídnou** (při opakování už existují); zůstávají v `.env`. Důsledek pravidla „existující hodnoty nevypisovat".
-- Jednorázový blok skončí v historii terminálu operátora; skript to jen připomíná. `redact()` zná jen hodnoty, které `.env` označuje názvem. Výstup `docker compose up` jde přímo na terminál mimo `redact()`.
-- Po `replaced` se pro všechny služby spouští `up -d --force-recreate`; mezi souběžnými běhy není zámek; `check_key` nemá celkový termín ani limit velikosti odpovědi. Přesměrování HTTPS→HTTP, proxy přes `HTTP(S)_PROXY` a souběh dvou běhů se nezkoušely.
-- Skutečný průchod `bootstrap.py` (Docker, živý Langflow) neproběhl a tento dokument ho netvrdí.
+- The offline tests are mocks. Against a real Langflow 1.10.1 the lab (2026-10-06, section 5 of the review log) confirmed: a valid key gets `200` on `GET /api/v1/flows/?page=1&size=1` (gzip, JSON list), an invalid one **403**, the create response carries `id` (a UUID as a string), the listing is masked (`sk-` and 5 characters, the rest `*`). **Still not verified:** a proxy in front of Langflow, PostgreSQL, a real run of `bootstrap.py`, the login throttling threshold (429).
+- 401 does not prove that Langflow answered (a front-end proxy would produce the same). The order mitigates this: the new key must be accepted by the same request and stored, and the old value is never deleted.
+- An interruption between the return of `create_key` and entering the `try` around `check_key` (and a second Ctrl-C during the assessment or deletion) loses the `id` and the `edu_ai-bootstrap` key stays in Langflow without a report; the window is a few bytecodes.
+- After `KeyStateUncertain` in the "stored" state, the check on the next run comes out "valid" and the step is skipped; containers read the key only after `docker compose up -d` (the message says so). "Stored" is recognised by a substring of the value in the bytes, not by parsing the line (a false match only means that nothing is deleted).
+- Values created during a run that then ended in an error are **never offered again** (on a repeat they already exist); they stay in `.env`. A consequence of the rule "do not print existing values".
+- The one-time block ends up in the operator's terminal history; the script only reminds about this. `redact()` knows only the values that `.env` marks by name. The output of `docker compose up` goes directly to the terminal, outside `redact()`.
+- After `replaced`, `up -d --force-recreate` is run for all services; there is no lock between concurrent runs; `check_key` has no overall deadline or response size limit. HTTPS→HTTP redirects, a proxy via `HTTP(S)_PROXY` and two concurrent runs were not tried.
+- A real run of `bootstrap.py` (Docker, a live Langflow) did not take place and this document does not claim it.
 
-## 6. Nálezy N1–N9: stav
+## 6. Findings N1–N9: status
 
-| # | Stav | Poznámka |
+| # | Status | Note |
 |---|---|---|
-| N1 | část otevřena | výstup, který bootstrap předává, je uzavřen (`relay`, `redact`); samostatné `import_flows.py` (`:84`) a `smoke.py` dál tisknou těla odpovědí a payloady: samostatný úkol |
-| N2 | uzavřeno | atomický zápis `.env` (`write_atomic`) |
-| N3 | uzavřeno na Linuxu | `.env` 0600 od vytvoření; Windows se netvrdí |
-| N4 | uzavřeno, po revizi Codex změněno | pořadí výměny; starý klíč se nemaže nikdy; nový se maže jen podle `id` nebo při dvou úspěšných výpisech; po možném zápisu `.env` se nemaže nic a stav se přizná (oddíl 2) |
-| N5 | uzavřeno | `http_safe` ve všech čtyřech skriptech s autentizovaným voláním |
-| N6 | uzavřeno | zprávy o `/health` opraveny; test hlídá |
-| N7 | uzavřeno | `ONBOARDING.md` §1 a §5, návrh B06 oddíl 2 a 10 |
-| N8 | uzavřeno | `env_path` bez defaultu |
-| N9 | otestováno | kód 3 se propaguje (`bootstrap.main()`, CLI, `--help`); obal B06-2 nevznikl, mapování kódů je v [návrhu, oddíl 10.1](b06-clean-install-proposal.md#10-stav-implementace-b06-1-a-bootstrapu-kandidát) |
+| N1 | partly open | the output that bootstrap forwards is closed (`relay`, `redact`); the standalone `import_flows.py` (`:84`) and `smoke.py` still print response bodies and payloads: a separate task |
+| N2 | closed | atomic `.env` write (`write_atomic`) |
+| N3 | closed on Linux | `.env` 0600 from creation; Windows is not claimed |
+| N4 | closed, changed after the Codex review | replacement order; the old key is never deleted; the new one is deleted only by `id` or with two successful listings; after a possible `.env` write nothing is deleted and the state is admitted (section 2) |
+| N5 | closed | `http_safe` in all four scripts with an authenticated call |
+| N6 | closed | `/health` messages corrected; a test guards this |
+| N7 | closed | `ONBOARDING.md` §1 and §5, B06 proposal sections 2 and 10 |
+| N8 | closed | `env_path` without a default |
+| N9 | tested | code 3 propagates (`bootstrap.main()`, CLI, `--help`); the B06-2 wrapper was not created, the code mapping is in the [proposal, section 10.1](b06-clean-install-proposal.md#10-implementation-status-of-b06-1-and-bootstrap-candidate) |
 
-## 7. Jak kandidáta začlenit
+## 7. How to integrate the candidate
 
-Závěrečná revize kódu, rozhodnutí o publikaci a laboratorní ověření API klíčů proti Langflow 1.10.1 proběhly (2026-10-06); kandidát je publikováno na `origin/clean_init` (kód a testy v commitu `d2cc0c70d6bc669cc5ebd64744d0327ba7e3992f`, dokumentace v následujícím commitu; jeho SHA nelze uvést uvnitř něj, viz `git log` těchto souborů). Zbývá celý bootstrap proti stacku, PostgreSQL a B06-2 ([návrh, oddíl 10.8](b06-clean-install-proposal.md#108-další-krok)).
-Nic z tohoto dokumentu není schválení nasazení ani podporované aktualizace školy. Pravidla [AGENTS.md](../../AGENTS.md) (žádné tajnosti v logu, žádná ruční úprava generovaných souborů) kandidát dodržuje; kontrakty, schéma ani Compose se nemění.
+The final code review, the publication decision and the lab verification of the API keys against Langflow 1.10.1 took place (2026-10-06); the candidate is published on `origin/clean_init` (code and tests in commit `d2cc0c70d6bc669cc5ebd64744d0327ba7e3992f`, documentation in the following commit; its SHA cannot be stated inside itself, see `git log` of these files). What remains is the whole bootstrap against the stack, PostgreSQL and B06-2 ([proposal, section 10.8](b06-clean-install-proposal.md#108-next-step)).
+Nothing in this document is a deployment approval or a supported school update. The candidate follows the rules in [AGENTS.md](../../AGENTS.md) (no secrets in the log, no manual editing of generated files); contracts, schema and Compose are not changed.

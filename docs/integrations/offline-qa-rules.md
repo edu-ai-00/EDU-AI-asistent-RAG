@@ -1,351 +1,351 @@
-# QA pravidla a požadavky na offline pack
+# QA rules and requirements for the offline pack
 
-Ověřeno 11. 10. 2026 proti kódu `main` na `fa593d1` a čtecímu snapshotu QA konfigurace
-produkčního zdroje `4a8aff1`. Dokument soustřeďuje rozhodovací pravidla, váhy, aktuální parametry
-a jejich přítomnost v exportu. Mobilní aplikace existuje v samostatném veřejném
-[EDU-AI-asistent-APP](https://github.com/edu-ai-00/EDU-AI-asistent-APP); offline QA-pack engine
-v prohlédnutém main na `e653aea54d5e408bd3667f4ab087e0920814cc76` nebyl implementovaný.
+Verified on 2026-10-11 against the `main` code at `fa593d1` and a read-only snapshot of the QA
+configuration of the production source `4a8aff1`. The document collects the decision rules, weights, current parameters
+and their presence in the export. The mobile app exists in a separate public
+[EDU-AI-asistent-APP](https://github.com/edu-ai-00/EDU-AI-asistent-APP); an offline QA-pack engine
+was not implemented in the inspected main at `e653aea54d5e408bd3667f4ab087e0920814cc76`.
 
-**Současný SQLite QA pack nepřenáší všechna pravidla potřebná ke stejnému offline chování.**
-Obsahuje QA obsah, varianty, metadata a tři manifestové prahy. Chybí účinný profil kroků,
-normalizační konfigurace, číselníky a část podkladů pro scoring. Přítomnost FTS indexu a prahů
-proto není důkazem parity backendu a budoucího telefonu. CSV/ZIP export pro editaci tuto mezeru
-také neřeší. Implementace exportéru ani jeho schéma se tímto dokumentem nemění.
+**The current SQLite QA pack does not carry all the rules needed for the same offline behaviour.**
+It contains the QA content, variants, metadata and three manifest thresholds. It lacks the effective step profile,
+the normalization configurations, the code lists and part of the inputs for scoring. The presence of an FTS index and
+thresholds is therefore not proof of parity between the backend and a future phone. The CSV/ZIP export for editing does not
+close this gap either. This document changes neither the exporter implementation nor its schema.
 
-## Ověřená mobilní aplikace
+## Verified mobile app
 
-Dne 11. 10. 2026 byl podle odkazu vlastníka čtecím klonem ověřen veřejný APP main
-`e653aea54d5e408bd3667f4ab087e0920814cc76` (commit 20. 7. 2026); dostupná je také větev init.
-Jde o existující Flutter aplikaci s Drift/SQLite a offline ukládáním obsahu/stavu. Zjištění
-v této tabulce jsou statickou kontrolou zdrojů daného SHA, nikoli testem instalované mobilní verze.
+On 2026-10-11, following the owner's link, the public APP main
+`e653aea54d5e408bd3667f4ab087e0920814cc76` (commit 2026-07-20) was verified with a read-only clone; an init branch is also available.
+It is an existing Flutter app with Drift/SQLite and offline storage of content/state. The findings
+in this table are a static check of the sources at the given SHA, not a test of an installed mobile version.
 
-| Část aplikace | Ověřené chování |
+| App part | Verified behaviour |
 |---|---|
-| [Chat repository](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/repositories/chat_repository.dart#L71) | Vytvoření chatu i nová zpráva vyžadují internet; offline vrací chybu. |
-| [Remote chat](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/datasources/remote/chat_remote_datasource.dart#L59) | HTTP POST na chat server a SSE odpověď; neprovádí místní QA lookup. |
-| [Lokální databáze](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/core/database/app_database.dart#L30) | Ukládá kurzy, lekce, průběh/procvičování, chat historii a synchronizaci; QA manifest/entries/variants a QA FTS zde nejsou. |
-| [Chat UI](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/pages/chat_detail_page.dart#L619) | Offline vypne odesílání zprávy; uložená historie je dostupná. |
-| [Bundled courses](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/datasources/local/bundled_courses_datasource.dart#L6) | Offline obsah načítá jako JSON kurzy z assets; není to import backendového SQLite QA packu. |
+| [Chat repository](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/repositories/chat_repository.dart#L71) | Creating a chat and a new message both require the internet; offline returns an error. |
+| [Remote chat](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/datasources/remote/chat_remote_datasource.dart#L59) | HTTP POST to the chat server and an SSE response; it does not perform a local QA lookup. |
+| [Local database](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/core/database/app_database.dart#L30) | Stores courses, lessons, progress/practice, chat history and synchronization; the QA manifest/entries/variants and QA FTS are not here. |
+| [Chat UI](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/pages/chat_detail_page.dart#L619) | Offline disables sending a message; the stored history is available. |
+| [Bundled courses](https://github.com/edu-ai-00/EDU-AI-asistent-APP/blob/e653aea54d5e408bd3667f4ab087e0920814cc76/lib/data/datasources/local/bundled_courses_datasource.dart#L6) | Offline content is loaded as JSON courses from assets; it is not an import of the backend SQLite QA pack. |
 
-V lib/test/docs prohlédnutého main nebyl nalezen QA-pack importer, QA normalizer/lemma/stem,
-stoplist/synonymní profil, IDF/coverage matching ani QA FTS lookup. Samotná SQLite závislost
-tyto funkce nezajišťuje. Kontrola druhé veřejné větve init také nepřinesla QA-pack implementaci.
-Co vykonává vzdálený chat server, APP zdroj sám neprokazuje. Předchozí formulace o neexistenci
-mobilní aplikace byla příliš široká; otevřeným úkolem je její offline QA integrace a parita.
+No QA-pack importer, QA normalizer/lemma/stem, stoplist/synonym profile, IDF/coverage matching or QA FTS lookup
+was found in lib/test/docs of the inspected main. The SQLite dependency alone
+does not provide these functions. Checking the second public branch, init, did not turn up a QA-pack implementation either.
+What the remote chat server performs is not proven by the APP source itself. The earlier wording about the non-existence of the
+mobile app was too broad; the open task is its offline QA integration and parity.
 
-## Kde pravidla vznikají
+## Where the rules originate
 
-| Podklad | Autorita pro skutečné chování |
+| Source | Authority for the actual behaviour |
 |---|---|
-| Kaskáda a parametry | Aktivní `edu_ai.settings.config.pipeline`: `step`, `enabled`, `params`, `on_hit`, podmínky běhu; vykonává je `executor.py`, nikoli referenční `graph.py`. |
-| Organizace | Nastavení kořenové organizace se uplatní i na její jednotky; bez odpovídajícího řádku se vybírá globální řádek a nakonec zdrojový fallback. |
-| Prahy konkrétního packu | Aktivní `qa_pack_manifest.t_answer`, `t_suggest`, `m_margin`; explicitní parametry `qa_lexical` je mohou přepsat. |
-| Normalizace | `normalization`, `engines`, jazyky organizace, normalizační knihovna a slovníky; indexový stoplist se přidává z `qa_stopword`. |
-| Synonyma a koncepty | Aktivní `qa_synonym`, jazyk, typ skupiny a coverage stoplist. |
-| Oprávnění a filtry | `scope.py`, hierarchie entit, registr uživatelů, role, visibility/owner, platnost, ročníky a oblasti. |
-| Guard a pomocná pravidla | `qa_blocklist`, stoplisty `meta_filler/meta_verb/coverage`, taxonomy, číselníky a jazykové `system_message`; nevkládat do dokumentace executable prompty. |
-| Vektorová cesta | `qa_embedding`, aktivní `embedding_registry`, embedding model a parametry `qa_vector`. |
-| Konverzace | Kontextové přepsání před přípravou dotazu a historie již položených/nabídnutých otázek. |
+| Cascade and parameters | The active `edu_ai.settings.config.pipeline`: `step`, `enabled`, `params`, `on_hit`, run conditions; executed by `executor.py`, not by the reference `graph.py`. |
+| Organization | The settings of the root organization also apply to its units; without a matching row the global row is selected and finally the source fallback. |
+| Thresholds of a specific pack | The active `qa_pack_manifest.t_answer`, `t_suggest`, `m_margin`; explicit `qa_lexical` parameters can override them. |
+| Normalization | `normalization`, `engines`, the organization's languages, the normalization library and dictionaries; the index stoplist is added from `qa_stopword`. |
+| Synonyms and concepts | The active `qa_synonym`, language, group type and the coverage stoplist. |
+| Permissions and filters | `scope.py`, the entity hierarchy, the user registry, role, visibility/owner, validity, grades and domains. |
+| Guard and helper rules | `qa_blocklist`, the stoplists `meta_filler/meta_verb/coverage`, taxonomy, code lists and the language `system_message`; do not put executable prompts into documentation. |
+| Vector path | `qa_embedding`, the active `embedding_registry`, the embedding model and the `qa_vector` parameters. |
+| Conversation | Contextual rewriting before query preparation and the history of questions already asked/offered. |
 
-Výběr konfigurace je v [settings.py](../../search/app/settings.py#L433), řízení kroků v
-[executor.py](../../search/app/executor.py#L99). Cache aktivního nastavení je pět sekund a má
-klíč subjektu. Po vyřešení executor končí, pokud `on_hit` není `continue`; chybu kroku zachytí
-a pokračuje. Po vyčerpání využije odložené návrhy, jinak bezpečný `no_answer`.
+The configuration selection is in [settings.py](../../search/app/settings.py#L433), the step control in
+[executor.py](../../search/app/executor.py#L99). The cache of the active settings is five seconds and is
+keyed by subject. After a resolution the executor ends unless `on_hit` is `continue`; a step error is caught
+and execution continues. When the steps are exhausted it uses the deferred suggestions, otherwise a safe `no_answer`.
 
-## Aktuální provozní hodnoty
+## Current operating values
 
-Čtecí kontrola 11. 10. 2026 našla čtyři aktivní settings řádky: platformový, Kavčí hory,
-Svobodná škola Praha a Jedovnice. Jejich níže uvedená QA část byla shodná. Jednotky Kavčích hor
-přebírají profil kořenové organizace. Snapshot zachycuje tento okamžik; konfigurace není konstantou
-aplikace. Identifikátory a úplný povolený výpis jsou v lokálním ignorovaném
+The read-only check on 2026-10-11 found four active settings rows: the platform one, Kavčí hory,
+Svobodná škola Praha and Jedovnice. Their QA part listed below was identical. The units of Kavčí hory
+inherit the profile of the root organization. The snapshot captures this moment; the configuration is not a constant
+of the application. The identifiers and the full permitted listing are in the local ignored
 `tests/eval_out/main_closeout_20261011/QA_ACTIVE_SETTINGS_METADATA.json`.
 
-| Parametr aktivního profilu | Ověřená hodnota |
+| Active profile parameter | Verified value |
 |---|---|
-| Exact a lexical `form` | `[norm, lemma, stem]` |
+| Exact and lexical `form` | `[norm, lemma, stem]` |
 | Lexical `fetch_k` / `suggest_top_n` | `50 / 3` |
 | Lexical `synonyms` | `true` |
 | Lexical `trgm_suggest_min` | `0.40` |
 | `other_grade_top_n` / `other_grade_min_ratio` | `2 / 0.50` |
-| QA vector `cosine_min` | **`0.65`**, explicitní parametr aktivních profilů |
-| Exact / lexical / vector | všechny povolené, `on_hit=stop`; stop se uplatní až při vyřešeném výsledku |
+| QA vector `cosine_min` | **`0.65`**, an explicit parameter of the active profiles |
+| Exact / lexical / vector | all enabled, `on_hit=stop`; stop applies only when a result is resolved |
 | Guard `phrase_slack` | `3` |
-| Guard pořadí kategorií | `self_harm, hate, sexual, violence, profanity` |
-| Guard minimální severity | `1` pro každou uvedenou kategorii |
+| Guard category order | `self_harm, hate, sexual, violence, profanity` |
+| Guard minimum severity | `1` for each listed category |
 
-Aktivní profily neobsahovaly explicitní `t_answer`, `t_suggest` ani `m_margin`. Všech **sedm
-aktivních manifestů** mělo `0.60 / 0.30 / 0.08`: dva pro Svobodnou školu Praha, dva pro Jedovnice,
-jeden pro SOS Kavčí hory a dva pro ZS Kavčí hory. Kořen Kavčích hor neměl aktivní pack.
-Počty jsou počty aktivních manifestů, nikoli všech historických packů nebo záznamů.
+The active profiles did not contain an explicit `t_answer`, `t_suggest` or `m_margin`. All **seven
+active manifests** had `0.60 / 0.30 / 0.08`: two for Svobodná škola Praha, two for Jedovnice,
+one for SOS Kavčí hory and two for ZS Kavčí hory. The Kavčí hory root had no active pack.
+The counts are counts of active manifests, not of all historical packs or records.
 
-Runtime fallbacky běžícího search kontejneru byly také přečtené: A/B/C `0.60 / 0.30 / 0.08`,
-vector `0.75`, vector `fetch_k=20`, `tier_band=0.001`, návrhy `3` a lexical `fetch_k=50`.
-Pro vector nyní platí **0.65**, protože aktivní parametr přepisuje fallback **0.75**.
-Prahy a fallbacky jsou v lokálním `QA_THRESHOLD_METADATA.json`; kontrola nečetla QA texty,
-prompt texty ani klíče a neprováděla dotazy s LLM.
+The runtime fallbacks of the running search container were also read: A/B/C `0.60 / 0.30 / 0.08`,
+vector `0.75`, vector `fetch_k=20`, `tier_band=0.001`, suggestions `3` and lexical `fetch_k=50`.
+For vector, **0.65** now applies, because the active parameter overrides the fallback **0.75**.
+The thresholds and fallbacks are in the local `QA_THRESHOLD_METADATA.json`; the check did not read QA texts,
+prompt texts or keys and did not run queries with an LLM.
 
-## Příprava dotazu a normalizace
+## Query preparation and normalization
 
-Před QA kroky může backend přepsat navazující dotaz podle konverzace. `prepare` pak vytváří
-`norm`, `lemma` a `stem`; volí explicitní jazykový filtr nebo detekuje jazyk mezi povolenými
-jazyky organizace. Při nerozhodné detekci vytváří sjednocení forem povolených jazyků. Offline
-klient potřebuje zvolenou politiku jazyka a kontextu; samotná uložená indexová forma nestačí.
+Before the QA steps the backend may rewrite a follow-up query based on the conversation. `prepare` then creates
+`norm`, `lemma` and `stem`; it picks an explicit language filter or detects the language among the permitted
+languages of the organization. When detection is inconclusive it builds the union of the forms of the permitted languages. An offline
+client needs the chosen language and context policy; the stored index form alone is not enough.
 
-Normalizační knihovna ve zdroji má verzi **3.0.0**. Používá Unicode NFC; lemmatizace a stemming
-proběhnou nad slovem s diakritikou a folding až potom. `lowercase`, `strip_diacritics` a
-`drop_stopwords` mají zdrojový default `true`. Chybějící `stopwords_by_lang` je chyba; přítomná
-mapa bez daného jazyka znamená pro něj prázdný stoplist. Stemmer závisí na `engines`, jazyku,
-algoritmu a `min_len` se zdrojovým defaultem `3`. Query lemmatizace používá `simplemma`; při
-chybě se vrátí povrchový tvar. Detekce jazyka má ve zdroji seed `0`, práh `0.70` a zvláštní
-zpracování krátkých vstupů pod `200` znaků. To nejsou číselné váhy z QA manifestu.
+The normalization library in the source has version **3.0.0**. It uses Unicode NFC; lemmatization and stemming
+run on the word with diacritics and folding only afterwards. `lowercase`, `strip_diacritics` and
+`drop_stopwords` have a source default of `true`. A missing `stopwords_by_lang` is an error; a present
+map without the given language means an empty stoplist for it. The stemmer depends on `engines`, the language,
+the algorithm and `min_len` with a source default of `3`. Query lemmatization uses `simplemma`; on
+error the surface form is returned. Language detection has in the source a seed `0`, a threshold `0.70` and special
+handling of short inputs under `200` characters. These are not numeric weights from the QA manifest.
 
-Indexový stoplist a coverage stoplist jsou **dva rozdílné podklady**. Synonyma mají skupiny,
-jazyk a `kind`; expandují se entity skupiny, interrogative skupiny nerozšiřují OR dotaz ani
-obsahové koncepty. Víceslovná skupina se aktivuje při výskytu celého tokenového setu alespoň
-jednoho jejího termu v některé jeho formě, nikoli všech synonym skupiny. Frázová skupina navíc
-vytváří samostatný coverage koncept ze zbývajících rozlišujících tokenů. Koncepty používají
-prioritu lemma → stem → norm, odstranění coverage stopwords, interrogativ a duplicit.
+The index stoplist and the coverage stoplist are **two distinct inputs**. Synonyms have groups,
+a language and a `kind`; entity groups are expanded, interrogative groups do not expand the OR query nor
+the content concepts. A multi-word group is activated when the whole token set of at least
+one of its terms occurs in some form of it, not all synonyms of the group. A phrase group additionally
+creates a separate coverage concept from the remaining distinguishing tokens. Concepts use the
+priority lemma → stem → norm, removal of coverage stopwords, interrogatives and duplicates.
 
-Zdroje: [normalizer](../../search/eduai_normalize/eduai_normalize/normalize.py),
+Sources: [normalizer](../../search/eduai_normalize/eduai_normalize/normalize.py),
 [lemmatizer](../../search/eduai_normalize/eduai_normalize/lemmatizer.py),
 [prepare](../../search/app/nodes/prepare.py), [qa_common](../../search/app/nodes/qa_common.py#L110).
-Příklady tokenové parity jsou v [contracts/parity](../../contracts/parity/README.md).
-Neověřují pořadí výsledků, scope, prahy ani stejné odpovědi. APP je nyní známý a staticky
-prohlédnutý; odpovídající Dart port QA normalizace v jeho main nalezen nebyl. Normativní
-požadavek Python/Dart parity se tím nevydává za splněnou klientskou implementaci.
+Examples of token parity are in [contracts/parity](../../contracts/parity/README.md).
+They do not verify result order, scope, thresholds or identical answers. The APP is now known and statically
+inspected; a corresponding Dart port of the QA normalization was not found in its main. The normative
+Python/Dart parity requirement is thereby not passed off as a fulfilled client implementation.
 
-## Oprávnění a výběr packů
+## Permissions and pack selection
 
-Před rankingem se uplatní aktivita, entity/organization/private scope, role, platnost, jazyk,
-ročník/úroveň a zvolené oblasti. `valid_from <= CURRENT_DATE` a `valid_to >= CURRENT_DATE`;
-NULL je neomezené. Private materiál vyžaduje ověřeného vlastníka; nepoužívá audience-role větev
-stejným způsobem jako veřejnější materiál. Prázdná nebo nepovolená identita nesmí rozšířit scope.
+Before ranking, the following apply: activity, entity/organization/private scope, role, validity, language,
+grade/level and the selected domains. `valid_from <= CURRENT_DATE` and `valid_to >= CURRENT_DATE`;
+NULL is unlimited. Private material requires a verified owner; it does not use the audience-role branch
+in the same way as more public material. An empty or non-permitted identity must not widen the scope.
 
-Oblasti mají tři stavy: `None` nefiltruje, prázdný seznam nepovoluje nic a neprázdný seznam
-vyžaduje průnik. Manifest pouze předvybírá pack; matching filtruje metadata přímo na skenovaných
-variants/embeddings. Exportované entry a variant údaje se neposkládají automatickým děděním
-z manifestu. Žádný povolený pack se v backendu reprezentuje sentinelovou hodnotou `~none~`;
-prázdný seznam by některé navazující kroky četly jako všechny packy.
+Domains have three states: `None` does not filter, an empty list permits nothing and a non-empty list
+requires an intersection. The manifest only preselects a pack; matching filters the metadata directly on the scanned
+variants/embeddings. The exported entry and variant data are not composed by automatic inheritance
+from the manifest. No permitted pack is represented in the backend by the sentinel value `~none~`;
+an empty list would be read by some downstream steps as all packs.
 
-Ročník z otázky má při volbě packů přednost před profilem uživatele. Exact ročník a kompatibilní
-universal `9999` se řeší přes číselníky a `entity_grade_scope/grade_level`, nikoli přes vlastní
-pevnou tabulku mobilu. Pack bez ročníků je univerzální. Other-grade nabídky ročník uvolňují,
-ostatní oprávnění zachovávají.
+The grade from the question takes precedence over the user profile when selecting packs. An exact grade and the compatible
+universal `9999` are resolved via the code lists and `entity_grade_scope/grade_level`, not via a custom
+fixed table of the mobile app. A pack without grades is universal. Other-grade offers relax the grade and
+keep the other permissions.
 
-Zdroje: [scope.py](../../search/app/scope.py), [route.py](../../search/app/nodes/route.py#L646),
-[mobilní oblasti](mobile-domain-scope.md). Datum zařízení samo nezajišťuje důvěryhodnou platnost
-a lokální filtr sám nechrání již stažený soukromý obsah; offline distribuce musí vymezit oprávněný
-balík, důvěryhodný profil uživatele a zacházení s jeho platností.
+Sources: [scope.py](../../search/app/scope.py), [route.py](../../search/app/nodes/route.py#L646),
+[mobile domains](mobile-domain-scope.md). The device date alone does not ensure trustworthy validity
+and a local filter alone does not protect already downloaded private content; an offline distribution must define the permitted
+bundle, a trusted user profile and the handling of its validity.
 
 ## Router guard
 
-Router postupně řeší nepoužitelný vstup → meta dotaz → identity dotaz → blocklist. Meta/identity
-shoda používá celou folded otázku s případnými výplňovými slovy. Jednoslovné blocklist termy
-matchují celé norm/lemma tokeny. Fráze počítají unikátní tokenové zásahy v okně velikosti
-počet tokenů termu + phrase_slack; zvláštní kontrola zachovává českou negaci. Výsledek určí
-pořadí kategorií a minimální severity z aktivního profilu; záznamy a texty odpovědí jsou data.
-Chyba načtení blocklistu tuto guard kontrolu přeskočí, neprovádí se skryté blokování podle
-jiného slovníku. Tyto sémantiky musí budoucí klient výslovně převzít nebo vymezit odlišný profil.
+The router resolves in sequence: unusable input → meta query → identity query → blocklist. A meta/identity
+match uses the whole folded question with any filler words. Single-word blocklist terms
+match whole norm/lemma tokens. Phrases count unique token hits in a window of the size
+number of term tokens + phrase_slack; a special check preserves Czech negation. The result is determined by the
+category order and minimum severity from the active profile; the records and answer texts are data.
+A blocklist loading error skips this guard check; no hidden blocking by
+another dictionary is performed. A future client must explicitly adopt these semantics or define a different profile.
 
-Zdroj: [route.py](../../search/app/nodes/route.py#L547). Pro budoucí balík je třeba přenést
-politiku, relevantní číselníky a lokalizované zprávy; serverové API klíče ani executable prompty
-k tomu nepatří.
+Source: [route.py](../../search/app/nodes/route.py#L547). For a future bundle the policy,
+the relevant code lists and the localized messages need to be carried over; server API keys and executable prompts
+do not belong there.
 
-## Exact odpověď
+## Exact answer
 
-Stačí shoda celé pořadové tokenové sekvence **kterékoliv** nakonfigurované formy. Výběr preferuje
-vlastní subjekt → subjekt v organizaci → ostatní, potom stabilní `entry_id`. Vrátí autorskou
-odpověď se skóre a margin `1.0`, bez generování. Neshoda nebo chyba pokračuje.
+A match of the whole ordered token sequence in **any** configured form suffices. The selection prefers
+own subject → subject in the organization → others, then a stable `entry_id`. It returns the authored
+answer with a score and margin of `1.0`, without generation. A non-match or an error continues.
 
-Související otázky používají aktivní lexical profil, nikoli izolované defaulty exact kroku;
-odstraňují zodpovězenou otázku a deduplikují text. `suggest_top_n` se bere z exact parametru,
-potom lexical parametru, nakonec fallbacku. Zdrojový resolver formy má default `[norm, lemma]`,
-ale provozní profil výše výslovně používá i stem.
+Related questions use the active lexical profile, not the isolated defaults of the exact step;
+they remove the answered question and deduplicate the text. `suggest_top_n` is taken from the exact parameter,
+then the lexical parameter, finally the fallback. The source form resolver has a default `[norm, lemma]`,
+but the operating profile above explicitly uses stem too.
 
-Zdroj: [qa_exact.py](../../search/app/nodes/qa_exact.py).
+Source: [qa_exact.py](../../search/app/nodes/qa_exact.py).
 
-## Lexikální scoring a váhy
+## Lexical scoring and weights
 
-Backend sestaví OR query ze zvolených forem a synonym. Recall používá PostgreSQL
-`ts_rank_cd(..., to_tsquery('simple', ...))`; neposílá vlastní pole vah ani normalizační argument.
-Nejde o implementaci SQLite BM25. PostgreSQL default vah je v pořadí D/C/B/A
-`0.1 / 0.2 / 0.4 / 1.0`, normalizace ranku default `0`; cover-density zohledňuje pozice lexémů.
-[Definice PostgreSQL 16](https://www.postgresql.org/docs/16/textsearch-controls.html#TEXTSEARCH-RANKING).
+The backend builds an OR query from the chosen forms and synonyms. Recall uses PostgreSQL
+`ts_rank_cd(..., to_tsquery('simple', ...))`; it sends neither its own weight array nor a normalization argument.
+This is not an implementation of SQLite BM25. The PostgreSQL default weights in the order D/C/B/A are
+`0.1 / 0.2 / 0.4 / 1.0`, the rank normalization default is `0`; cover density takes the positions of lexemes into account.
+[PostgreSQL 16 definition](https://www.postgresql.org/docs/16/textsearch-controls.html#TEXTSEARCH-RANKING).
 
-`fetch_k` omezuje počet **variant** před agregací, nikoli počet unikátních odpovědí. Entry vezme
-maximum ranku nalezených variant a sjednocení jejich tokenů. Následují obsahové váhy:
+`fetch_k` limits the number of **variants** before aggregation, not the number of unique answers. An entry takes
+the maximum rank of its matched variants and the union of their tokens. The content weights follow:
 
 ```text
-N       = max(počet unikátních aktivních entries spojených s variants vybraných packů, 1)
-df_i    = počet entries obsahujících libovolný token konceptu i
+N       = max(number of unique active entries linked to the variants of the selected packs, 1)
+df_i    = number of entries containing any token of concept i
 w_i     = ln((N + 1) / (df_i + 1)) + 1
-coverage = součet vah zasažených konceptů / součet všech vah konceptů
+coverage = sum of weights of the hit concepts / sum of weights of all concepts
 margin   = (rank_1 - rank_2) / rank_1
 ```
 
-Bez použitelných vah se coverage změní na prostý podíl zasažených konceptů. Při jediném
-kandidátovi je `rank_2=0`; při nekladném `rank_1` je margin `1.0`. Margin je rozdíl ranků,
-nikoli rozdíl coverage ani pravděpodobnost správné odpovědi.
+Without usable weights the coverage turns into a plain share of the hit concepts. With a single
+candidate `rank_2=0`; with a non-positive `rank_1` the margin is `1.0`. The margin is a difference of ranks,
+not a difference of coverage nor the probability of a correct answer.
 
-Pořadí entries je lexikografické `(grade_tier, entity_tier, -round(rank, 6), -coverage)`.
-Ročník exact má tier `0`, universal nebo bez ročníků `1`, ostatní `2`; bez známého ročníku je
-ročníkový tier stejný. Entity tier je vlastní `0`, organizace `1`, ostatní `2`. Nejde o součet
-například „70 % lexical + 30 % škola“; lepší tier má přednost před následujícím skóre.
+The entry order is lexicographic `(grade_tier, entity_tier, -round(rank, 6), -coverage)`.
+An exact grade has tier `0`, universal or without grades `1`, others `2`; without a known grade the
+grade tier is the same. The entity tier is own `0`, organization `1`, others `2`. It is not a sum
+of, for example, "70% lexical + 30% school"; a better tier takes precedence over the following score.
 
-Prahy se řeší **parametr kroku → manifest vítězného packu → environment/code fallback**.
-Aktuální čtyři profily A/B/C override nemají, ale budoucí změna settings ho může přidat bez
-reexportu packu. Exporter ukládá manifestové hodnoty, nikoli jejich účinný přepis.
+The thresholds are resolved **step parameter → manifest of the winning pack → environment/code fallback**.
+The current four profiles have no A/B/C override, but a future settings change can add one without
+re-exporting the pack. The exporter stores the manifest values, not their effective override.
 
-| Větev | Podmínka a výsledek |
+| Branch | Condition and result |
 |---|---|
-| A | `coverage >= t_answer`, `margin >= m_margin` a topical gate neodmítl hit → autorská odpověď. |
-| B-deferred | `coverage >= t_suggest`, ne A → uložení návrhů a **pokračování kaskády**. Konečná nabídka nastane, když další kroky neodpovědí. |
-| C | nižší coverage → pokračování; mohou zůstat fallback nabídky pro výsledný `no_answer`. |
+| A | `coverage >= t_answer`, `margin >= m_margin` and the topical gate did not reject the hit → authored answer. |
+| B-deferred | `coverage >= t_suggest`, not A → suggestions are stored and the **cascade continues**. The final offer happens when the further steps do not answer. |
+| C | lower coverage → continues; fallback offers may remain for the resulting `no_answer`. |
 
-Topical admission vyžaduje vhodný společný vzácný koncept s `df/N` nejvýše povolenou hranicí.
-Pomocné příznaky `query_in_corpus` a chybějící koncepty ovlivňují navazující fallback.
-Při nulovém fulltext recall vznikají typo návrhy přes `pg_trgm`, similarity
-`1 - (norm_text <-> query_norm)`. Práh se zde testuje na nejlepším hitu, nikoli znovu na každém
-vráceném trigram návrhu; z tohoto fallbacku nikdy nevzniká přímá odpověď A.
+Topical admission requires a suitable shared rare concept with `df/N` at most the permitted limit.
+The helper flags `query_in_corpus` and missing concepts influence the downstream fallback.
+With zero full-text recall, typo suggestions arise via `pg_trgm`, similarity
+`1 - (norm_text <-> query_norm)`. The threshold is tested here on the best hit, not again on each
+returned trigram suggestion; a direct answer A never arises from this fallback.
 
-Zdroje: [qa_lexical.py](../../search/app/nodes/qa_lexical.py#L291),
-[IDF a coverage](../../search/app/nodes/qa_common.py#L273).
+Sources: [qa_lexical.py](../../search/app/nodes/qa_lexical.py#L291),
+[IDF and coverage](../../search/app/nodes/qa_common.py#L273).
 
-### Proč nestačí dopočítat IDF z jednoho SQLite souboru
+### Why computing the IDF from a single SQLite file is not enough
 
-Backendový statistický dotaz používá vybrané pack IDs a aktivní entries, vždy `ts_norm || ts_lemma`.
-Nemá stejný `v.is_active` ani entity/role/validity/domain filtr jako dotaz vybírající kandidáty.
-Komentář kódu tuto asymetrii eviduje jako předchozí chování; audit ji neopravuje. Export naproti
-tomu obsahuje jen scoped aktivní variants **jednoho** packu. Při stejných vybraných pack IDs
-backend nezúží N/df oblastí; oblast může změnit statistiky prostřednictvím výběru jiných packů
-v routeru. Pokud klient dopočítá statistiky pouze z jednoho packu nebo z vybrané oblasti,
-použije jiný korpus. Neaktivní uložené variants ovlivňují existenci entry ve statistickém joinu
-a df. Stejná formule nad jinými daty proto nevytvoří stejné váhy.
+The backend statistics query uses the selected pack IDs and active entries, always `ts_norm || ts_lemma`.
+It does not have the same `v.is_active` or entity/role/validity/domain filter as the query selecting candidates.
+The code comment records this asymmetry as previous behaviour; the audit does not fix it. The export, by contrast,
+contains only the scoped active variants of **one** pack. With the same selected pack IDs the
+backend does not narrow N/df by domains; a domain can change the statistics by way of the selection of other packs
+in the router. If a client computes the statistics only from one pack or from a selected domain, it
+uses a different corpus. Inactive stored variants affect the existence of an entry in the statistics join
+and df. The same formula over different data therefore does not produce the same weights.
 
-SQLite FTS5 indexy také samy nereprodukují `ts_rank_cd`, PostgreSQL trigram similarity, tiering
-a margin. [SQLite FTS5](https://www.sqlite.org/fts5.html). Přesná parita vyžaduje kompatibilní
-ranking i přesně definovaný statistický korpus; není důvod přenášet do mobilu neoprávněná data
-jen kvůli rekonstrukci denominatoru.
+SQLite FTS5 indexes also do not reproduce `ts_rank_cd`, PostgreSQL trigram similarity, tiering
+and margin on their own. [SQLite FTS5](https://www.sqlite.org/fts5.html). Exact parity requires a compatible
+ranking and a precisely defined statistics corpus; there is no reason to carry unauthorized data to the mobile
+merely to reconstruct the denominator.
 
-## Další parametry a nabídky
+## Other parameters and offers
 
-Tabulka rozlišuje zdrojový fallback od explicitního provozního parametru výše. Nepřítomný parametr
-neznamená vypnutou funkci; nastupuje default příslušného kroku. Číselné hodnoty nejsou konstantami
-budoucího klienta.
+The table distinguishes the source fallback from the explicit operating parameter above. An absent parameter
+does not mean a disabled feature; the default of the respective step applies. The numeric values are not constants
+of a future client.
 
-| Parametr | Zdrojový default | Význam |
+| Parameter | Source default | Meaning |
 |---|---|---|
-| `t_answer / t_suggest / m_margin` | `0.60 / 0.30 / 0.08` | Poslední fallback A/B/C. |
-| `fetch_k / suggest_top_n` | `50 / 3` | Variant recall a počet lexical návrhů. |
+| `t_answer / t_suggest / m_margin` | `0.60 / 0.30 / 0.08` | The last fallback for A/B/C. |
+| `fetch_k / suggest_top_n` | `50 / 3` | Variant recall and the number of lexical suggestions. |
 | `synonyms` | `true` | Entity synonym expansion. |
-| `trgm_suggest_min` | `0.40` | Podmínka nejlepšího typo hitu. |
-| `topical_admission / topical_max_df_share` | `true / 0.25` | Gate pro přímou lexical odpověď. |
-| `related_suggestions` | `true` | Related otázky vedle exact odpovědi. |
-| `related_admission` | `off`, podporuje `rare` | Extra admission related otázek. |
-| `related_cross_pack_min` | `0.70` | Vyšší coverage floor pro related z jiného packu. |
-| `related_category_fill` | `true` | Naplnění prázdné lexical related řady. |
-| `related_category_topup` | `true` | Doplňování krátké exact/vector related řady; false stále dovolí naplnění prázdné. |
-| `other_grade_top_n` | `2` | Maximum oddělených nabídek jiných ročníků. |
-| `other_grade_min_ratio` | `0.50` | Podíl nejlepšího ranku pro other-grade nabídku. |
-| `other_grade_max_df_share` | `0.10` | Odstranění příliš obecných tokenů v offered korpusu. |
-| `other_grade_min_rank` | `0.15` | Absolutní minimum other-grade ranku. |
-| Vector `cosine_min / fetch_k / tier_band` | `0.75 / 20 / 0.001` | Zdrojový semantic fallback; aktivní floor je 0.65. |
-| Vector `suggest_top_n` | `3` | Related návrhy vedle vektorové odpovědi. |
-| Route `phrase_slack / meta_max_words / identity_max_words` | `3 / 10 / 8` | Guard phrase okno, krátká meta/identity otázka. |
+| `trgm_suggest_min` | `0.40` | Condition on the best typo hit. |
+| `topical_admission / topical_max_df_share` | `true / 0.25` | Gate for a direct lexical answer. |
+| `related_suggestions` | `true` | Related questions next to an exact answer. |
+| `related_admission` | `off`, supports `rare` | Extra admission of related questions. |
+| `related_cross_pack_min` | `0.70` | Higher coverage floor for related from another pack. |
+| `related_category_fill` | `true` | Filling an empty lexical related row. |
+| `related_category_topup` | `true` | Topping up a short exact/vector related row; false still allows filling an empty one. |
+| `other_grade_top_n` | `2` | Maximum of separate offers of other grades. |
+| `other_grade_min_ratio` | `0.50` | Share of the best rank for an other-grade offer. |
+| `other_grade_max_df_share` | `0.10` | Removal of overly general tokens in the offered corpus. |
+| `other_grade_min_rank` | `0.15` | Absolute minimum of the other-grade rank. |
+| Vector `cosine_min / fetch_k / tier_band` | `0.75 / 20 / 0.001` | Source semantic fallback; the active floor is 0.65. |
+| Vector `suggest_top_n` | `3` | Related suggestions next to a vector answer. |
+| Route `phrase_slack / meta_max_words / identity_max_words` | `3 / 10 / 8` | Guard phrase window, short meta/identity question. |
 | Route `meta_intent_guard` | `true` | Meta intent guard. |
 
-Related otázka z jiného packu musí projít jak lexical floor, tak cross-pack floor. Kategorie je
-stejný `tags.category` v **packu zodpovězené entry**, se zachováním identity, ročníků, platnosti
-a oblasti. Ročníkový filtr siblings používá ročníky **zodpovězené entry**, nikoli přímo profil
-uživatele. Při předaných konceptech siblings řadí coverage, jinak stabilní `entry_key`; lexical
-A používá IDF váhy, exact/vector finalizace jednotkové váhy jednoduchých obsahových tokenů.
-Other-grade návrhy používají obsah bez synonym, vlastní df filtr, rank floor a poměr k nejlepší
-shodě. Wrapper je může přidat i vedle již vyřešené odpovědi.
+A related question from another pack must pass both the lexical floor and the cross-pack floor. The category is
+the same `tags.category` in the **pack of the answered entry**, preserving identity, grades, validity
+and domain. The grade filter of siblings uses the grades of the **answered entry**, not the user
+profile directly. With concepts passed in, siblings order by coverage, otherwise by a stable `entry_key`; lexical
+A uses IDF weights, exact/vector finalizations unit weights of simple content tokens.
+Other-grade suggestions use content without synonyms, their own df filter, a rank floor and a ratio to the best
+match. The wrapper can add them even next to an already resolved answer.
 
-Konverzační dedupe vyřazuje již položené otázky a posouvá již zobrazené, nepoužité nabídky na konec.
-Offline klient potřebuje vlastní historii. Zdroje: [qa_common](../../search/app/nodes/qa_common.py#L350),
+Conversation dedupe removes already asked questions and moves already shown, unused offers to the end.
+An offline client needs its own history. Sources: [qa_common](../../search/app/nodes/qa_common.py#L350),
 [qa_exact](../../search/app/nodes/qa_exact.py#L137), [conversation](../../search/app/conversation.py),
-[config fallbacky](../../search/app/config.py#L94).
+[config fallbacks](../../search/app/config.py#L94).
 
-## QA vector a hranice offline režimu
+## QA vector and the limits of offline mode
 
-QA vector z registry vybere model a hledá cosine distance nad dostupnými QA embeddings.
-V pásmu `distance <= min(distance) + tier_band` preferuje vlastní subjekt → organizaci → ostatní,
-potom distance a `entry_id`. `similarity = 1 - distance`; až vybraný hit musí projít cosine floor.
-Bez aktivních vektorů pro model přeskočí embedding dotazu, při chybě pokračuje.
+QA vector selects a model from the registry and searches by cosine distance over the available QA embeddings.
+In the band `distance <= min(distance) + tier_band` it prefers own subject → organization → others,
+then distance and `entry_id`. `similarity = 1 - distance`; only the selected hit must pass the cosine floor.
+Without active vectors for the model it skips the query embedding, on error it continues.
 
-Vektory, model registry ani běhový embedding model současný SQLite pack neobsahuje. Offline
-návrh musí určit, zda tuto cestu podporuje kompatibilním lokálním modelem, nebo zveřejní omezený
-exact/lexical profil. Obdobně offline QA pack neobsahuje RAG dokumentové chunky, generátor ani
-LLM přepsání follow-up dotazu. Zdroj: [qa_vector.py](../../search/app/nodes/qa_vector.py).
+The current SQLite pack contains neither the vectors, nor the model registry, nor the runtime embedding model. An offline
+design must decide whether it supports this path with a compatible local model or publishes a limited
+exact/lexical profile. Likewise the offline QA pack contains no RAG document chunks, no generator and no
+LLM rewriting of follow-up queries. Source: [qa_vector.py](../../search/app/nodes/qa_vector.py).
 
-## Co se skutečně přenáší
+## What is actually transferred
 
-| Podklad | SQLite export dnes | Dopad |
+| Input | SQLite export today | Impact |
 |---|---|---|
-| Odpovědi, canonical otázky a varianty | Ano: `entries`, `variants` | Obsah je dostupný. |
-| `t_answer`, `t_suggest`, `m_margin` | Ano v `pack_manifest` | Jen manifestové prahy, ne účinný profil settings. |
-| Norm/lemma/stem texty | Ano | Query normalizátor a jeho konfigurace chybí. |
-| FTS | `variants_fts` nad norm+lemma, `variants_tri` nad norm | Stem není ve FTS indexu; backend algoritmus se tím nepřenáší. |
-| Entity, visibility/owner, role, grade/domain a platnost | Ano jako metadata řádků | Klient je musí vyhodnotit; export nyní filtruje entity+active, nikoli datum či identitu/roli příjemce. |
-| Category, tags a asset_refs | Ano | Related politika chybí; citované soubory nejsou automaticky přibalené. |
-| Pipeline a scoring parametry | Ne | Chybí enabled/on_hit, form, limity, gates a related politika. |
-| Stoplisty, synonyma, engines a jazyková data | Ne | Chybí shodné zpracování dotazu a konceptů. |
-| Guard pravidla a jazykové zprávy | Ne | Nezaručená stejná guard politika. |
-| Hierarchie a číselníky | Ne | Samotná číselná ID nevysvětlují organizační vztahy, oblasti a ročníky. |
-| IDF statistický korpus | Ne | Jediný exportovaný pack obecně nestačí pro backendové N/df. |
-| QA embedding/model | Ne | Semantic cesta není tímto packem zajištěná. |
-| Běhová verze/hash pravidel | Ne | `schema_version` je verze nahraného QA formátu, nikoli scoring/normalizer profile. |
-| Mobilní import/download protokol | V prohlédnutém APP main není QA import/lookup | Exportér vrací místní `pack_path`; existující chat je online, backend → mobilní offline QA cesta zde není implementovaná. |
+| Answers, canonical questions and variants | Yes: `entries`, `variants` | The content is available. |
+| `t_answer`, `t_suggest`, `m_margin` | Yes in `pack_manifest` | Only the manifest thresholds, not the effective settings profile. |
+| Norm/lemma/stem texts | Yes | The query normalizer and its configuration are missing. |
+| FTS | `variants_fts` over norm+lemma, `variants_tri` over norm | Stem is not in the FTS index; the backend algorithm is not carried over by it. |
+| Entity, visibility/owner, role, grade/domain and validity | Yes as row metadata | The client must evaluate them; the export now filters entity+active, not the date or the recipient's identity/role. |
+| Category, tags and asset_refs | Yes | The related policy is missing; the cited files are not bundled automatically. |
+| Pipeline and scoring parameters | No | Missing enabled/on_hit, form, limits, gates and the related policy. |
+| Stoplists, synonyms, engines and language data | No | Identical processing of the query and concepts is missing. |
+| Guard rules and language messages | No | The same guard policy is not guaranteed. |
+| Hierarchy and code lists | No | The numeric IDs alone do not explain organizational relations, domains and grades. |
+| IDF statistics corpus | No | A single exported pack is in general not enough for the backend N/df. |
+| QA embedding/model | No | The semantic path is not ensured by this pack. |
+| Runtime version/hash of the rules | No | `schema_version` is the version of the uploaded QA format, not of the scoring/normalizer profile. |
+| Mobile import/download protocol | The inspected APP main has no QA import/lookup | The exporter returns a local `pack_path`; the existing chat is online, a backend → mobile offline QA path is not implemented here. |
 
-Přesný schválený layout je [SQLite kontrakt](../../contracts/sqlite-qa-export.md) a
-[DDL](../../contracts/sqlite-qa-export.sql); implementace je v
-[exportním flow](../../langflow_flows/ingestion/EDU_AI_EXPORT_QA_PACK.json).
-CSV `/v1/qa-export` a portálový ZIP `manifest.json + packs/*.csv` slouží editaci/reuploadu;
-neobsahují úplný runtime profil ani tokenové indexy. Zdroje:
+The exact approved layout is the [SQLite contract](../../contracts/sqlite-qa-export.md) and the
+[DDL](../../contracts/sqlite-qa-export.sql); the implementation is in the
+[export flow](../../langflow_flows/ingestion/EDU_AI_EXPORT_QA_PACK.json).
+The CSV `/v1/qa-export` and the portal ZIP `manifest.json + packs/*.csv` serve editing/reupload;
+they contain neither the full runtime profile nor the token indexes. Sources:
 [qa_csv](../../search/app/qa_csv.py), [export service](../../qa_portal/backend/app/services/export_service.py),
 [ZIP](../../qa_portal/backend/app/services/zip_io.py), [qa_admin metadata](../../search/app/qa_admin.py).
 
-## Požadavky na budoucí offline kontrakt
+## Requirements for a future offline contract
 
-Nejprve určit rozsah: shodný QA engine, nebo výslovně verzovaný omezený offline engine.
-Vlastní SQLite ranking se stejnými názvy parametrů není automaticky shodný QA engine.
-Rozšíření exportního schématu, prahů nebo kaskády vyžaduje samostatný návrh a souhlas podle
-AGENTS.md; následující seznam je požadavek, nikoli již implementovaný formát.
+First determine the scope: an identical QA engine, or an explicitly versioned limited offline engine.
+A custom SQLite ranking with the same parameter names is not automatically an identical QA engine.
+Extending the export schema, the thresholds or the cascade requires a separate proposal and approval under
+AGENTS.md; the following list is a requirement, not an already implemented format.
 
-1. **Svázaný snapshot:** obsah packů a účinný profil organizace ze stejného exportního bodu;
-   identita settings, verze obsahu, normalizátoru, algoritmu a slovníků, hash a kompatibilita klienta.
-2. **Účinné parametry:** resolved A/B/C prahy i ostatní limity/gates/form a related politika;
-   pravidla pro explicitní override, fallback a kombinaci více packů.
-3. **Normalizace:** engine/language konfigurace, stoplisty všech používaných scopes, synonymní
-   skupiny a slovníky nebo definovaný kompatibilní runtime. Žádné pevné tenant/jazyk hodnoty v klientu.
-4. **Ranking:** přesná definice ranku, IDF corpus/df, tierů, marginu, trigram fallbacku a category
-   řazení. Pro backendovou paritu testovat korpus více packů a nepřenášet neoprávněná data kvůli statistikám.
-5. **Filtry a oprávnění:** autorizační export/profil příjemce, hierarchie, role/owner/validity,
-   číselníky a tři stavy oblasti, i pro návrhy a other-grade cestu.
-6. **Capabilities:** exact/lexical/vector/context/guard a způsob chování při chybějícím modelu,
-   expirovaném balíku, neznámé verzi, chybějících datech či nenalezené odpovědi.
-7. **Doručení a aktualizace:** download/import, kontrola součtů, atomické nahrazení celého svázaného
-   snapshotu, zachování místní konverzace a návrat k poslednímu platnému balíku.
-8. **Parity sada:** syntetické dotazy a očekávané tokeny, vybraný entry_id, rank/coverage/margin,
-   rozhodnutí, nabídky a scope; překlepy, více packů, ročníky, platnost, změna profilu a odmítnutí neznámé verze.
+1. **Bound snapshot:** the content of the packs and the effective profile of the organization from the same export point;
+   the identity of the settings, the versions of the content, the normalizer, the algorithm and the dictionaries, a hash and client compatibility.
+2. **Effective parameters:** resolved A/B/C thresholds and also the other limits/gates/form and the related policy;
+   rules for explicit override, fallback and the combination of multiple packs.
+3. **Normalization:** engine/language configuration, stoplists of all scopes in use, synonym
+   groups and dictionaries or a defined compatible runtime. No hard-coded tenant/language values in the client.
+4. **Ranking:** an exact definition of rank, the IDF corpus/df, the tiers, the margin, the trigram fallback and the category
+   ordering. For backend parity test a multi-pack corpus and do not carry unauthorized data for the sake of the statistics.
+5. **Filters and permissions:** an authorization export/recipient profile, hierarchy, role/owner/validity,
+   code lists and the three domain states, also for suggestions and the other-grade path.
+6. **Capabilities:** exact/lexical/vector/context/guard and the behaviour when the model is missing,
+   the bundle has expired, the version is unknown, data are missing or the answer is not found.
+7. **Delivery and updates:** download/import, checksum verification, atomic replacement of the whole bound
+   snapshot, preservation of the local conversation and a return to the last valid bundle.
+8. **Parity suite:** synthetic queries and expected tokens, the chosen entry_id, rank/coverage/margin,
+   decisions, offers and scope; typos, multiple packs, grades, validity, a profile change and rejection of an unknown version.
 
-## Historické rozpory a jejich oprava
+## Historical discrepancies and their correction
 
-Tabulka zachovává nálezy původního auditu. Uvedené formulace v QA fast-path a parity README byly dokumentačně opraveny 2026-10-12; backendové chování se tím nemění. Mezery offline exportu a klientské parity zůstávají otevřené.
+The table preserves the findings of the original audit. The listed wordings in the QA fast-path and the parity README were corrected in the documentation on 2026-10-12; the backend behaviour is not changed by this. The gaps of the offline export and of client parity remain open.
 
-| Místo | Popis v dokumentaci | Zkoumaný kód |
+| Place | Description in the documentation | Examined code |
 |---|---|---|
-| `docs/ai/qa-fastpath.md` | B je terminální stop | B-deferred pokračuje; vyřešená A skončí podle on_hit. |
-| Stejná stránka | manifest → params → fallback | params → manifest → fallback. |
-| Stejná stránka | prostý podíl konceptů | IDF weighted coverage, s plain fallbackem. |
-| Stejná stránka | category stabilně entry_key | při konceptech coverage; jinak entry_key. |
-| Stejná stránka | „No time-based expiry“ | runtime WHERE kontroluje valid_from/valid_to. |
-| Stejná stránka | other-grade pouze když vlastní ročník nic nemá | wrapper může nabídky přidat i k odpovědi. |
-| Parity README | existující offline Dart engine v jiném repo | APP existuje; QA normalizační port/pack engine v prohlédnutém main nalezen nebyl, klientská parita není PASS. |
+| `docs/ai/qa-fastpath.md` | B is a terminal stop | B-deferred continues; a resolved A ends according to on_hit. |
+| The same page | manifest → params → fallback | params → manifest → fallback. |
+| The same page | plain share of concepts | IDF weighted coverage, with a plain fallback. |
+| The same page | category stably entry_key | with concepts coverage; otherwise entry_key. |
+| The same page | "No time-based expiry" | the runtime WHERE checks valid_from/valid_to. |
+| The same page | other-grade only when the own grade has nothing | the wrapper can add offers even next to an answer. |
+| Parity README | an existing offline Dart engine in another repo | the APP exists; a QA normalization port/pack engine was not found in the inspected main, client parity is not PASS. |
 
-`SETTINGS_REFERENCE` uvádí referenční vector floor `0.65`; zdrojový fallback je `0.75`.
-Čtecí snapshot potvrdil explicitní aktivní `0.65`, takže zde jde o různé konfigurační vrstvy,
-nikoli o důvod přepsat jednu hodnotu druhou. Souhrn ostatních konfigurací:
-[SETTINGS_REFERENCE](../SETTINGS_REFERENCE.md). Důkazy auditu zůstávají mimo Git; do mobilního
-balíku se nesmějí přibalit serverové klíče, executable prompty nebo rozšířený školní obsah.
+`SETTINGS_REFERENCE` states a reference vector floor of `0.65`; the source fallback is `0.75`.
+The read-only snapshot confirmed an explicit active `0.65`, so these are different configuration layers,
+not a reason to overwrite one value with the other. A summary of the other configurations:
+[SETTINGS_REFERENCE](../SETTINGS_REFERENCE.md). The audit evidence remains outside Git; server keys,
+executable prompts or extended school content must not be bundled into the mobile package.

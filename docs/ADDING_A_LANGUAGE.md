@@ -22,7 +22,7 @@ live local stack (Langflow 1.10.1, `eduai_normalize` 1.5.0) by activating German
 Spanish and deactivating Czech end to end.*
 
 > **Step 0, before anything else: insert the row into `code_list('language')`.**
-> That číselník is the single registry of languages — the search API, the web chat
+> That code list is the single registry of languages — the search API, the web chat
 > and the ingestion API all read the active set from it at runtime, and
 > `detect_lang` may only return a language listed there. Insert it
 > **`is_active = false`**, fill in the layers below, and flip it to active LAST;
@@ -37,7 +37,7 @@ Two distinct scenarios, and the difference matters:
 | **B** | **REPLACE** Czech with German (a German-school deployment) | the same checklist, plus §7 (retiring cs) |
 
 The architecture is deliberately language-parametric — most work is DATA
-(číselníky), not code. Nothing needs installing: both reduction engines already
+(code lists), not code. Nothing needs installing: both reduction engines already
 ship German in our images (verified: simplemma `de` dictionary 2.2 MB,
 snowballstemmer has `german` among its 36 algorithms).
 
@@ -47,7 +47,7 @@ snowballstemmer has `german` among its 36 algorithms).
 
 - **DB schema** — every language-bearing table already carries a `lang` column
   (`qa_stopword`, `qa_synonym`, `qa_blocklist`, `qa_pack_manifest`,
-  `system_message`, `prompt_registry`), and `code_list` is a generic číselník.
+  `system_message`, `prompt_registry`), and `code_list` is a generic code list.
 - **Chunk/QA storage** — `chunk_norm/lemma/stem_text` + `ts_*` are built with
   the `simple` Postgres config, i.e. no language logic in the index; the tokens
   arrive already reduced. `langdetect_result` records which language did it.
@@ -91,7 +91,7 @@ only reason this is usable for us, since index and query must resolve the same
 text to the same language or the stored tokens stop matching.
 
 **What a new language needs from the detector: nothing.** langdetect ships 55
-languages and `allowed` comes from the registry, so activating a číselník row is
+languages and `allowed` comes from the registry, so activating a code list row is
 enough. It abstains rather than guessing, and an abstention is handled (ingest
 falls back and records 0.4; the query unions languages).
 
@@ -146,7 +146,7 @@ Code is needed only for a genuinely new *algorithm*.
 parity vectors (`contracts/parity/`) and **re-ingest documents of the
 affected languages** — old rows keep tokens reduced by the old rules.
 
-## 3. Layer 2 — číselníky (pure data, migrations)
+## 3. Layer 2 — code lists (pure data, migrations)
 
 | Table | Rows to add |
 |---|---|
@@ -211,9 +211,9 @@ language:
 
 | Where | What to change |
 |---|---|
-| `system_message` číselník | needs ALL active keys × the new language; the current seed contains 13 keys listed below. **`guard_self_harm` must not be a translation** — a German deployment needs a German helpline, not Linka bezpečí. Missing rows try the registry's UI-default language. Only five keys have a code fallback; other missing keys may return an empty string. Do not assume every missing message becomes Czech text. |
+| `system_message` code list | needs ALL active keys × the new language; the current seed contains 13 keys listed below. **`guard_self_harm` must not be a translation** — a German deployment needs a German helpline, not Linka bezpečí. Missing rows try the registry's UI-default language. Only five keys have a code fallback; other missing keys may return an empty string. Do not assume every missing message becomes Czech text. |
 | `search/app/messages.py` | the last literal `"cs"` in the service, deliberately: the guard must never crash, so if the registry read fails it degrades to Czech rather than raising. Change the constant when Czech is retired. |
-| `web_chat/web_chat.py` | error strings ("Odpověď nyní trvá příliš dlouho…") are hardcoded Czech in code, bypassing `system_message`. Move them to the číselník. |
+| `web_chat/web_chat.py` | error strings ("Odpověď nyní trvá příliš dlouho…") are hardcoded Czech in code, bypassing `system_message`. Move them to the code list. |
 | `web_chat/frontend/index.html`, `tools/*.html` | `<html lang="cs">` and the UI labels. The web chat also does not send `language` at all, so it searches across every language — see the separate web-chat task. |
 | `tools/*.html` — `pickLabel` | fallback chain UI language → `en` → `cs` → code. Harmless, but the `cs` tail is an assumption. |
 | `search/app/languages.py` — `ui_default_language()` | the ONLY sanctioned reader of `is_ui_default`. If a processing path ever reaches for it, that is the bug this split exists to prevent. |
@@ -268,7 +268,7 @@ Czech, and ingesting German / Spanish / bilingual PDFs.
 | Part | Estimate |
 |---|---|
 | Library | **0 h** — `snowball_<language>` and simplemma resolve from configuration; verified in code, not assumed |
-| Číselníky + engines + prompts (data; sourcing a stoplist/blocklist is the work) | 3–4 h |
+| Code lists + engines + prompts (data; sourcing a stoplist/blocklist is the work) | 3–4 h |
 | Parity vectors + `check_vectors.py` | 1 h |
 | Presentation layer (§6b) if the language becomes the house language | 2 h |
 | E2E incl. a bilingual document | 2 h |

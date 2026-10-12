@@ -1,28 +1,28 @@
-# Číselník: Provoz školy a Bezpečnost a zdraví
+# Code list: Provoz školy and Bezpečnost a zdraví
 
-> **Historický záznam (7. 9. 2026).** Příkazy, tagy obrazů, SHA a stav produkce platí jen pro tehdejší stav; nepoužívejte je jako aktuální postup. Aktuální nginx konfigurace je `nginx/conf/nginx.conf` (Compose mountuje adresář `nginx/conf`), starší `nginx/nginx.conf` ji nenahrazuje.
+> **Historical record (7 Sep 2026).** The commands, image tags, SHAs and production state apply only to the state at that time; do not use them as a current procedure. The current nginx configuration is `nginx/conf/nginx.conf` (Compose mounts the `nginx/conf` directory); the older `nginx/nginx.conf` does not replace it.
 
-Následně nasazeno na produkci společně s
-[doménami jednotlivých QA odpovědí a reingestem](2026-09-07_qa_entry_domains.md).
-Níže je původní záznam přípravy migrace.
+Subsequently deployed to production together with the
+[domains of individual QA answers and the reingest](2026-09-07_qa_entry_domains.md).
+Below is the original record of the migration preparation.
 
-Na žádost uživatele byly 7. 9. 2026 doplněny domény `SCHOOL_OPERATIONS`
-(Provoz školy) a `SCHOOL_SAFETY` (Bezpečnost a zdraví). Překlady jsou v cs,
-en, de a es. Kódy mají standardní vyhledávací roli a nemají nová routerová
-klíčová slova. Změna nepřiřazuje domény existujícím FAQ ani dokumentům.
+At the user's request, on 7 Sep 2026 the domains `SCHOOL_OPERATIONS`
+(Provoz školy) and `SCHOOL_SAFETY` (Bezpečnost a zdraví) were added. The translations are in cs,
+en, de and es. The codes have the standard search role and have no new router
+keywords. The change does not assign domains to existing FAQs or documents.
 
-## Instalace
+## Installation
 
-[Migrace 214](../../postgres/init/214_school_operations_safety_domains.sql)
-přidá chybějící kódy globálně a ke všem vlastníkům aktivního DOMAIN katalogu.
-Nevytváří vlastní katalog škole, která jej dědí: tím by zastínila zděděné
-oblasti. Opakovaný běh zachovává existující řádky, jejich ID, kurátorské
-úpravy i neaktivní kódy. Při pozdějším založení vlastního katalogu musí
-kurátor zahrnout i tyto domény, pokud je škola potřebuje.
+[Migration 214](../../postgres/init/214_school_operations_safety_domains.sql)
+adds the missing codes globally and to all owners of an active DOMAIN catalog.
+It does not create a separate catalog for a school that inherits one: that would shadow the inherited
+domains. A repeated run preserves existing rows, their IDs, curator
+edits and inactive codes. When a separate catalog is created later, the
+curator must include these domains as well, if the school needs them.
 
-Na existující databázi je nutné migraci spustit explicitně; samotný commit,
-pull ani restart kontejneru ji neaplikuje. Například z kořene repozitáře
-v shellu sh/bash na cílovém serveru:
+On an existing database the migration must be run explicitly; a commit,
+a pull or a container restart alone does not apply it. For example from the repository root
+in an sh/bash shell on the target server:
 
 ```sh
 docker compose exec -T postgres sh -c \
@@ -30,35 +30,35 @@ docker compose exec -T postgres sh -c \
   < postgres/init/214_school_operations_safety_domains.sql
 ```
 
-Pro nový prázdný datový svazek se po konsolidovaném seedu provede
-[identická doplňková SQL migrace](../../postgres/init_clean/03_school_operations_safety_domains.sql).
-Generované dumpy se nemění. Shodu obou SQL souborů kontroluje test;
-při úpravě se kopie obnoví z migrace 214.
+For a new empty data volume, after the consolidated seed the
+[identical supplementary SQL migration](../../postgres/init_clean/03_school_operations_safety_domains.sql) is run.
+The generated dumps do not change. A test checks that the two SQL files match;
+when editing, the copy is regenerated from migration 214.
 
-API `/v1/domains` čte katalog při každém požadavku. Webchat načítá stejný
-katalog přes BFF, takže nevyžaduje změnu frontendu; již otevřený chat je
-třeba obnovit. Na cílovém prostředí ověřit oba kódy přes katalog se skutečnou
-entitou a potom jejich dostupnost ve výběru oblastí. Bez označeného obsahu
-je `no_answer` při výběru nové oblasti očekávatelný.
+The `/v1/domains` API reads the catalog on every request. The webchat loads the same
+catalog through the BFF, so it requires no frontend change; an already open chat
+needs to be refreshed. On the target environment verify both codes via the catalog with a real
+entity and then their availability in the domain selection. Without labelled content,
+`no_answer` is to be expected when selecting the new domain.
 
-## Ověření
+## Verification
 
-- `python tests/test_school_domains_migration.py`: prošlo. PostgreSQL test
-  používá izolované schéma s rollbackem a skutečnou funkci řešení katalogu.
-  Ověřuje vlastní, zděděný i globální katalog, zachování původní domény,
-  opakovaný běh, neaktivní kód, překlady a kurátorskou úpravu.
-- Lokální migrace vložila 6 záznamů: globál a dva vlastní katalogy Nové Vsi.
-  GET katalogu vrátil nové kódy se správnou diakritikou. POST `/v1/ask` pro
-  každou novou doménu vrátil HTTP 200 a odpovídající `effective_scope.domains`;
-  outcome byl `no_answer`.
-- Normalizační parita: všech 30 vektorů prošlo. Spuštění souboru v kontejneru
-  potřebuje `PYTHONPATH=/app`; `stoplist.json` musí zůstat vedle testu.
-- `python -X utf8 docs/tools/docs_check.py`: prošlo.
-- `python -X utf8 tests/eval_rag.py --repeat 3`: 43 případů, 39 `no_answer`,
-  3 meta odpovědi, 1 chyba. Případ N34 požaduje `ZS_KAVCI_HORY_ZS`, která
-  v lokálním seedu neexistuje (HTTP 400). Regrese tedy není plně zelená a
-  bez reálného korpusu nepotvrzuje kvalitu odpovědí. Použit byl aktuální
-  pracovní regresní soubor, jehož již existující úprava není součástí commitu.
+- `python tests/test_school_domains_migration.py`: passed. The PostgreSQL test
+  uses an isolated schema with a rollback and the real catalog resolution function.
+  It verifies an own, an inherited and a global catalog, preservation of the original domain,
+  a repeated run, an inactive code, the translations and a curator edit.
+- The local migration inserted 6 records: the global one and two own catalogs of Nová Ves.
+  A GET of the catalog returned the new codes with correct diacritics. A POST `/v1/ask` for
+  each new domain returned HTTP 200 and the corresponding `effective_scope.domains`;
+  the outcome was `no_answer`.
+- Normalization parity: all 30 vectors passed. Running the file in a container
+  needs `PYTHONPATH=/app`; `stoplist.json` must stay next to the test.
+- `python -X utf8 docs/tools/docs_check.py`: passed.
+- `python -X utf8 tests/eval_rag.py --repeat 3`: 43 cases, 39 `no_answer`,
+  3 meta answers, 1 error. Case N34 requires `ZS_KAVCI_HORY_ZS`, which does not exist
+  in the local seed (HTTP 400). The regression is thus not fully green and
+  without a real corpus does not confirm the quality of the answers. The current
+  working regression file was used, whose already existing modification is not part of the commit.
 
-Produkce nebyla změněna. Browser test na produkci nebyl proveden. Následujícím
-samostatným datovým krokem je označení odpovědí packu `faq-provoz`.
+Production was not changed. A browser test on production was not performed. The following
+separate data step is labelling the answers of the `faq-provoz` pack.

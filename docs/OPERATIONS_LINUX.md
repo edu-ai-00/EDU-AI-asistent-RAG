@@ -1,12 +1,13 @@
-# EDU-AI — provoz na Linuxu
+# EDU-AI — operations on Linux
 
-Novou instalaci připravuje [průvodce](CLEAN_INSTALL.md). Zdroj, konfigurace a stav
-mají samostatné adresáře; provozní tajnosti a data se nepřidávají do Git.
-Tento návod ani laboratorní nástroje nezavádějí podporovaný produkční upgrade.
+A new installation is prepared by the [wizard](CLEAN_INSTALL.md). The source, the
+configuration and the state have separate directories; operational secrets and data
+are not added to Git. Neither this guide nor the lab tools introduce a supported
+production upgrade.
 
-## Kontrola běžícího stacku
+## Checking the running stack
 
-Pro výchozí layout:
+For the default layout:
 
 ```bash
 SRC=$HOME/edu-ai/src
@@ -19,47 +20,51 @@ python3 scripts/db_roles.py verify --container edu_ai_postgres
 docker compose --project-directory "$SRC" --env-file "$CFG/.env" -f "$SRC/docker-compose.yml" -p "$PROJECT" ps
 ```
 
-Vyžadujte role `MATCH`, smoke bez FAIL a očekávané běžící služby. Vypnutý volitelný
-Cloudflare nebo chat čekající na školu mají výslovný stav. Smoke je neplacená
-funkční kontrola; nenahrazuje ingest, regresi na vlastním korpusu ani test obnovy.
+Require roles `MATCH`, a smoke without FAIL and the expected running services. A
+disabled optional Cloudflare or a chat waiting for a school have an explicit
+status. The smoke is a free functional check; it does not replace an ingest, a
+regression on your own corpus or a restore test.
 
-## Škola a poskytovatel
+## School and provider
 
-Nová konfigurace umožňuje výběr aktivní školy v `/chat/`. Uživatel ji vybírá
-v prohlížeči, žádný další SQL ani terminálový příkaz není potřeba. Změna školy
-vyčistí konverzaci a oblasti. Výběr nepředstavuje autentizaci ani přidělení role.
-Pevná instalace může mít `CHAT_LEGAL_ENTITY`; existující konfiguraci průvodce zachová.
+A new configuration allows selecting an active school in `/chat/`. The user selects
+it in the browser; no additional SQL or terminal command is needed. A school change
+clears the conversation and the domains. The selection is neither authentication
+nor a role assignment. A fixed installation may have `CHAT_LEGAL_ENTITY`; the
+wizard keeps an existing configuration.
 
-Poskytovatele a jeho klíč spravuje Bifrost. Administrační přístup omezte; klíče
-nevkládejte do Git ani do veřejných reportů. Placené ověření potřebuje vlastní
-rozsah, testovací vstupy a zaznamenaný výsledek.
+The provider and its key are managed by Bifrost. Restrict administration access;
+do not put keys into Git or into public reports. A paid verification needs its own
+scope, test inputs and a recorded result.
 
 ## QA export
 
-Exportérem je Langflow flow `langflow_flows/ingestion/EDU_AI_EXPORT_QA_PACK.json` (alias `edu-ai-export-qa-pack`).
-Nástroje a rozhraní najdete v [scripts/README.md](../scripts/README.md),
-[tools/README.md](../tools/README.md) a [indexu testů](../tests/README.md).
-SQLite export obsahuje QA data; je soukromým výstupem konkrétní instalace.
-[QA audit](integrations/offline-qa-rules.md) popisuje přenášená pravidla a mezery
-pro mobilní offline provoz. FTS index sám nedokládá paritu.
+The exporter is the Langflow flow `langflow_flows/ingestion/EDU_AI_EXPORT_QA_PACK.json` (alias `edu-ai-export-qa-pack`).
+The tools and interfaces are in [scripts/README.md](../scripts/README.md),
+[tools/README.md](../tools/README.md) and the [test index](../tests/README.md).
+The SQLite export contains QA data; it is a private output of the specific
+installation. The [QA audit](integrations/offline-qa-rules.md) describes the
+transferred rules and the gaps for mobile offline operation. The FTS index alone
+does not document parity.
 
-## Záloha, obnova a změna zdroje
+## Backup, restore and source change
 
-Záloha musí zahrnout obě databáze, role, externí config včetně klíčů, potřebné
-bind mounty a named volumes, zdroj i identitu image. Obsahuje tajnosti; chraňte ji
-a ověřte SHA-256 i skutečnou obnovu na vlastní izolované kopii. Změna souboru nebo
-large object vložená po záloze musí po obnově zmizet. Aplikace spouštějte až po
-kontrole rolí, dat, klíčů, souborů a správných image.
+A backup must include both databases, the roles, the external config including
+keys, the necessary bind mounts and named volumes, the source and the image
+identity. It contains secrets; protect it and verify the SHA-256 as well as an
+actual restore on your own isolated copy. A file change or a large object added
+after the backup must disappear after the restore. Start the applications only
+after checking the roles, data, keys, files and the correct images.
 
-[`tools/lab/`](../tools/lab/README.md) obsahuje starší laboratorní pomocníky.
-[`tools/lab/cycle/`](../tools/lab/cycle/README.md) je driver s přísnými vlastnickými
-branami pro jediný layout; nelze ho vydávat za obecný updater. Před jeho použitím
-ověřte všechny předpoklady z jeho README. Migrační runner B03e je schválen pouze
-pro izolované syntetické databáze; nepoužívejte ho na produkci ani školní instalaci.
-Kontrakt rolí: [B06 C2](plans/b06-c2-role-contract.md).
+[`tools/lab/`](../tools/lab/README.md) contains older lab helpers.
+[`tools/lab/cycle/`](../tools/lab/cycle/README.md) is a driver with strict owner
+gates for a single layout; it must not be presented as a general updater. Before
+using it, verify all the prerequisites from its README. The B03e migration runner
+is approved only for isolated synthetic databases; do not use it on production or a
+school installation. Roles contract: [B06 C2](plans/b06-c2-role-contract.md).
 
-Vydání zaznamenává přesný commit, image, testy a omezení. Starý PASS pro jiný
-commit nenahrazuje nový čistý průchod. Viz [RELEASING.md](RELEASING.md).
+A release records the exact commit, images, tests and limitations. An old PASS for
+a different commit does not replace a new clean run. See [RELEASING.md](RELEASING.md).
 
-Skutečná VM evidence a hranice finálního zdroje: [public-source.md](releases/public-source.md).
-QA exact může fungovat bez provider klíče; generované odpovědi a embeddingy potřebují Bifrost.
+Actual VM evidence and the boundary of the final source: [public-source.md](releases/public-source.md).
+QA exact can work without a provider key; generated answers and embeddings need Bifrost.

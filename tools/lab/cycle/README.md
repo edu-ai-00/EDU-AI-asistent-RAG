@@ -1,60 +1,60 @@
-# tools/lab/cycle — záloha, update a obnova jednoho ověřeného laboratorního layoutu
+# tools/lab/cycle — backup, update and restore of one verified lab layout
 
-> **Stav: laboratorní driver pro jediný layout, bez podpory obecného produkčního upgradu.**
-> Nepoužívat na produkci, školní instalaci ani cizí stack. Migrační runner B03e se zde nepoužívá.
-> Veřejný checkout neobsahuje soukromé důkazy skutečné obnovy.
+> **Status: lab driver for a single layout, with no support for a general production upgrade.**
+> Do not use on production, on a school installation or on someone else's stack. The B03e migration runner is not used here.
+> The public checkout does not contain the private evidence of an actual restore.
 
-Na rozdíl od starších [`tools/lab/acc_*.sh`](../README.md) před každým přístupem k cílovému stacku ověří hostname, výchozí Docker engine
-(root dir), Compose projekt a štítky všech kontejnerů, pracovní adresář, mounty (jen uvnitř `src`/`config`/`state`),
-symlinky a absolutní kanonické cesty. Cizí kontejner na enginu, jiný adresář nebo jiné jméno hostitele = odmítnutí.
+Unlike the older [`tools/lab/acc_*.sh`](../README.md), before every access to the target stack it verifies the hostname, the default Docker engine
+(root dir), the Compose project and the labels of all containers, the working directory, mounts (only inside `src`/`config`/`state`),
+symlinks and absolute canonical paths. A foreign container on the engine, a different directory or a different hostname = refusal.
 
-## Příkazy (`cycle.py`)
+## Commands (`cycle.py`)
 
-Layout: `--src --cfg --state --project --expect-host --backup-root` nebo `EDU_AI_SOURCE_ROOT`, `EDU_AI_CONFIG_DIR`,
-`EDU_AI_STATE_DIR`, `EDU_AI_COMPOSE_PROJECT`, `CYCLE_EXPECT_HOST`, `CYCLE_BACKUP_ROOT`; dále `--evidence-dir` a
-`--running-from` (adresář, ze kterého běžící kontejnery vznikly, výchozí `--src`).
+Layout: `--src --cfg --state --project --expect-host --backup-root` or `EDU_AI_SOURCE_ROOT`, `EDU_AI_CONFIG_DIR`,
+`EDU_AI_STATE_DIR`, `EDU_AI_COMPOSE_PROJECT`, `CYCLE_EXPECT_HOST`, `CYCLE_BACKUP_ROOT`; further `--evidence-dir` and
+`--running-from` (the directory the running containers were created from, default `--src`).
 
-| Příkaz | Co dělá |
+| Command | What it does |
 |---|---|
-| `gate` | jen ověří vlastnictví stacku |
-| `egress ensure|check|probe` | DROP pravidla pro sítě `edge` a `bifrost_egress` v `DOCKER-USER`, ověření sondami zevnitř kontejnerů a kladnou kontrolou |
-| `backup NAME` | uloží image (`docker save`), zastaví všechny služby kromě `postgres`, pořídí raw baseline, dumpy, globals, role, soubory, named volumes a vše ověří; služby znovu spustí |
-| `verify-backup NAME` | úplná kontrola zálohy (SHA-256, úplnost, bezpečnost archivů, TOC dumpů) |
-| `update --from-src A --backup NAME --sha SHA` | build a `up --force-recreate` z cílového checkoutu nad stejným configem/state/projektem |
-| `markers put|check ID` | syntetické značky po záloze (soubory v každém mountu, large object v obou DB) |
-| `compare-live NAME` | rozdíl živého stavu proti záloze (počty, ne obsah) |
-| `restore NAME --confirm-overwrite-own-stack` | zastaví a odstraní kontejnery stacku, uloží původní stav stranou (`pre-restore-*`), načte image, obnoví soubory a čistý PostgreSQL klastr, spustí `db_roles.py reapply` a `verify`, porovná syrový stav; **aplikace nespouští** |
-| `verify-restore NAME` | opakuje porovnání dokončené obnovy proti celé záloze, jen když aplikace neběží; při shodě vytvoří novou značku |
-| `start-apps NAME` | ověří značku téže zálohy i host/projekt/cesty, znovu provede úplné porovnání a kontrolu původních image; značku spotřebuje před spuštěním aplikací |
+| `gate` | only verifies ownership of the stack |
+| `egress ensure|check|probe` | DROP rules for the `edge` and `bifrost_egress` networks in `DOCKER-USER`, verification by probes from inside the containers and a positive control |
+| `backup NAME` | saves the images (`docker save`), stops all services except `postgres`, takes the raw baseline, dumps, globals, roles, files, named volumes and verifies everything; starts the services again |
+| `verify-backup NAME` | full check of the backup (SHA-256, completeness, archive safety, dump TOC) |
+| `update --from-src A --backup NAME --sha SHA` | build and `up --force-recreate` from the target checkout over the same config/state/project |
+| `markers put|check ID` | synthetic markers after the backup (files in every mount, a large object in both DBs) |
+| `compare-live NAME` | difference of the live state against the backup (counts, not content) |
+| `restore NAME --confirm-overwrite-own-stack` | stops and removes the stack's containers, sets the original state aside (`pre-restore-*`), loads the images, restores the files and a clean PostgreSQL cluster, runs `db_roles.py reapply` and `verify`, compares the raw state; **does not start the applications** |
+| `verify-restore NAME` | repeats the comparison of the completed restore against the whole backup, only when the applications are not running; on a match it creates a new marker |
+| `start-apps NAME` | verifies the marker of the same backup and the host/project/paths, performs the full comparison again and a check of the original images; it consumes the marker before starting the applications |
 
-`cycle_checks.py` (neplacené funkční kontroly, volitelně `--smoke --export`) a `cycle_export.py` (skutečný SQLite export).
-Samostatné `cycle_export.py` a čtecí `cycle_flowdiff.py` nyní také vyžadují úplný layout
-`--src --cfg --state --project --expect-host --backup-root`, případně `--running-from`.
-Flow diff navíc používá `.env` z `--cfg` a odmítá Langflow URL mimo loopback nginx `http://127.0.0.1:8444` tohoto laboratorního layoutu.
-`cycle_checks.py --export` předává exporteru stejný ověřený layout.
+`cycle_checks.py` (unpaid functional checks, optionally `--smoke --export`) and `cycle_export.py` (an actual SQLite export).
+The standalone `cycle_export.py` and the read-only `cycle_flowdiff.py` now also require the full layout
+`--src --cfg --state --project --expect-host --backup-root`, optionally `--running-from`.
+In addition, the flow diff uses the `.env` from `--cfg` and rejects a Langflow URL outside the loopback nginx `http://127.0.0.1:8444` of this lab layout.
+`cycle_checks.py --export` passes the same verified layout to the exporter.
 
-## Záruky a hranice
+## Guarantees and limits
 
-- Zálohu nelze použít, dokud neprojde `verify_bundle`: seznam souborů přesně odpovídá `SHA256SUMS`, všechny hashe sedí,
-  žádný symlink, žádný archiv s absolutní cestou, `..`, hardlinkem, zařízením nebo zápisem přes symlink.
-- Chyba před bodem bez návratu nic nezničí. Pozdější chyba obnovy (image, soubory, `pg_restore`, role, porovnání)
-  ukončí příkaz bez spuštění aplikací; `restore_ok.json` se na začátku maže a bez něj `start-apps` odmítne.
-- Značka je jednorázová, vázaná na celý layout. `start-apps` znovu kontroluje SHA-256 zálohy,
-  živá data, konfiguraci, soubory, zdroj a původní image/tagy; stará značka sama není důkaz aktuálního stavu.
-  Update a zápis syntetických značek ji zneplatní. Značka starší verze bez layoutu se odmítne;
-  novou lze získat jen přes `verify-restore` s vypnutými aplikacemi a úplnou shodou.
-- Cache (`reranker_models`) se nezálohuje; `postgres_data` kryjí logické dumpy (fyzický PGDATA jen kopie stranou při obnově).
-- Zálohy obsahují tajnosti (`.env`, klíče, hashe hesel): adresář 0700, soubory 0600, jen na VM; výstup nástrojů nese jen názvy,
-  počty a otisky.
-- Chyby subprocessů zveřejňují pouze návratový kód nebo typ selhání. Argumenty, stderr/stdout,
-  third-party exception texty a neznámá pole probe odpovědí se do konzole ani JSON evidence nekopírují.
-  Rozdílné položky schématu se v JSON uvádějí otiskem; soukromý bundle ponechává podklady pro diagnostiku.
-- Názvy záloh a syntetických značek jsou jeden bezpečný ASCII segment o nejvýše 64 znacích.
+- A backup cannot be used until it passes `verify_bundle`: the file list exactly matches `SHA256SUMS`, all hashes match,
+  no symlink, no archive with an absolute path, `..`, a hardlink, a device or a write through a symlink.
+- An error before the point of no return destroys nothing. A later restore error (images, files, `pg_restore`, roles, comparison)
+  ends the command without starting the applications; `restore_ok.json` is deleted at the start and without it `start-apps` refuses.
+- The marker is single-use, bound to the whole layout. `start-apps` re-checks the backup's SHA-256,
+  the live data, the configuration, the files, the source and the original images/tags; an old marker alone is not evidence of the current state.
+  An update and the writing of synthetic markers invalidate it. A marker from an older version without a layout is refused;
+  a new one can be obtained only through `verify-restore` with the applications off and a full match.
+- The cache (`reranker_models`) is not backed up; `postgres_data` is covered by the logical dumps (the physical PGDATA is only a copy set aside during a restore).
+- Backups contain secrets (`.env`, keys, password hashes): directory 0700, files 0600, on the VM only; the tools' output carries only names,
+  counts and fingerprints.
+- Subprocess errors disclose only the return code or the type of failure. Arguments, stderr/stdout,
+  third-party exception texts and unknown fields of probe responses are not copied into the console or the JSON evidence.
+  Differing schema items are given in the JSON by fingerprint; the private bundle retains the material for diagnostics.
+- Names of backups and synthetic markers are a single safe ASCII segment of at most 64 characters.
 
-Testy: `python3 tests/test_cycle_driver.py` (offline, bez Dockeru; bundle, cesty, odmítnutí, pořadí obnovy).
+Tests: `python3 tests/test_cycle_driver.py` (offline, no Docker; bundle, paths, refusals, restore order).
 
-## Ověření
+## Verification
 
-Offline testy kontrolují bundle, cesty, odmítnutí, pořadí obnovy a brány CLI.
-Konkrétní nasazení vyžaduje vlastní skutečný cyklus se zaznamenaným SHA, layoutem,
-image a součty. Offline PASS neprokazuje živou obnovu ani obecný produkční upgrade.
+The offline tests check the bundle, paths, refusals, restore order and the CLI gates.
+A specific deployment requires its own actual cycle with a recorded SHA, layout,
+images and checksums. An offline PASS does not prove a live restore or a general production upgrade.

@@ -1,16 +1,16 @@
-# Renderování architektonických diagramů
+# Rendering the architecture diagrams
 
-Editovatelné zdroje jsou v [architecture/diagrams](../architecture/diagrams/).
-[Architektonický přehled](../architecture/deployment.md) vkládá jejich SVG; PNG slouží pro nástroje,
-které SVG nepodporují. Zdrojový Mermaid je uložený samostatně, proto GitHub nemusí renderovat
-Mermaid bloky přímo v Markdownu.
+The editable sources are in [architecture/diagrams](../architecture/diagrams/).
+The [architecture overview](../architecture/deployment.md) embeds their SVGs; the PNGs serve tools
+that do not support SVG. The Mermaid source is stored separately, so GitHub may not render
+Mermaid blocks directly in Markdown.
 
-Volitelný [lokální helper](render_architecture.cjs) používá již dostupné Mermaid a Playwright.
-Neinstaluje balíčky, nemění stack a nepotřebuje Docker ani přístup k VM. Pro tuto sadu byl použit
-Mermaid 11.12.1 a Playwright 1.62.1 s lokálním Chrome 154.0.8037.99. Jiná verze nebo fonty
-mohou změnit rozměry; po každé regeneraci je nutná vizuální kontrola.
+The optional [local helper](render_architecture.cjs) uses the already available Mermaid and Playwright.
+It installs no packages, does not change the stack and needs neither Docker nor access to a VM. For this set,
+Mermaid 11.12.1 and Playwright 1.62.1 with a local Chrome 154.0.8037.99 were used. A different version or fonts
+may change the dimensions; a visual check is necessary after every regeneration.
 
-Z kořene checkoutu, s vlastními lokálními cestami:
+From the checkout root, with your own local paths:
 
 ```bash
 node docs/tools/render_architecture.cjs \
@@ -19,13 +19,13 @@ node docs/tools/render_architecture.cjs \
   --browser-executable /path/to/chrome
 ```
 
-Poslední argument lze vynechat, pokud Playwright má svůj browser. Helper regeneruje čtyři
-SVG a PNG do stávajícího adresáře; renderer ani závislosti se nekopírují do runtime image.
-SVG používají nativní text bez externích obrázků a bez executable promptů. Síťové SVG má
-přidaný title/desc, protože block-beta parser Mermaid tyto direktivy dosud nepřijímá.
+The last argument can be omitted if Playwright has its own browser. The helper regenerates the four
+SVGs and PNGs into the existing directory; neither the renderer nor the dependencies are copied into the runtime image.
+The SVGs use native text without external images and without executable prompts. The network SVG has
+an added title/desc, because the Mermaid block-beta parser does not accept these directives yet.
 
-Po regeneraci otevřete všechny čtyři PNG/SVG, zkontrolujte překryvy textu a šipek,
-spusťte `make docs-check` a prohlédněte `git diff --check`. SVG a PNG neupravujte ručně.
+After regeneration, open all four PNG/SVG files, check the overlaps of text and arrows,
+run `make docs-check` and inspect `git diff --check`. Do not edit the SVG and PNG by hand.
 
-Diagramy se aktualizují při změně Compose sítí/portů, nginx cest nebo logiky executoru.
-Aktivní organizace může mít jinou pipeline; neprezentujte zdrojový diagram jako výpis živé konfigurace.
+The diagrams are updated when the Compose networks/ports, the nginx paths or the executor logic change.
+An active organisation may have a different pipeline; do not present the source diagram as a dump of the live configuration.

@@ -1,122 +1,126 @@
-# Návrh automatizace CI/CD
+# CI/CD automation proposal
 
-> **Stav: budoucí návrh, ne návod.** Nic z navržené CI/CD automatizace není
-> implementované a stránka není podporovaný produkční postup, automatický upgrade
-> ani doložená obnova. Neexistují `.github/workflows/`, `deploy/services.yml`,
-> `deploy/docker-compose.prod.yml` ani `scripts/deploy.sh`. Existuje jen
-> `scripts/migrate.py` (B03e-1) a jeho rozsah je **omezen na izolované syntetické
-> databáze**, nikoli produkci nebo školní instalace
+> **Status: future proposal, not a guide.** None of the proposed CI/CD automation
+> is implemented, and this page is not a supported production procedure, an
+> automatic upgrade or a documented restore. `.github/workflows/`,
+> `deploy/services.yml`, `deploy/docker-compose.prod.yml` and `scripts/deploy.sh`
+> do not exist. Only `scripts/migrate.py` (B03e-1) exists, and its scope is
+> **limited to isolated synthetic databases**, not production or school installations
 > ([AGENTS.md](AGENTS.md), [spec.migration-registry](specs/active/spec.migration-registry.md)).
-> Skutečný postup instalace je [CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md), stav
-> aktualizací [b06-upgrade-strategy.md](docs/plans/b06-upgrade-strategy.md).
+> The actual installation procedure is [CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md); the status
+> of updates is in [b06-upgrade-strategy.md](docs/plans/b06-upgrade-strategy.md).
 
-## Shrnutí
+## Summary
 
-Nasazovací mechaniku projektu lze automatizovat téměř úplně. Kód není příliš
-komplikovaný; současná rizika vznikají hlavně tím, že produkce nemá jednoznačný
-„desired state“ a část deploye závisí na ručním výběru souborů, znalosti vazeb
-mezi soubory a Docker images a na ruční evidenci migrací.
+The project's deployment mechanics can be automated almost completely. The code is
+not overly complicated; the current risks arise mainly because production has no
+unambiguous "desired state" and part of the deployment depends on manual file
+selection, knowledge of the links between files and Docker images, and manual
+tracking of migrations.
 
-Doporučený cílový proces:
+Recommended target process:
 
 ```text
-merge do main
+merge to main
       ↓
-vytvoření prod-* tagu / GitHub Release
+create a prod-* tag / GitHub Release
       ↓
-testy + sestavení Docker images
+tests + build Docker images
       ↓
-produkční deploy runner
+production deploy runner
       ↓
-backup → migrace → deploy → healthcheck → smoke test
+backup → migrations → deploy → healthcheck → smoke test
       ↓
-úspěch: záznam release
-chyba: automatický rollback images a konfigurace
+success: record the release
+failure: automatic rollback of images and configuration
 ```
 
-Automatizace může spolehlivě ověřit, že se image sestavil, migrace proběhla,
-služby jsou zdravé a smoke test prošel. Funkční nebo obsahovou správnost změny
-ale dokáže potvrdit pouze tehdy, pokud pro ni existuje automatický test.
+Automation can reliably verify that an image was built, the migration ran, the
+services are healthy and the smoke test passed. It can confirm the functional or
+content correctness of a change only if an automatic test exists for it.
 
-## Spouštění produkčního deploye
+## Triggering a production deployment
 
-Text v commit message není vhodný řídicí mechanismus. Doporučený model:
+Text in a commit message is not a suitable control mechanism. Recommended model:
 
-1. Push nebo pull request do `main` spustí CI a sestavení.
-2. Produkční deploy spustí až tag ve tvaru `prod-YYYY-MM-DD.N` nebo vytvoření
-   GitHub Release.
-3. Až bude pipeline dostatečně prověřená, lze přejít na automatický deploy
-   každého merge do chráněné větve `main`.
+1. A push or pull request to `main` triggers CI and the build.
+2. A production deployment is triggered only by a tag of the form
+   `prod-YYYY-MM-DD.N` or by creating a GitHub Release.
+3. Once the pipeline is sufficiently proven, it is possible to move to an
+   automatic deployment of every merge into the protected `main` branch.
 
-Tag nebo Release je jednoznačný, auditovatelný pokyn „toto je update“ a přesně
-určuje commit, který se má nasadit.
+A tag or Release is an unambiguous, auditable instruction "this is an update" and
+determines exactly which commit is to be deployed.
 
-## Produkční runner
+## Production runner
 
-Nejjednodušší varianta pro současnou infrastrukturu je GitHub Actions
-self-hosted runner na produkčním serveru nebo na samostatném stroji připojeném
-do stejné VPN.
+The simplest option for the current infrastructure is a GitHub Actions
+self-hosted runner on the production server or on a separate machine connected to
+the same VPN.
 
-Runner navazuje odchozí spojení na GitHub, takže kvůli CI není nutné otevírat
-produkční SSH do internetu. Produkční runner však má přes Docker prakticky
-administrátorská oprávnění, a proto musí platit:
+The runner makes outbound connections to GitHub, so there is no need to expose
+production SSH to the internet for CI. However, a production runner has
+practically administrator privileges through Docker, and therefore the following
+must hold:
 
-- runner smějí používat pouze produkční deploy workflow;
-- na produkčním runneru se nikdy nespouští kód z běžného pull requestu;
-- větev `main`, produkční tagy a GitHub Environment musí být chráněné;
-- secrets se ukládají mimo Git, ideálně přímo na serveru nebo jako chráněné
+- only the production deploy workflow may use the runner;
+- code from an ordinary pull request is never run on the production runner;
+- the `main` branch, the production tags and the GitHub Environment must be protected;
+- secrets are stored outside Git, ideally directly on the server or as protected
   environment secrets;
-- současně může běžet nejvýše jeden produkční deploy.
+- at most one production deployment may run at a time.
 
-## Průběh deploye
+## Deployment flow
 
-Deployer by měl provést následující kroky:
+The deployer should perform the following steps:
 
-1. Zjistit poslední úspěšně nasazený release.
-2. Určit změněné soubory vůči tomuto release.
-3. Namapovat změny na dotčené služby.
-4. Spustit relevantní testy a `docker compose config --quiet`.
-5. Sestavit immutable Docker images označené SHA commitu a uložit je do
+1. Find the last successfully deployed release.
+2. Determine the files changed relative to that release.
+3. Map the changes to the affected services.
+4. Run the relevant tests and `docker compose config --quiet`.
+5. Build immutable Docker images tagged with the commit SHA and store them in a
    container registry.
-6. Vytvořit databázový backup.
-7. Spustit dosud neaplikované databázové migrace.
-8. Nasadit pouze dotčené služby.
-9. Pokud se změnily Langflow flows, importovat jejich novou verzi.
-10. Spustit healthchecky, `scripts/smoke.py` a test skutečně změněné funkce.
-11. Zapsat commit, čas, image digesty, migrace a výsledek do release záznamu.
-12. Při chybě vrátit předchozí images a konfiguraci a označit deploy jako
-    neúspěšný.
+6. Create a database backup.
+7. Run the database migrations not yet applied.
+8. Deploy only the affected services.
+9. If Langflow flows changed, import their new version.
+10. Run the healthchecks, `scripts/smoke.py` and a test of the function that
+    actually changed.
+11. Write the commit, time, image digests, migrations and result to the release record.
+12. On failure, restore the previous images and configuration and mark the
+    deployment as failed.
 
-Build musí vycházet přímo z přesného Git commitu. Tím odpadne ruční SCP,
-odstraňování CRLF a chyba, kdy byl zdrojový soubor zkopírován na server, ale
-jeho Docker image nebyl přestavěn.
+The build must come directly from the exact Git commit. This eliminates manual
+SCP, CRLF removal and the error where a source file was copied to the server but
+its Docker image was not rebuilt.
 
-## Mapování změn na služby
+## Mapping changes to services
 
-Mapování musí být verzované například v `deploy/services.yml`. Neznámá cesta
-má pipeline zastavit, nikoli být potichu ignorována.
+The mapping must be versioned, for example in `deploy/services.yml`. An unknown
+path must stop the pipeline rather than be silently ignored.
 
-| Změněná cesta | Akce |
+| Changed path | Action |
 |---|---|
-| `api/**` | test a rebuild `edu_ai_api` |
-| `search/app/**` | test a rebuild `edu_ai_search` |
+| `api/**` | test and rebuild `edu_ai_api` |
+| `search/app/**` | test and rebuild `edu_ai_search` |
 | `search/requirements.txt` | rebuild `edu_ai_search` |
-| `search/eduai_normalize/**` | rebuild `edu_ai_search` i Langflow image `edu_ai` |
-| `web_chat/**` | pytest, frontend build a rebuild `edu_ai_web_chat` |
-| `requirements-langflow.txt`, kořenový `Dockerfile` | rebuild `edu_ai` |
-| `Dockerfile.postgres` | rebuild Postgres image; nasazovat se zvýšenou opatrností |
-| `postgres/migrations/*.sql` (číslo ≥ 217) | migration runner; jen izolované syntetické DB, viz [Databázové migrace](#databázové-migrace) |
-| `postgres/init/*.sql`, `postgres/init_clean/**` | jen historie a generovaný základ B216; runner je nespouští, změna vyžaduje schválení a regeneraci |
-| `qa_portal/**` | test a rebuild `edu_ai_qa_admin` (služba v návrhu chyběla) |
-| `langflow_flows/**` | test invariantů a nasazení flow podle [Langflow flows](#langflow-flows) |
-| `nginx/**` | validace `nginx -t` a nasazení nginx konfigurace/image |
-| Compose soubory | validace konfigurace a vyhodnocení dotčených služeb |
-| `docs/**`, `README.md` | bez produkčního deploye |
+| `search/eduai_normalize/**` | rebuild both `edu_ai_search` and the Langflow image `edu_ai` |
+| `web_chat/**` | pytest, frontend build and rebuild `edu_ai_web_chat` |
+| `requirements-langflow.txt`, root `Dockerfile` | rebuild `edu_ai` |
+| `Dockerfile.postgres` | rebuild the Postgres image; deploy with extra caution |
+| `postgres/migrations/*.sql` (number ≥ 217) | migration runner; isolated synthetic DBs only, see [Database migrations](#database-migrations) |
+| `postgres/init/*.sql`, `postgres/init_clean/**` | history and the generated B216 baseline only; the runner does not run them, a change requires approval and regeneration |
+| `qa_portal/**` | test and rebuild `edu_ai_qa_admin` (the service was missing from the proposal) |
+| `langflow_flows/**` | invariant tests and flow deployment per [Langflow flows](#langflow-flows) |
+| `nginx/**` | `nginx -t` validation and deployment of the nginx configuration/image |
+| Compose files | configuration validation and evaluation of the affected services |
+| `docs/**`, `README.md` | no production deployment |
 
 ## Immutable Docker images
 
-Produkce by neměla sestavovat neurčitý lokální tag typu `edu_ai_search:1.0`.
-CI má vytvořit image a produkční Compose má používat konkrétní digest:
+Production should not build an indeterminate local tag such as
+`edu_ai_search:1.0`. CI should create the image and the production Compose should
+use a concrete digest:
 
 ```yaml
 services:
@@ -124,265 +128,273 @@ services:
     image: ghcr.io/<ORG>/edu-ai-search@sha256:<digest>
 ```
 
-Release manifest uchová digest každé služby. U nezměněných služeb se převezme
-digest z předchozího release. Výhody:
+The release manifest keeps the digest of every service. For unchanged services,
+the digest is taken over from the previous release. Advantages:
 
-- přesně víme, jaký kód v kontejneru běží;
-- rollback pouze vrátí předchozí manifest;
-- není možné omylem spustit starý lokální image pod stejným tagem;
-- není potřeba kopírovat zdrojové soubory do `/opt/edu_ai`;
-- nasazují se pouze skutečně změněné služby.
+- we know exactly what code runs in the container;
+- a rollback only restores the previous manifest;
+- it is not possible to accidentally run an old local image under the same tag;
+- there is no need to copy source files into `/opt/edu_ai`;
+- only the services that actually changed are deployed.
 
-Pro vývoj lze nadále používat lokální `build:` přes development Compose
-override. Produkční Compose má používat pouze hotové images.
+For development, local `build:` can still be used via a development Compose
+override. The production Compose should use only finished images.
 
-## Databázové migrace
+## Database migrations
 
-Adresář `postgres/init/` (historie do 216) se na existující databázi automaticky
-nespouští. Evidenci migrací už zavádí B03e-1: tabulka `edu_ai.schema_migration`
-(`migration_id`, `kind`, `checksum`, `release`, `applied_at`, `applied_by`,
-`notes`; původní návrh `schema_migrations` s `release_sha` neexistuje) a
-`scripts/migrate.py` (`status`, `plan`, `init`, `apply`, generátory). Runner
-pracuje jen s baseline B216 (`postgres/init_clean`) a soubory
-`postgres/migrations/NNN_*.sql` s číslem ≥ 217 a **je schválen pouze pro izolované
-syntetické databáze**; produkce, školní instalace a převzetí existující instalace
-(`adopt`, D11) nejsou pokryté a `adopt` není implementován. Manifest vydání
-`postgres/releases/<release>.json`, který `apply` vyžaduje, tento veřejný strom
-nepublikuje.
+The `postgres/init/` directory (history up to 216) is not run automatically on an
+existing database. Migration tracking is already introduced by B03e-1: the table
+`edu_ai.schema_migration` (`migration_id`, `kind`, `checksum`, `release`,
+`applied_at`, `applied_by`, `notes`; the original proposal `schema_migrations`
+with `release_sha` does not exist) and `scripts/migrate.py` (`status`, `plan`,
+`init`, `apply`, generators). The runner works only with the B216 baseline
+(`postgres/init_clean`) and the files `postgres/migrations/NNN_*.sql` with number
+≥ 217 and **is approved only for isolated synthetic databases**; production,
+school installations and adoption of an existing installation (`adopt`, D11) are
+not covered, and `adopt` is not implemented. The release manifest
+`postgres/releases/<release>.json`, which `apply` requires, is not published in
+this public tree.
 
-Runner dnes už provádí (podle kódu v `scripts/eduai_migrate/` a specifikace;
-na produkci se nespouští):
+The runner already does the following today (according to the code in
+`scripts/eduai_migrate/` and the specification; it is not run on production):
 
-1. drží PostgreSQL advisory lock, takže druhý `apply` skončí;
-2. načítá migrace v deterministickém pořadí podle manifestu vydání;
-3. porovnává SHA-256 checksum s manifestem a aplikovanými řádky;
-4. odmítne změněný nebo neočekávaný stav, než cokoli spustí;
-5. každou migraci a její řádek v registru provede v jedné transakci;
-6. zapíše `migration_id`, `kind`, `checksum` a `release`.
+1. holds a PostgreSQL advisory lock, so a second `apply` terminates;
+2. loads migrations in a deterministic order according to the release manifest;
+3. compares the SHA-256 checksum with the manifest and the applied rows;
+4. rejects a changed or unexpected state before running anything;
+5. executes each migration and its registry row in a single transaction;
+6. writes `migration_id`, `kind`, `checksum` and `release`.
 
-Z návrhu zůstává budoucí: jednorázové převzetí existující produkční databáze
-(baseline/adopt) a jakékoli použití na produkci. Původní představa „označit již
-aplikované migrace“ proto není podporovaný postup.
+What remains future from the proposal: a one-time adoption of an existing
+production database (baseline/adopt) and any use on production. The original idea
+of "marking already applied migrations" is therefore not a supported procedure.
 
-Navrhované pravidlo „automaticky povolit dopředně kompatibilní změny“ je pouze
-návrh a pro DB platí přísnější pravidla repozitáře: jakákoli změna schématu nebo
-indexu se podle [AGENTS.md](AGENTS.md) předem schvaluje. Příklady z původního návrhu:
+The proposed rule "automatically allow forward-compatible changes" is only a
+proposal, and stricter repository rules apply to the DB: any schema or index
+change is approved in advance according to [AGENTS.md](AGENTS.md). Examples from
+the original proposal:
 
 - `CREATE TABLE IF NOT EXISTS`;
-- nový nullable sloupec;
-- nový index „vhodný pro produkční provoz“ — `CREATE INDEX CONCURRENTLY` a
-  `VACUUM` ale runner v migraci od 217 odmítne, protože transakci řídí on;
-- přidání nové hodnoty nebo seed dat pomocí idempotentního `ON CONFLICT`.
+- a new nullable column;
+- a new index "suitable for production operation" — but the runner rejects
+  `CREATE INDEX CONCURRENTLY` and `VACUUM` in a migration from 217 on, because it
+  controls the transaction;
+- adding a new value or seed data using an idempotent `ON CONFLICT`.
 
-Destruktivní změny, přejmenování a okamžité odstranění sloupců nemají projít
-jednokrokovým automatickým deployem. Mají používat postup expand/contract:
+Destructive changes, renames and immediate column removal must not pass through a
+one-step automatic deployment. They should use the expand/contract procedure:
 
-1. přidat novou strukturu kompatibilní se starým kódem;
-2. nasadit kód, který umí starou i novou strukturu;
-3. převést data;
-4. teprve v pozdějším release odstranit starou strukturu.
+1. add a new structure compatible with the old code;
+2. deploy code that can handle both the old and the new structure;
+3. convert the data;
+4. only in a later release, remove the old structure.
 
-Rollback aplikace databázovou migraci automaticky nevrací. Aditivní změna musí
-být navržená tak, aby staršímu image nevadila.
+A rollback of the application does not automatically revert a database migration.
+An additive change must be designed so that it does not harm an older image.
 
 ## Langflow flows
 
-Současný stav, kdy je živá Langflow DB zdrojem pravdy a JSON v repozitáři je
-jen disaster-recovery export, není slučitelný s plně automatickým GitOps
-deployem.
+The current state, where the live Langflow DB is the source of truth and the JSON
+in the repository is only a disaster-recovery export, is not compatible with a
+fully automatic GitOps deployment.
 
-Je potřeba jednorázově:
+The following needs to be done once:
 
-1. Exportovat ověřené produkční flows do Git.
-2. Spustit `tests/test_flow_invariants.py`.
-3. Od této chvíle považovat Git za zdroj požadovaného stavu.
-4. Produkční změnu provedenou přes UI nejprve exportovat, zkontrolovat a
-   commitnout.
+1. Export the verified production flows to Git.
+2. Run `tests/test_flow_invariants.py`.
+3. From then on, treat Git as the source of the desired state.
+4. A production change made through the UI is first exported, checked and
+   committed.
 
-Existují tři různé nástroje s rozdílným chováním a návrh musí vybrat to správné:
+There are three different tools with different behaviour, and the proposal must
+choose the right one:
 
-| Nástroj | Chování |
+| Tool | Behaviour |
 |---|---|
-| `scripts/import_flows.py --missing-only` (používá bootstrap) | vytvoří jen chybějící `endpoint_name`; existující flow, i uživatelsky upravené, zachová |
-| `scripts/import_flows.py` (explicitní import) | každý flow se stejným `endpoint_name` **přepíše** (PATCH) obsahem z Gitu; je idempotentní, ale ruční změny v UI zahodí |
-| `scripts/flow_rollout.py --from-dir A --to-dir B (--check \| --apply)` | cílená výměna změněných uzlů z vydání A do B; flow, který se od A rozešel, odmítne; `--apply` vyžaduje `--confirm-maintenance-window` |
+| `scripts/import_flows.py --missing-only` (used by bootstrap) | creates only the missing `endpoint_name`; an existing flow, even a user-modified one, is kept |
+| `scripts/import_flows.py` (explicit import) | **overwrites** (PATCH) every flow with the same `endpoint_name` with the content from Git; it is idempotent, but discards manual changes made in the UI |
+| `scripts/flow_rollout.py --from-dir A --to-dir B (--check \| --apply)` | targeted replacement of changed nodes from release A to B; it rejects a flow that has diverged from A; `--apply` requires `--confirm-maintenance-window` |
 
-Návrh proto nemá deployeru dávat plný `import_flows.py` jako běžný update: po
-převzetí Gitu za zdroj pravdy je určen na obnovu rozbitého flow, malou změnu
-flow nasazuje `flow_rollout.py`. Před nasazením se vytvoří backup dotčených DB
-řádků nebo export flows a po něm se spustí nemutující end-to-end probe.
+The proposal therefore should not give the deployer a full `import_flows.py` as a
+routine update: once Git is taken as the source of truth, it is intended for
+restoring a broken flow, and a small flow change is deployed by
+`flow_rollout.py`. Before deployment, a backup of the affected DB rows or an
+export of the flows is created, and afterwards a non-mutating end-to-end probe is
+run.
 
-Při selhání se flows vracejí z předchozího release; automatizovaný postup
-neexistuje a návrat nebyl na produkci ověřen.
+On failure, the flows are restored from the previous release; no automated
+procedure exists and the rollback has not been verified on production.
 
-## Nginx a produkční drift
+## Nginx and production drift
 
-Produkční `nginx.conf` nesmí obsahovat ruční hotfixy, které nejsou v Git.
-Před zapnutím automatizace je nutné jednorázově porovnat produkční konfiguraci
-s repozitářem a legitimní změny commitnout.
+The production `nginx.conf` must not contain manual hotfixes that are not in Git.
+Before automation is switched on, the production configuration must be compared
+once with the repository and the legitimate changes committed.
 
-Ideální je zabalit verzovaný `nginx.conf` do vlastního nginx image. Od 2026-09-02
-nginx nemountuje žádný secret (`.htpasswd` ani `auth_keys.conf`), takže do image
-jde celá konfigurace bez výjimek. Pipeline před nasazením spustí `nginx -t`
-a po nasazení `scripts/perimeter_check.py --strict` z runneru mimo VPN.
+The ideal is to bundle the versioned `nginx.conf` into a dedicated nginx image.
+Since 2026-09-02 nginx mounts no secret (neither `.htpasswd` nor `auth_keys.conf`),
+so the entire configuration can go into the image without exceptions. Before
+deployment the pipeline runs `nginx -t`, and after deployment
+`scripts/perimeter_check.py --strict` from a runner outside the VPN.
 
-Dnes (`docker-compose.yml`) nginx image nevzniká: adresář `nginx/conf` se
-mountuje do `/etc/nginx` jen pro čtení, rodičovský `nginx/` se nemountuje.
-Pokud konfigurace zůstane bind-mounted, deployer musí aktualizovat jen
-verzovanou konfiguraci a nikdy nesmí přepisovat autentizační soubory.
+Today (`docker-compose.yml`) no nginx image is built: the directory `nginx/conf`
+is mounted read-only into `/etc/nginx`, and the parent `nginx/` is not mounted.
+If the configuration stays bind-mounted, the deployer must update only the
+versioned configuration and must never overwrite the authentication files.
 
-## Secrets a persistentní data
+## Secrets and persistent data
 
-Do release artefaktu ani Docker images nesmí vstoupit:
+The following must not enter the release artifact or the Docker images:
 
 - `.env`;
 - `LANGFLOW_SECRET_KEY`;
-- OpenAI API klíče;
+- OpenAI API keys;
 - TLS private keys;
-- nginx autentizační soubory;
+- nginx authentication files;
 - `langflow_data/`;
 - `uploads/`;
 - `pgadmin_exports/`;
-- databázové volume;
-- existující backupy.
+- database volumes;
+- existing backups.
 
-Persistentní cesty by měly být v produkčním Compose uvedené absolutně nebo přes
-jednu proměnnou, například `DATA_ROOT=/opt/edu_ai/shared`. Tím se data oddělí
-od verzovaných release souborů a nehrozí jejich smazání při úklidu starých
-release adresářů.
+Persistent paths should be listed in the production Compose as absolute paths or
+via a single variable, for example `DATA_ROOT=/opt/edu_ai/shared`. This separates
+the data from the versioned release files and removes the risk of deleting them
+when old release directories are cleaned up.
 
-`LANGFLOW_SECRET_KEY` se nikdy negeneruje během deploye. Produkční deploy také
-nikdy nespouští `scripts/bootstrap.py` a nikdy nepoužívá
+`LANGFLOW_SECRET_KEY` is never generated during deployment. A production
+deployment also never runs `scripts/bootstrap.py` and never uses
 `docker compose down -v`.
 
-## Validace a rollback
+## Validation and rollback
 
-Pořadí kontrol má být od nejlevnějších:
+The order of checks should go from the cheapest:
 
-1. statické testy a lint;
-2. `tests/test_flow_invariants.py`, pokud se mění flows;
-3. testy `web_chat`;
-4. sestavení dotčených Docker images;
-5. validace výsledného produkčního Compose;
-6. DB backup a migrace;
-7. `docker compose up -d --wait` pro dotčené služby;
-8. ověření skutečných `/health` endpointů;
+1. static tests and lint;
+2. `tests/test_flow_invariants.py`, if flows change;
+3. `web_chat` tests;
+4. build of the affected Docker images;
+5. validation of the resulting production Compose;
+6. DB backup and migrations;
+7. `docker compose up -d --wait` for the affected services;
+8. verification of the actual `/health` endpoints;
 9. `scripts/smoke.py`;
-10. test konkrétní nové funkce.
+10. a test of the specific new function.
 
-Nestačí pouze stav `(healthy)` z Dockeru. Kontrola musí ověřit endpoint a kódovou
-cestu, která se v daném release měnila.
+The Docker `(healthy)` status alone is not enough. The check must verify the
+endpoint and the code path that changed in the given release.
 
-Při neúspěchu:
+On failure:
 
-- vrátit předchozí image digesty a Compose manifest;
-- znovu spustit předchozí verzi služby;
-- u flows importovat předchozí Git verzi;
-- znovu spustit healthcheck a smoke test;
-- ponechat aditivní DB migrace na místě;
-- uchovat log a backup neúspěšného deploye.
+- restore the previous image digests and the Compose manifest;
+- start the previous version of the service again;
+- for flows, import the previous Git version;
+- run the healthcheck and smoke test again;
+- leave the additive DB migrations in place;
+- keep the log and backup of the failed deployment.
 
-Rollback neřeší destruktivní migraci. Taková migrace nesmí být do plně
-automatické větve vůbec přijata.
+A rollback does not solve a destructive migration. Such a migration must not be
+accepted into the fully automatic branch at all.
 
-## Navržené soubory
+## Proposed files
 
 ```text
-.github/workflows/ci.yml                 # NEEXISTUJE
-.github/workflows/deploy-production.yml  # NEEXISTUJE
-deploy/services.yml                      # NEEXISTUJE
-deploy/docker-compose.prod.yml           # NEEXISTUJE
-scripts/deploy.sh                        # NEEXISTUJE
-scripts/migrate.py                       # existuje (B03e-1), jen izolované syntetické DB
+.github/workflows/ci.yml                 # DOES NOT EXIST
+.github/workflows/deploy-production.yml  # DOES NOT EXIST
+deploy/services.yml                      # DOES NOT EXIST
+deploy/docker-compose.prod.yml           # DOES NOT EXIST
+scripts/deploy.sh                        # DOES NOT EXIST
+scripts/migrate.py                       # exists (B03e-1), isolated synthetic DBs only
 ```
 
 ### `ci.yml`
 
-- spouští se pro pull requesty a push do `main`;
-- provádí testy, validaci Compose a build;
-- nesmí používat produkční runner ani produkční secrets;
-- může publikovat images pouze z chráněné větve.
+- runs for pull requests and pushes to `main`;
+- performs tests, Compose validation and the build;
+- must not use the production runner or production secrets;
+- may publish images only from the protected branch.
 
 ### `deploy-production.yml`
 
-- spouští se vytvořením `prod-*` tagu nebo GitHub Release;
-- používá produkční environment a produkční runner;
-- má concurrency lock;
-- stáhne nebo ověří images pro konkrétní commit;
-- spustí jediný verzovaný deploy skript;
-- vždy publikuje deploy log a release manifest.
+- runs when a `prod-*` tag or GitHub Release is created;
+- uses the production environment and the production runner;
+- has a concurrency lock;
+- pulls or verifies the images for the specific commit;
+- runs a single versioned deploy script;
+- always publishes the deploy log and the release manifest.
 
 ### `deploy/services.yml`
 
-- mapuje změněné cesty na služby, testy a speciální kroky;
-- explicitně označuje změny vyžadující migraci nebo import flows;
-- při neznámé cestě selže bezpečně.
+- maps changed paths to services, tests and special steps;
+- explicitly marks changes that require a migration or a flow import;
+- fails safely on an unknown path.
 
 ### `deploy/docker-compose.prod.yml`
 
-- neobsahuje lokální `build:`;
-- používá immutable image digesty;
-- používá produkční VPN port bindingy;
-- persistentní data a secrets mountuje z oddělených cest;
-- je jedinou verzovanou produkční Compose konfigurací.
+- contains no local `build:`;
+- uses immutable image digests;
+- uses the production VPN port bindings;
+- mounts persistent data and secrets from separate paths;
+- is the only versioned production Compose configuration.
 
 ### `scripts/deploy.sh`
 
-- je idempotentní;
-- používá vždy explicitní produkční Compose soubory;
-- ověřuje absolutní cílové cesty;
-- vytváří backup;
-- spouští migrace, nasazení, healthchecky a rollback;
-- nevytváří ani nemění secrets.
+- is idempotent;
+- always uses explicit production Compose files;
+- verifies absolute target paths;
+- creates a backup;
+- runs migrations, deployment, healthchecks and rollback;
+- neither creates nor changes secrets.
 
-## Doporučené fáze zavedení
+## Recommended rollout phases
 
-### Fáze 1: Deterministický deploy aplikací
+### Phase 1: Deterministic application deployment
 
-- zavést CI;
-- zavést explicitní produkční tag;
-- zavést produkční runner;
-- sestavovat immutable images;
-- automaticky nasazovat pouze změny `api`, `search` a `web_chat`;
-- spouštět healthcheck a smoke test;
-- automaticky vracet předchozí images.
+- introduce CI;
+- introduce an explicit production tag;
+- introduce a production runner;
+- build immutable images;
+- automatically deploy only changes to `api`, `search` and `web_chat`;
+- run the healthcheck and smoke test;
+- automatically restore the previous images.
 
-Tato fáze odstraní většinu ruční práce a nejčastější chybu se zapomenutým
-rebuildem.
+This phase removes most of the manual work and the most common error, a forgotten
+rebuild.
 
-### Fáze 2: Migrace a konfigurace
+### Phase 2: Migrations and configuration
 
-- vytvořit migration ledger a baseline;
-- přesunout produkční VPN Compose konfiguraci do Git;
-- sjednotit nginx konfiguraci s Git;
-- oddělit persistentní data od release souborů;
-- automatizovat aditivní migrace a bezpečné Compose změny.
+- create a migration ledger and baseline;
+- move the production VPN Compose configuration into Git;
+- align the nginx configuration with Git;
+- separate persistent data from release files;
+- automate additive migrations and safe Compose changes.
 
-### Fáze 3: Langflow GitOps
+### Phase 3: Langflow GitOps
 
-- prohlásit Git za zdroj pravdy pro flows;
-- automatizovat backup, import, probe a rollback flows;
-- zabránit neauditovaným změnám pouze v produkčním UI.
+- declare Git the source of truth for flows;
+- automate backup, import, probe and rollback of flows;
+- prevent unaudited changes made only in the production UI.
 
-### Fáze 4: Plně bezobslužné běžné releasy
+### Phase 4: Fully unattended routine releases
 
-- doplnit unit a integrační testy zejména pro API a search logiku;
-- po období paralelního ověřování odstranit approval pro běžné aplikační změny;
-- ponechat schválení jen pro destruktivní DB změny, secrets a infrastrukturu.
+- add unit and integration tests, especially for the API and search logic;
+- after a period of parallel verification, remove the approval for routine
+  application changes;
+- keep approval only for destructive DB changes, secrets and infrastructure.
 
-## Závěr
+## Conclusion
 
-Běžné aplikační updaty mohou být plně automatické. Migrace, flows a konfigurace
-lze automatizovat také, jakmile mají evidenci, jednoznačný zdroj pravdy a
-bezpečné rollback chování.
+Routine application updates can be fully automatic. Migrations, flows and
+configuration can also be automated once they have tracking, an unambiguous source
+of truth and safe rollback behaviour.
 
-Ruční nebo schvalovaná brána má zůstat pouze pro:
+A manual or approved gate should remain only for:
 
-- destruktivní databázové změny;
-- změny secrets;
-- síťovou a cloudovou infrastrukturu;
-- změny, jejichž správnost zatím nepokrývají testy.
+- destructive database changes;
+- changes to secrets;
+- network and cloud infrastructure;
+- changes whose correctness is not yet covered by tests.
 
-Ruční postup pak může zůstat jako recovery runbook pro
-nouzové ruční nasazení. Standardní cestou má být verzovaný a opakovatelný
-deploy workflow, nikoli ruční SCP session řízená člověkem nebo AI asistentem.
+The manual procedure can then remain as a recovery runbook for an emergency manual
+deployment. The standard path should be a versioned and repeatable deploy
+workflow, not a manual SCP session driven by a human or an AI assistant.

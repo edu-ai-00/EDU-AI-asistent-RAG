@@ -1,94 +1,94 @@
-# B06-U: správa verzí a podporované aktualizace
+# B06-U: version management and supported updates
 
-Veřejná kopie vynechává interní akceptační reporty a odkazy na ně; tento návrh není důkazem aktuálního nasazení.
+The public copy omits internal acceptance reports and links to them; this proposal is not evidence of the current deployment.
 
-Datum: 2026-10-06. **Stav: požadavek vlastníka evidován, strategie je návrh. Aktualizační nástroj není implementovaný.**
-Navazuje na [instalátor B06](b06-clean-install-proposal.md), B03e a celkový plán.
-Tento zápis vznikl čtením konfigurace a dokumentace. Žádná verze, image, databáze, `.env`, klíč ani produkční služba se tím nemění.
+Date: 2026-10-06. **Status: the owner's requirement is recorded, the strategy is a proposal. The update tool is not implemented.**
+Builds on the [B06 installer](b06-clean-install-proposal.md), B03e and the overall plan.
+This note was produced by reading the configuration and documentation. No version, image, database, `.env`, key or production service is changed by it.
 
-## 1. Cíl a současná mezera
+## 1. Goal and the current gap
 
-Správce má později aktualizovat konkrétní instalaci na konkrétní otestované vydání EDU-AI se zachováním dat, konfigurace a klíčů.
-Vydání určuje společně ověřenou sadu verzí komponent. Kontrola dostupných nových verzí a jejich zavedení do produkce jsou dva samostatné kroky.
-Automatické nasazení pohyblivých tagů `latest` není navrhovaný způsob aktualizace.
+An administrator is to later update a specific installation to a specific tested EDU-AI release while preserving data, configuration and keys.
+A release defines a jointly verified set of component versions. Checking for new available versions and introducing them into production are two separate steps.
+Automatic deployment of floating `latest` tags is not the proposed way of updating.
 
-B06-1 připravuje novou konfiguraci; není aktualizátor existující školy. B03e-1 má migrační runner pouze pro izolované syntetické databáze.
-Podporované školní a produkční aktualizace zůstávají otevřené; tuto hranici určuje [AGENTS.md](../../AGENTS.md).
-Skripty S2/R2 jsou specializované přechody nginxu a síťového zapojení, nikoli obecný aktualizátor všech služeb.
+B06-1 prepares a new configuration; it is not an updater of an existing school. B03e-1 has a migration runner only for isolated synthetic databases.
+Supported school and production updates remain open; this boundary is set by [AGENTS.md](../../AGENTS.md).
+The S2/R2 scripts are specialised transitions of nginx and the network wiring, not a general updater of all services.
 
-## 2. Co je dnes připnuté
+## 2. What is pinned today
 
-Tabulka popisuje deklarace v lokálním zdrojovém stromu, nikoli živě zjištěné verze na produkci. Cílové nové verze se zde nevybírají.
+The table describes declarations in the local source tree, not versions found live on production. The new target versions are not chosen here.
 
-| Oblast | Deklarace a mezera | Zkontrolovaný zdroj |
+| Area | Declaration and gap | Source checked |
 |---|---|---|
-| Langflow | základ `1.10.1`, lokální image `edu_ai:1.1.0`; tag základu bez digestu; přidané balíčky mají zčásti volné verze, constraints vznikají z `pip freeze` základního obrazu během buildu | [Dockerfile](../../Dockerfile), [requirements-langflow.txt](../../requirements-langflow.txt), [Compose](../../docker-compose.yml) |
-| PostgreSQL a rozšíření | základ `pgvector:0.7.4-pg16` s digestem, `PG_SEARCH_VERSION=0.25.1`; `.deb` je vázaný na PostgreSQL 16, stahovaný bez kontroly součtu v Dockerfile | [Dockerfile.postgres](../../Dockerfile.postgres) |
-| Proxy a tunel | `nginx:1.27-alpine` a `cloudflared:2026.8.1`; tagy samy nezaručují neměnný obsah | [Compose](../../docker-compose.yml) |
-| Bifrost a pgAdmin | `bifrost:v1.6.7`, `pgadmin4:9.11.0`; persistentní stav a kompatibilitu je nutné ověřovat samostatně | [Compose](../../docker-compose.yml) |
-| Ingest API | základ Python `3.11.16` s digestem a přesné Python závislosti; systémové balíčky apt se řeší při buildu | [API Dockerfile](../../api/Dockerfile), [API requirements](../../api/requirements.txt) |
-| Search | základ Python `3.12-slim` s digestem; řada závislostí používá dolní mez `>=`, lemma engine `simplemma==2.0.0` je připnutý | [Search Dockerfile](../../search/Dockerfile), [Search requirements](../../search/requirements.txt) |
-| Chat a QA portál | frontend má `package-lock.json`; základ Node `24.18.0-alpine`, runtime Python `3.12-slim` bez digestu; backend QA má také rozsahy `>=` | [chat Dockerfile](../../web_chat/Dockerfile), [chat lock](../../web_chat/frontend/package-lock.json), [QA Dockerfile](../../qa_portal/Dockerfile), [QA lock](../../qa_portal/frontend/package-lock.json), [QA requirements](../../qa_portal/backend/requirements.txt) |
-| Hostitel | Linux nebo budoucí Windows/WSL cesta, Docker Engine/Desktop, Compose, Git a Python mají vlastní kompatibilitu; jejich upgrade může ovlivnit i jiné stacky na hostiteli | [návrh B06](b06-clean-install-proposal.md) |
+| Langflow | base `1.10.1`, local image `edu_ai:1.1.0`; base tag without a digest; the added packages partly have loose versions, constraints are produced from `pip freeze` of the base image during the build | [Dockerfile](../../Dockerfile), [requirements-langflow.txt](../../requirements-langflow.txt), [Compose](../../docker-compose.yml) |
+| PostgreSQL and extensions | base `pgvector:0.7.4-pg16` with a digest, `PG_SEARCH_VERSION=0.25.1`; the `.deb` is tied to PostgreSQL 16, downloaded without a checksum verification in the Dockerfile | [Dockerfile.postgres](../../Dockerfile.postgres) |
+| Proxy and tunnel | `nginx:1.27-alpine` and `cloudflared:2026.8.1`; tags alone do not guarantee immutable content | [Compose](../../docker-compose.yml) |
+| Bifrost and pgAdmin | `bifrost:v1.6.7`, `pgadmin4:9.11.0`; persistent state and compatibility must be verified separately | [Compose](../../docker-compose.yml) |
+| Ingest API | Python base `3.11.16` with a digest and exact Python dependencies; apt system packages are resolved at build time | [API Dockerfile](../../api/Dockerfile), [API requirements](../../api/requirements.txt) |
+| Search | Python base `3.12-slim` with a digest; a number of dependencies use a `>=` lower bound, the lemma engine `simplemma==2.0.0` is pinned | [Search Dockerfile](../../search/Dockerfile), [Search requirements](../../search/requirements.txt) |
+| Chat and QA portal | the frontend has `package-lock.json`; base Node `24.18.0-alpine`, runtime Python `3.12-slim` without a digest; the QA backend also has `>=` ranges | [chat Dockerfile](../../web_chat/Dockerfile), [chat lock](../../web_chat/frontend/package-lock.json), [QA Dockerfile](../../qa_portal/Dockerfile), [QA lock](../../qa_portal/frontend/package-lock.json), [QA requirements](../../qa_portal/backend/requirements.txt) |
+| Host | Linux or a future Windows/WSL path, Docker Engine/Desktop, Compose, Git and Python have their own compatibility; upgrading them may also affect other stacks on the host | [B06 proposal](b06-clean-install-proposal.md) |
 
-Závěr ze zdrojů: u některých komponent může i rebuild stejného commitu vyřešit jiné balíčky. Před vydáváním aktualizací potřebujeme evidenci skutečných sestavených artefaktů a závislostí.
+Conclusion from the sources: for some components even a rebuild of the same commit may resolve different packages. Before issuing updates we need a record of the actual built artifacts and dependencies.
 
-## 3. Orientační náročnost
+## 3. Indicative effort
 
-Jde o hrubý plánovací odhad přípravy a ověření jednoho balíku, ne o měření ani dobu výpadku. Velikost dat, počet přeskočených verzí a breaking changes odhad změní.
+This is a rough planning estimate of the preparation and verification of one bundle, not a measurement or a downtime. The size of the data, the number of skipped versions and breaking changes will change the estimate.
 
-| Druh změny | Orientační práce | Hlavní důvod |
+| Kind of change | Indicative work | Main reason |
 |---|---|---|
-| Menší aktualizace nginxu nebo cloudflared | hodiny až 1–2 pracovní dny | konfigurace, trasy, důvěra proxy, skutečný tunel a návrat |
-| Knihovny API, chatu, QA portálu nebo search | 1–3 pracovní dny za související balík; při změně veřejného rozhraní více | build, API kontrakty, UI a chování vyhledávání |
-| Langflow nebo Bifrost | několik pracovních dnů až týdny při velkém skoku | flows, vlastní komponenty, poskytovatelé, API a případné migrace jejich stavových DB |
-| Hlavní verze PostgreSQL a databázová rozšíření | několik pracovních dnů až týdny | kompatibilita rozšíření, migrace dat/indexů, obnova a změřené přerušení |
-| Embedding model, dimenze, stemming nebo normalizace | samostatný odhad po návrhu | přepočet indexů/vektorů, parita a nové měření retrieval výsledků |
+| Minor update of nginx or cloudflared | hours to 1–2 working days | configuration, routes, proxy trust, the real tunnel and rollback |
+| Libraries of API, chat, QA portal or search | 1–3 working days per related bundle; more if the public interface changes | build, API contracts, UI and search behaviour |
+| Langflow or Bifrost | several working days up to weeks for a large jump | flows, custom components, providers, API and possible migrations of their state DBs |
+| PostgreSQL major version and database extensions | several working days up to weeks | extension compatibility, data/index migration, restore and a measured interruption |
+| Embedding model, dimension, stemming or normalization | a separate estimate after a proposal | recomputing indexes/vectors, parity and a new measurement of retrieval results |
 
-První zavedení podporovaného aktualizačního procesu je samostatná práce nad těmito odhady. Pravidelná údržba menších změn má snížit budoucí velké skoky.
-PostgreSQL rozlišuje minor aktualizace se zachovaným formátem dat a major upgrady, které vyžadují migrační postup; viz [oficiální dokumentace](https://www.postgresql.org/docs/current/upgrading.html).
+The first introduction of a supported update process is separate work on top of these estimates. Regular maintenance of smaller changes should reduce future large jumps.
+PostgreSQL distinguishes minor updates that keep the data format from major upgrades that require a migration procedure; see the [official documentation](https://www.postgresql.org/docs/current/upgrading.html).
 
-## 4. Návrh pravidel vydání
+## 4. Proposed release rules
 
-- Každé vydání má neměnný Git SHA, registry digesty image pro podporovanou platformu, skutečné verze balíčků, verzi schématu a kompatibilní verze hostitelských nástrojů. Evidenci generovat z buildu, navázat na B03; existující generované manifesty ručně neupravovat.
-- Pro komponenty s volnými závislostmi doplnit reprodukovatelné zamčení výsledných verzí. Připnutí digestů doplnit o plán jejich pravidelné obnovy, aby nezamrazilo bezpečnostní opravy.
-- Aktualizace komponent připravovat v oddělené větvi nebo kopii z `clean_init`, s malými souvisejícími změnami. Vydat až společně otestovaný výsledek.
-- Definovat přesně podporovaný přechod vydání A → B. Přeskočení jiných vydání se nepovažuje automaticky za podporované.
-- Zachovat dodanou konfiguraci, hesla, API klíče a `LANGFLOW_SECRET_KEY`. Aktualizace je nesmí tiše přegenerovat.
-- Změny modelů, dimenzí, databázového schématu/indexů a pipeline precedence mají samostatné schválení podle AGENTS.md. Změna balíčku je nesmí zavést skrytě.
-- Kontrola nových verzí a bezpečnostních oprav může být později automatizovaná. Nasazení probíhá v řízeném okně; v tomto kroku se žádná automatizace nezřizuje.
+- Every release has an immutable Git SHA, registry image digests for the supported platform, the actual package versions, the schema version and compatible versions of the host tools. Generate the record from the build, tie it to B03; do not edit existing generated manifests by hand.
+- For components with loose dependencies, add reproducible locking of the resulting versions. Complement digest pinning with a plan for renewing them regularly, so that they do not freeze security fixes.
+- Prepare component updates in a separate branch or a copy from `clean_init`, with small related changes. Release only a jointly tested result.
+- Define precisely the supported release transition A → B. Skipping other releases is not automatically considered supported.
+- Preserve the supplied configuration, passwords, API keys and `LANGFLOW_SECRET_KEY`. An update must not silently regenerate them.
+- Changes to models, dimensions, the database schema/indexes and pipeline precedence require separate approval under AGENTS.md. A package change must not introduce them covertly.
+- Checking for new versions and security fixes may later be automated. Deployment takes place in a controlled window; this step sets up no automation.
 
-## 5. Postup jednoho upgradu
+## 5. Procedure for one upgrade
 
-1. **Inventář:** zjistit přesné aktuální artefakty a stav dat, přečíst release notes komponent i všech přeskočených hlavních verzí. Určit cílové vydání a podporovaný pár A → B.
-2. **Plán:** vypsat dotčené služby, změny konfigurace, potřebné migrace, diskové místo, zálohu, očekávané přerušení a návrat. Ukázat, které kontroly zatím nelze ověřit.
-3. **Nácvik:** na vlastní izolované instalaci se syntetickými daty ověřit skutečný přechod, zachování konfigurace/klíčů, opakované spuštění a selhání v každé nevratné fázi.
-4. **Akceptace:** provést příslušné buildy, API/UI smoke, scope a retrieval kontroly, flows a dešifrování credential proměnných. Při změně normalizace parita před/po; při změně retrieval chování regrese s `--repeat`. Placené volání až po výslovném zadání s limitem.
-5. **Záloha a obnova:** uchovat odpovídající DB/data, konfiguraci a klíče, obrazy i metadata starého vydání. Klíče uložit chráněně; kopii úschovy držet odděleně od DB zálohy. Obnovu skutečně nacvičit v laboratoři.
-6. **Nasazení:** po kontrole aktuálního stavu provést jen schválený plán a dotčené služby. Zachovat ostatní stacky, rozložení sítí a konfiguraci Cloudflare; změny těchto oblastí patří do konkrétního plánu, nikoli do vedlejších účinků upgradu.
-7. **Kontrola a evidence:** funkční ověření a sledování, záznam verzí/hashů a výsledků, otevřené návratové okno. Staré artefakty mazat až po samostatném uzavření okna.
+1. **Inventory:** determine the exact current artifacts and the state of the data, read the release notes of the components and of all skipped major versions. Determine the target release and the supported pair A → B.
+2. **Plan:** list the affected services, configuration changes, required migrations, disk space, backup, the expected interruption and rollback. Show which checks cannot be verified yet.
+3. **Rehearsal:** on a dedicated isolated installation with synthetic data, verify the actual transition, preservation of configuration/keys, repeated runs and failure in every irreversible phase.
+4. **Acceptance:** perform the relevant builds, API/UI smoke, scope and retrieval checks, flows and decryption of credential variables. On a normalization change, parity before/after; on a retrieval behaviour change, a regression with `--repeat`. A paid call only after an explicit instruction with a limit.
+5. **Backup and restore:** keep the corresponding DB/data, configuration and keys, images and metadata of the old release. Store the keys protected; keep the escrow copy separate from the DB backup. Actually rehearse the restore in the lab.
+6. **Deployment:** after checking the current state, perform only the approved plan and only the affected services. Preserve other stacks, the network layout and the Cloudflare configuration; changes to these areas belong in a specific plan, not among the side effects of an upgrade.
+7. **Check and record:** functional verification and monitoring, a record of versions/hashes and results, an open rollback window. Delete old artifacts only after the window is closed separately.
 
-Návrat obrazu aplikace není automaticky návrat dat: nový Langflow, Bifrost nebo DB může změnit schéma či formát svého stavu.
-Kde zpětná kompatibilita není prokázaná, návrat znamená obnovu odpovídající zálohy; plán musí určit zacházení se zápisy vzniklými po upgradu.
-Žádný obecný `down -v`, `prune` ani regenerace `.env` nepatří do aktualizačního postupu. Současný migrační runner zůstává jen pro izolované syntetické DB.
+Rolling back the application image is not automatically a rollback of the data: a new Langflow, Bifrost or DB may change the schema or format of its state.
+Where backward compatibility is not proven, rollback means restoring the corresponding backup; the plan must determine how writes made after the upgrade are handled.
+No general `down -v`, `prune` or regeneration of `.env` belongs in the update procedure. The current migration runner stays only for isolated synthetic DBs.
 
-## 6. Budoucí nástroj a rozdělení práce
+## 6. Future tool and division of work
 
-Navrhované funkce: zobrazení verzí, čtecí plán přechodu, preflight, záloha/evidence, provedení konkrétního přechodu, verify a návrat podle typu dat.
-Tyto funkce dnes nejsou implementované; neuvádí se spustitelný příkaz aktualizace školy. Windows vstup má později použít stejný prověřený postup přes WSL, s vlastním ověřením Docker Desktopu a souborového systému.
+Proposed functions: showing versions, a read-only transition plan, preflight, backup/record, execution of a specific transition, verify and rollback by data type.
+These functions are not implemented today; no runnable school update command is given. The Windows entry is later to use the same proven procedure via WSL, with its own verification of Docker Desktop and the file system.
 
-- **B06-U1:** inventář a návrh kompatibility vydání; jde připravovat souběžně s dokončením první instalace, pouze z kódu a veřejných podkladů.
-- **B06-U2:** generovaný popis vydání a zamčení závislostí, navázané na B03; prototyp/testy v izolaci.
-- **B06-U3:** první konkrétní přechod A → B, laboratorní migrace a obnova; před školním/produkčním použitím vyřešit otevřenou podporu migrací B03e-2/D11.
-- **B06-U4:** společný aktualizační vstup a provozní runbook, včetně Windows/WSL; hotovo až po nácviku reálného přechodu a návratu.
+- **B06-U1:** inventory and release compatibility proposal; can be prepared in parallel with completing the first installation, from code and public sources only.
+- **B06-U2:** generated release description and dependency locking, tied to B03; prototype/tests in isolation.
+- **B06-U3:** the first specific transition A → B, lab migration and restore; before school/production use, resolve the open migration support B03e-2/D11.
+- **B06-U4:** a common update entry point and an operations runbook, including Windows/WSL; done only after a rehearsal of a real transition and rollback.
 
-Akceptace aktualizátoru vyžaduje prokázaný přechod i návrat, zachované klíče a data, bezpečné odmítnutí nepodporované výchozí verze,
-pravdivé výsledky neověřených kontrol a dokumentaci přesného podporovaného prostředí. Úspěšná čistá instalace tuto akceptaci nenahrazuje.
+Acceptance of the updater requires a proven transition and rollback, preserved keys and data, safe refusal of an unsupported starting version,
+truthful results of unverified checks and documentation of the exact supported environment. A successful clean install does not replace this acceptance.
 
-## 7. Veřejné podklady
+## 7. Public sources
 
-- [PostgreSQL: upgrading a cluster](https://www.postgresql.org/docs/current/upgrading.html) — rozdíl minor/major a migrační metody.
-- [Docker: Compose in production](https://docs.docker.com/compose/how-tos/production/) — build a výměna dotčených služeb.
-- [Langflow: deployment on Docker](https://docs.langflow.org/deployment-docker) — oficiální cesta k verzování, upgrade a rollback guidance; aktuální veřejná stránka není kontraktem našeho obrazu 1.10.1.
+- [PostgreSQL: upgrading a cluster](https://www.postgresql.org/docs/current/upgrading.html) — the minor/major difference and migration methods.
+- [Docker: Compose in production](https://docs.docker.com/compose/how-tos/production/) — build and replacement of the affected services.
+- [Langflow: deployment on Docker](https://docs.langflow.org/deployment-docker) — the official path to versioning, upgrade and rollback guidance; the current public page is not a contract of our image 1.10.1.
 
-Před provedením konkrétního upgradu znovu zkontrolovat oficiální podklady pro přesné výchozí a cílové verze. Tento návrh nezjišťuje nejnovější verzi každé komponenty a žádnou nevolí k nasazení.
+Before executing a specific upgrade, re-check the official sources for the exact starting and target versions. This proposal does not determine the latest version of every component and chooses none for deployment.

@@ -39,7 +39,7 @@ filled in this order, because each depends on the one above it.
 | Layer | Question it answers | Filled by |
 |---|---|---|
 | **Identity** | Whose data is this? | during setup, once |
-| **Registries** (číselníky) | What vocabulary does this school use? | during setup, then maintained |
+| **Registries** (code lists) | What vocabulary does this school use? | during setup, then maintained |
 | **Content** | What does the school actually say? | ingestion, continuously |
 | **Operations** | What was asked, and what was answered? | the running system |
 
@@ -83,7 +83,7 @@ are a behavioural record, and attaching a name would turn it into a personal one
 
 ---
 
-## 3. Registry layer (číselníky)
+## 3. Registry layer (code lists)
 
 These are the school's vocabulary. They are **per legal entity**, and they
 resolve by *nearest owner takes the whole set* — a unit either has its own list
@@ -102,7 +102,7 @@ and must not be conflated.
 
 ### `taxonomy_rules` — document types and domains
 
-A číselník of document types (rules, information page, study material…) **plus
+A code list of document types (rules, information page, study material…) **plus
 the instruction given to the classification LLM**. This is the central control of
 classification: adding a new document type is one row, not a code change.
 
@@ -367,7 +367,7 @@ belongs to no known domain is how content ends up under the wrong school.
 **3. Create the people.** `staff_user` — at least one, because a document
 requires an owner.
 
-**4. Fill the číselníky.** `code_list` for languages, subjects and grades.
+**4. Fill the code lists.** `code_list` for languages, subjects and grades.
 Nothing can be ingested before this: ingestion resolves codes and rejects
 unknown ones.
 
@@ -433,7 +433,7 @@ VALUES (gen_random_uuid()::text, 'ZAKLADNI_SKOLA_BOROVA',
         'Jana Nováková (ředitelka)', 'reditelka@skola-borova.example');
 ```
 
-**Step 4 — the číselníky.** Language and grades are owned by this entity;
+**Step 4 — the code lists.** Language and grades are owned by this entity;
 subjects usually are too.
 
 ```sql
@@ -517,7 +517,7 @@ VALUES
    'unit', 'SS',  'IZO 1234');
 ```
 
-**Step 4 — číselníky, and this is where the two cases really differ.**
+**Step 4 — code lists, and this is where the two cases really differ.**
 
 Code lists resolve by **nearest owner takes the whole set**. A unit either has
 its own list or inherits the parent's entire list; the two are never merged. So
