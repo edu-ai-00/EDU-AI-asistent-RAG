@@ -69,7 +69,7 @@ Origin: **gen** = generated once by the installer, **supplied** = by the adminis
 | `EDU_AI_TUNNEL_SUBNET` | subnet of the `tunnel` network and the nginx trust range for `CF-Connecting-IP` | required at the SHA with the R2 candidate; **missing from `EX`** | computed `tunnel_subnet.py allocate` (read-only, exit 0/2/3) | Compose → nginx, cloudflared | `DC:537,545`, `TS:11-13,222-252` |
 | `POSTGRES_DB_SERVER`, `_SERVER_PORT`, `POSTGRES_DB`, `_DB_SCHEMA`, `_DB_USER` | DB connectivity and identity | required | const | postgres, edu_ai (flows), search (`PG_*`), scripts | `EX:48-63`, `DC:152,311-316,394-399` |
 | `POSTGRES_PASSWORD` | password of the only DB role | required, secret | gen | postgres (only the first start of an empty volume), edu_ai (DB URL and Global Variable), search | `EX:68`, `DC:152,312-316,397` |
-| `PGADMIN_DEFAULT_EMAIL` | pgAdmin login | required; default `admin@example.com` | supplied (the bootstrap does not ask) | pgadmin | `EX:71`, `DC:343` |
+| `PGADMIN_DEFAULT_EMAIL` | pgAdmin login | required; default `admin@edu-ai.eu` | supplied (the bootstrap does not ask) | pgadmin | `EX:71`, `DC:343` |
 | `PGADMIN_DEFAULT_PASSWORD` | pgAdmin password | required, secret | gen | pgadmin | `BS:90` |
 | `LANGFLOW_SUPERUSER`, `_PASSWORD` | Langflow superuser, created at the first start | required | name const `admin`, password gen | edu_ai, `AK` (login) | `EX:78-79`, `DC:157-158` |
 | `LANGFLOW_SECRET_KEY` | Fernet key, encrypts Global Variables | required, secret, **never change** | gen (`BS:73-80`) | edu_ai only via `env_file` | section 4, `DC:185-190` |

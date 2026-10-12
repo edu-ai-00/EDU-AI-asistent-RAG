@@ -360,7 +360,7 @@ services:
     expose:
       - "80"                         # internal only — Nginx proxies
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@edu-ai.eu}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     volumes:
       # Named on purpose. The image declares /var/lib/pgadmin as an anonymous
