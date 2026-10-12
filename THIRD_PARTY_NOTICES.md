@@ -21,10 +21,10 @@ inventory is not a blanket conclusion about redistribution obligations.
 | PostgreSQL | 16.3 | PostgreSQL License | PostgreSQL Global Development Group |
 | pgvector (extension; base image `pgvector/pgvector:0.7.4-pg16`) | 0.7.4 | PostgreSQL License | Andrew Kane |
 | pg_search (installed by Dockerfile.postgres) | 0.25.1 | [AGPL-3.0](https://github.com/paradedb/paradedb/blob/v0.25.1/LICENSE) | ParadeDB contributors |
-| Bifrost gateway | image v1.6.7 | [Apache-2.0](https://github.com/maximhq/bifrost/blob/4ba2ca5dfb6c2974b629211d8c5c021cd4273f30/LICENSE), upstream transports/v1.6.7 source | Maxim AI / Bifrost contributors |
+| Bifrost gateway | image v2.2.6 | [Apache-2.0](https://github.com/maximhq/bifrost/blob/8b4fce4f1709d66f9208d02f50552da522535f9e/LICENSE), upstream transports/v2.2.6 source | Maxim AI / Bifrost contributors |
 | cloudflared (optional Compose profile) | unpinned image tag latest | [Apache-2.0](https://github.com/cloudflare/cloudflared/blob/master/LICENSE), upstream checked 2026-10-12 | Cloudflare contributors |
 | pg_trgm, unaccent (extensions) | bundled with 16.3 | PostgreSQL License | PostgreSQL Global Development Group |
-| pgAdmin 4 (image `dpage/pgadmin4`) | 9.11.0 | PostgreSQL License | pgAdmin Development Team (Dave Page et al.) |
+| pgAdmin 4 (image `dpage/pgadmin4`) | 9.18.0 | PostgreSQL License | pgAdmin Development Team (Dave Page et al.) |
 | nginx | 1.30.5 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
 | CPython runtime / base images | 3.11 / 3.12 slim | PSF-2.0 | Python Software Foundation |
 | Node.js (frontend build stage only) | 24.18 alpine | MIT | OpenJS Foundation |

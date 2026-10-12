@@ -1,0 +1,7 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "client": {
+    "enforce_auth_on_inference": false
+  },
+  "setup_token": "env.BIFROST_SETUP_TOKEN"
+}

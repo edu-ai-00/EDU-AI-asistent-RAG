@@ -91,8 +91,9 @@ first school is not chosen automatically.
 A non-zero return of the bootstrap is an error. Do not bypass the smoke. The
 wizard deletes and reverts nothing; it allows a retry only for its own
 configuration (the same keys, project and Compose model). A later commit of the
-checkout is accepted when the `.env` has every key of that commit's `.env.example`;
-otherwise it refuses with `CONFIG_LACKS_TEMPLATE_KEYS` and names the keys. It verifies the local Docker
+checkout is accepted; keys its `.env.example` added are appended to the `.env`
+(`CONFIG_KEYS_ADDED`; secrets the installer generates are generated, others take
+the template value) and existing values are never changed. It verifies the local Docker
 engine and the ownership of containers, mounts, networks and volumes. It rejects a
 foreign configuration, a changed HEAD, a dirty tree or Compose overrides. The keys
 are not generated again on a retry.
@@ -107,8 +108,12 @@ git rev-parse HEAD
 ```
 
 The LLM provider is configured separately in Bifrost; a key in the client `.env`
-does not configure the provider by itself. Expose the administration UI only to an
-authorised administrator. Healthy containers and a smoke do not document a paid
+does not configure the provider by itself. Open the Bifrost UI over an SSH tunnel
+to `127.0.0.1:8099`; until an admin account exists it asks for the setup token,
+`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account
+(Workspace → Config → Security) before anyone else can reach the port. Inference
+stays unauthenticated for the internal callers (`bifrost/config.json`). Expose the
+administration UI only to an authorised administrator. Healthy containers and a smoke do not document a paid
 ingestion or the RAG quality.
 
 Operations and backups: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Development and

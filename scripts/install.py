@@ -48,7 +48,8 @@ CAN_PUBLISH = sys.platform.startswith("linux")   # init-config needs renameat2(R
 
 # The secrets scripts/bootstrap.py already generates (GENERATED_SECRETS); nothing else is generated here.
 GENERATED = ("POSTGRES_PASSWORD", "PGADMIN_DEFAULT_PASSWORD", "LANGFLOW_SUPERUSER_PASSWORD", "LANGFLOW_SECRET_KEY",
-             "POSTGRES_ADMIN_PASSWORD", "POSTGRES_SEARCH_PASSWORD", "POSTGRES_LANGFLOW_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD")
+             "POSTGRES_ADMIN_PASSWORD", "POSTGRES_SEARCH_PASSWORD", "POSTGRES_LANGFLOW_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD",
+             "BIFROST_SETUP_TOKEN")
 KEY_NAME = "LANGFLOW_SECRET_KEY"
 SERVICE_ISSUED = ("LANGFLOW_API_KEY",)  # minted by Langflow in a later stage
 MARKERS = ("HOST_NOT_CHECKED", "INSTALLATION_NOT_STARTED")
@@ -71,7 +72,8 @@ def gen_fernet() -> str:
 GENERATORS = {"POSTGRES_PASSWORD": gen_password, "PGADMIN_DEFAULT_PASSWORD": gen_password,
               "LANGFLOW_SUPERUSER_PASSWORD": gen_password, "LANGFLOW_SECRET_KEY": gen_fernet,
               "POSTGRES_ADMIN_PASSWORD": gen_password, "POSTGRES_SEARCH_PASSWORD": gen_password,
-              "POSTGRES_LANGFLOW_PASSWORD": gen_password, "POSTGRES_MIGRATOR_PASSWORD": gen_password}
+              "POSTGRES_LANGFLOW_PASSWORD": gen_password, "POSTGRES_MIGRATOR_PASSWORD": gen_password,
+              "BIFROST_SETUP_TOKEN": gen_password}
 
 
 def sha256_hex(data: str | bytes) -> str:

@@ -527,17 +527,32 @@ class ExistingConfigTests(WizardCase):
                 self.assertNotIn("BACKEND_READY: yes", self.host.text)
 
     @needs_links
-    def test_a_new_template_key_the_env_lacks_is_refused_and_named(self):
+    def test_keys_a_later_template_added_are_appended_and_secrets_generated(self):
         self.prepare_own()
         self.set_recorded_sha(OTHER_SHA)
+        (self.root / ".env.example").write_text(SYN_TEMPLATE + "NEW_SETTING=1\nBIFROST_SETUP_TOKEN=CHANGE_ME_bifrost_setup_token\n",
+                                                encoding="utf-8")
+        env_path = self.host.cfg / ".env"
+        before = env_path.read_bytes()
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 0, self.host.text)
+        self.assertIn("CONFIG_KEYS_ADDED: BIFROST_SETUP_TOKEN, NEW_SETTING (generated: BIFROST_SETUP_TOKEN)", self.host.text)
+        after = env_path.read_text(encoding="utf-8")
+        self.assertTrue(after.encode("utf-8").startswith(before.rstrip(b"\n")))      # every earlier line kept as it was
+        values, _, _ = install.parse_assignments(after)
+        self.assertEqual(values["NEW_SETTING"], "1")
+        self.assertTrue(install.valid_generated("BIFROST_SETUP_TOKEN", values["BIFROST_SETUP_TOKEN"]))
+        self.assertNotIn(values["BIFROST_SETUP_TOKEN"], self.host.text)
+        self.assertEqual((values["LANGFLOW_SECRET_KEY"], values["POSTGRES_PASSWORD"]), (SECRET, PG_SECRET))
+        self.assertNotIn("init-config", self.host.keys)
+
+    @needs_links
+    def test_plan_names_the_keys_it_would_add_and_writes_nothing(self):
+        self.prepare_own()
         (self.root / ".env.example").write_text(SYN_TEMPLATE + "NEW_SETTING=1\n", encoding="utf-8")
         before = snapshot(self.home)
-        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 2, self.host.text)
-        self.assertIn("CONFIG_LACKS_TEMPLATE_KEYS", self.host.text)
-        self.assertIn("NEW_SETTING", self.host.text)
+        self.assertEqual(self.run_cli("plan"), 0, self.host.text)
+        self.assertIn("WILL_ADD_KEYS: NEW_SETTING", self.host.text)
         self.assertEqual(snapshot(self.home), before)
-        for step in ("init-config", "pin-env", "bootstrap"):
-            self.assertNotIn(step, self.host.keys)
 
     @needs_links
     def test_changed_sources_with_every_template_key_continue_with_a_note(self):

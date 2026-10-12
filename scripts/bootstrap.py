@@ -55,7 +55,7 @@ from create_api_key import (  # noqa: E402
     EXIT_RETRY_LATER, KeyUnverifiable, describe_error, display_url, ensure_api_key,
 )
 import eduai_layout  # noqa: E402
-from envfile import create_private, is_placeholder, read_env, set_env  # noqa: E402
+from envfile import create_private, is_placeholder, read_env, set_env, write_atomic  # noqa: E402
 from http_safe import open_url  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -114,6 +114,7 @@ GENERATED_SECRETS: dict[str, "callable"] = {
     "POSTGRES_SEARCH_PASSWORD": _password,
     "POSTGRES_LANGFLOW_PASSWORD": _password,
     "POSTGRES_MIGRATOR_PASSWORD": _password,
+    "BIFROST_SETUP_TOKEN": _password,
 }
 
 _summary: list[str] = []
@@ -421,6 +422,7 @@ def step_dirs() -> None:
             path.mkdir(parents=True, exist_ok=True)
             report("ok", f"created {name}/")
     _fix_data_dir_ownership()
+    _place_bifrost_config()
 
 
 def _data_path(name: str) -> pathlib.Path:
@@ -465,6 +467,40 @@ def _fix_data_dir_ownership() -> None:
             fail(f"could not set ownership: {(result.stderr or result.stdout).strip()[:200]}",
                  "the containers will start but cannot write to their bind mounts. "
                  f"Fix by hand: sudo chown <uid>:<gid> {' '.join(DATA_DIRS)}")
+
+
+BIFROST_CONFIG = ROOT / "bifrost" / "config.json"
+
+
+def _place_bifrost_config() -> None:
+    """Copy bifrost/config.json into bifrost_data, the only place Bifrost reads it from (-app-dir).
+
+    v2 needs it: without it a fresh gateway enforces auth on inference and every
+    caller here gets 401. It holds no secret (env. references only). Replaced
+    whenever the checkout's copy differs; Bifrost itself never writes it.
+    """
+    want = BIFROST_CONFIG.read_bytes()
+    target = _data_path("bifrost_data") / "config.json"
+    try:
+        if target.read_bytes() == want:
+            report("skip", "bifrost_data/config.json (already the checkout's)")
+            return
+    except OSError:
+        pass                                   # absent, or not readable by this user: copy it
+    if sys.platform != "linux":
+        write_atomic(target, want)
+        report("ok", "placed bifrost_data/config.json")
+        return
+    uid, gid, _ = DATA_DIRS["bifrost_data"]
+    tmp = "/mnt/.config.json.edu_ai"
+    result = run(["docker", "run", "--rm", "-v", f"{target.parent}:/mnt", "-v", f"{BIFROST_CONFIG.parent}:/src:ro",
+                  "alpine:3", "sh", "-c",
+                  f"cp /src/config.json {tmp} && chown {uid}:{gid} {tmp} && chmod 0640 {tmp} && mv {tmp} /mnt/config.json"])
+    if result.returncode == 0:
+        report("ok", "placed bifrost_data/config.json")
+    else:
+        fail(f"could not place bifrost_data/config.json: {(result.stderr or result.stdout).strip()[:200]}",
+             "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand (owner 1000:1000)")
 
 
 # ───────────────────────────────────────────────────────────────

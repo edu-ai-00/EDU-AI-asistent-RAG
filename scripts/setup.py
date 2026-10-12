@@ -12,8 +12,8 @@ or school-setting flag: the school is chosen later, in the browser. A new config
 gets the existing CHAT_ENTITY_PICKER=true through pin-env; an existing one keeps what it has.
 
 Nothing is ever deleted, replaced or forced. A repeated run continues only on proof that config, key, project and Compose
-model are this installation's own, and that the .env has every key of this commit's template; the commit itself may
-differ. Otherwise it refuses and says how to look. Secrets never go through arguments or this tool's output:
+model are this installation's own; the commit itself may differ. Keys of this commit's .env.example that the .env
+lacks are added (template value, or a generated secret). Otherwise it refuses and says how to look. Secrets never go through arguments or this tool's output:
 the one-time overview of init-config appears only on the terminal that child inherits.
 Exit status: 0 backend ready | 2 refused | 3 could not verify or complete | a failing child's own status otherwise.
 Standard library only.
@@ -148,6 +148,7 @@ class State:
     notes: list = field(default_factory=list)
     findings: list = field(default_factory=list)    # (level, code, detail)
     new_parents: list = field(default_factory=list)
+    missing_keys: list = field(default_factory=list)  # template keys the own .env lacks
 
     def refuse(self, code: str, detail: str = "") -> None:
         self.findings.append((REFUSED, code, detail))
@@ -196,8 +197,8 @@ def own_config(layout: L.Layout, *, newly_created: bool = False) -> tuple[dict |
         values, _, _ = install.parse_assignments(install._read_regular(os.path.join(cfg, ENV_NAME), install.MAX_BLOB).decode("utf-8"))
     except (OSError, ValueError, UnicodeError):
         return None, "CONFIG_UNREADABLE", "record or .env"
-    # The recorded commit is not a condition: ownership rests on the key, project and Compose model below,
-    # and _classify_config refuses a .env that lacks keys of this commit's template.
+    # The recorded commit is not a condition: ownership rests on the key, project and Compose model below;
+    # keys a later template added are filled in by add_template_keys.
     named = values.get("COMPOSE_PROJECT_NAME", "").strip()
     if named and named != layout.project and not newly_created:
         return None, "CONFIG_OTHER_PROJECT", "COMPOSE_PROJECT_NAME of the .env differs from the project asked for"
@@ -474,14 +475,26 @@ def _changed_sources(layout: L.Layout, record: dict) -> list[str]:
     return changed
 
 
-def _missing_template_keys(layout: L.Layout, values: dict) -> list[str]:
-    """Keys of this commit's .env.example absent from the .env: init-config renders every template key, pin-env adds none of them."""
+def _template_entries(layout: L.Layout) -> dict | None:
     try:
-        template = (layout.source_root / install.TEMPLATE_PATH).read_text(encoding="utf-8")
+        return install.parse_assignments((layout.source_root / install.TEMPLATE_PATH).read_text(encoding="utf-8"))[0]
     except (OSError, UnicodeError):
-        return [install.TEMPLATE_PATH]
-    entries, _, _ = install.parse_assignments(template)
-    return sorted(k for k in entries if k not in values)
+        return None
+
+
+def add_template_keys(layout: L.Layout, keys: list[str]) -> list[str]:
+    """Append keys a later .env.example added, as init-config would have written them: a generated secret for the
+    keys it generates, else the template value. Only absent keys; no value is printed. Returns the generated names."""
+    entries = _template_entries(layout) or {}
+    updates, generated = {}, []
+    for key in keys:
+        if key in install.GENERATORS:
+            updates[key] = install.GENERATORS[key]()
+            generated.append(key)
+        else:
+            updates[key] = entries.get(key, "")
+    set_env(layout.env_path, updates)
+    return generated
 
 
 def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
@@ -491,11 +504,15 @@ def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
     if values is None:
         st.refuse(code, detail + ("; to look: ls -la, scripts/host_preflight.py check; never overwritten or removed here" if detail else ""))
         return "refused"
-    missing = _missing_template_keys(layout, values)
-    if missing:
-        st.refuse("CONFIG_LACKS_TEMPLATE_KEYS", ", ".join(missing) + ": this commit's .env.example has keys the .env lacks; "
-                  "add them to the .env yourself (this tool installs, it does not migrate a configuration)")
+    entries = _template_entries(layout)
+    if entries is None:
+        st.refuse("CONFIG_TEMPLATE_UNREADABLE", f"{install.TEMPLATE_PATH} of this checkout cannot be read")
         return "refused"
+    st.missing_keys = sorted(k for k in entries if k not in values)
+    if st.missing_keys:
+        made = [k for k in st.missing_keys if k in install.GENERATORS]
+        st.notes.append("WILL_ADD_KEYS: " + ", ".join(st.missing_keys) + " (absent from the .env, present in this commit's template"
+                        + (f"; generated: {', '.join(made)}" if made else "") + ")")
     st.env_values = values
     record = _record(layout)
     recorded = record.get("source_sha")
@@ -645,6 +662,16 @@ class Wizard:
             if values is None:
                 return self.stop("init-config-verify", 3, f"The new set could not be confirmed ({code}); inspect {layout.config_dir}.")
             st.env_values = values
+        if st.missing_keys:
+            try:
+                made = add_template_keys(layout, st.missing_keys)
+            except OSError as exc:
+                return self.stop("add-keys", 3, f"The .env could not be updated ({type(exc).__name__}); it was left unchanged.")
+            self.say("CONFIG_KEYS_ADDED: " + ", ".join(st.missing_keys) + (f" (generated: {', '.join(made)})" if made else ""))
+            values, code, detail = own_config(layout)
+            if values is None:
+                return self.stop("add-keys-verify", 3, f"The configuration could not be confirmed after adding keys ({code}).")
+            st.env_values = values
         pin = ["pin-env", *layout.argv(), "--allocate-tunnel-subnet", "--set", LANGFLOW_URL_PIN]
         if want_picker(st.env_values, created_now):
             pin += ["--set", f"{PICKER_VAR}=true"]
@@ -744,7 +771,8 @@ class Wizard:
             self.say("Chat používá pevnou školu z konfigurace; tato instalace ji nezměnila.")
         else:
             self.say("Chat nemá školu: zapněte výběr nebo nastavte pevnou školu; viz docs/CLEAN_INSTALL.md.")
-        self.say("PROVIDER: the LLM provider is a separate input (Bifrost UI on 127.0.0.1:8099 over an SSH tunnel); "
+        self.say("PROVIDER: the LLM provider is a separate input (Bifrost UI on 127.0.0.1:8099 over an SSH tunnel, "
+                 "setup token = BIFROST_SETUP_TOKEN in the config .env until an admin account exists); "
                  "this run made no paid call and does not claim answers work")
         self.say("NOT_TESTED: network isolation and firewall (published ports 80, 8443, 8444); explicit existing Cloudflare profiles require separate verification")
         return 0

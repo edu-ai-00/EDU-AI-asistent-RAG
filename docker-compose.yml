@@ -227,11 +227,13 @@ services:
   # http://bifrost:8080 on `app`; provider keys live in bifrost_data/config.db,
   # managed through the UI — never in this file and never in git.
   bifrost:
-    image: maximhq/bifrost:v1.6.7    # pinned: `latest` moves under you
+    image: maximhq/bifrost:v2.2.6    # pinned: `latest` moves under you
     container_name: bifrost
     ports:
-      # Bifrost ships NO authentication — not on the UI, not on the admin API.
-      # Whoever reaches this port owns every provider key in it. Loopback by
+      # Until an admin account exists, the UI and the admin API take only the
+      # setup token (BIFROST_SETUP_TOKEN); inference is unauthenticated by design
+      # (bifrost/config.json), the callers here are on `app`. Whoever reaches this
+      # port with the token owns every provider key in it. Loopback by
       # default; BIFROST_BIND=<server> hands it to every WireGuard peer, which
       # is a deliberate choice to make per host. Never 0.0.0.0 — that is public.
       # 8099, not 8090: docker-compose.override.yml already publishes 8090 for
@@ -242,13 +244,15 @@ services:
       APP_PORT: 8080
       LOG_LEVEL: ${BIFROST_LOG_LEVEL:-info}
       LOG_STYLE: json
+      # Read by bifrost/config.json (`env.BIFROST_SETUP_TOKEN`); bootstrap copies that file into bifrost_data.
+      BIFROST_SETUP_TOKEN: ${BIFROST_SETUP_TOKEN:?BIFROST_SETUP_TOKEN is missing from .env}
     volumes:
-      - ./bifrost_data:/app/data     # config.db (provider keys), logs.db
+      - ./bifrost_data:/app/data     # config.json (from bifrost/), config.db (provider keys), logs.db
     networks:
       - app                          # east-west: langflow / api / search call it
       - bifrost_egress               # north-south: outbound to the providers
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/metrics"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]   # /metrics needs auth from v2
       interval: 30s
       timeout: 5s
       retries: 3
@@ -351,7 +355,7 @@ services:
   # pgAdmin  (admin UI → DB)
   # ─────────────────────────────────────────────
   pgadmin:
-    image: dpage/pgadmin4:9.11.0
+    image: dpage/pgadmin4:9.18.0
     container_name: edu_ai_pgadmin
     expose:
       - "80"                         # internal only — Nginx proxies

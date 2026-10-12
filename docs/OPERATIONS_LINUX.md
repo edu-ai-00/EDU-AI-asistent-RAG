@@ -33,7 +33,10 @@ clears the conversation and the domains. The selection is neither authentication
 nor a role assignment. A fixed installation may have `CHAT_LEGAL_ENTITY`; the
 wizard keeps an existing configuration.
 
-The provider and its key are managed by Bifrost. Restrict administration access;
+The provider and its key are managed by Bifrost. Its UI and admin API need the
+setup token (`BIFROST_SETUP_TOKEN` in the config `.env`) until an admin account
+exists; bootstrap places `bifrost/config.json` (inference without auth for the
+internal callers, the token reference) into `bifrost_data`. Restrict administration access;
 do not put keys into Git or into public reports. A paid verification needs its own
 scope, test inputs and a recorded result.
 

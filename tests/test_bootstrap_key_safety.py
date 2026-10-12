@@ -59,18 +59,19 @@ FERNET = "c3luLWZlcm5ldC1rZXktMDEyMzQ1Njc4OWFiY2RlZmdoaWo="
 OLD_KEY = "sk-syn-old-key-aaaaaaaaaaaaaaaa"
 OPENAI_KEY = "sk-syn-openai-bbbbbbbbbbbbbbbb"
 CF_TOKEN = "syn-cf-token-cccccccccccccccc"
+BIFROST_TOKEN = "syn-bifrost-setup-hhhhhhhhhhhhhhhh"
 NEW_KEY = "sk-syn-new-key-dddddddddddddddd"
 PASTED_KEY = "sk-syn-pasted-eeeeeeeeeeeeeeee"
 BODY_SECRET = "syn-body-secret-ffffffff"
 BEARER = "syn-bearer-token-gggggggg"
 ALL_SECRETS = [PG_PASSWORD, PGADMIN_PASSWORD, SU_PASSWORD, FERNET, OLD_KEY, OPENAI_KEY,
-               CF_TOKEN, NEW_KEY, PASTED_KEY, BODY_SECRET, BEARER, *ROLE_PASSWORDS.values()]
+               CF_TOKEN, NEW_KEY, PASTED_KEY, BODY_SECRET, BEARER, BIFROST_TOKEN, *ROLE_PASSWORDS.values()]
 
 HOSTILE_BODY = json.dumps(
     {"detail": f"echo {BODY_SECRET} key={OLD_KEY} password={SU_PASSWORD}"}).encode()
 
 CREATED_NAMES = ["POSTGRES_PASSWORD", "PGADMIN_DEFAULT_PASSWORD",
-                 "LANGFLOW_SUPERUSER_PASSWORD", "LANGFLOW_SECRET_KEY", *ROLE_PASSWORDS]
+                 "LANGFLOW_SUPERUSER_PASSWORD", "LANGFLOW_SECRET_KEY", *ROLE_PASSWORDS, "BIFROST_SETUP_TOKEN"]
 
 
 # ───────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ def synthetic_env(**override) -> bytes:
         "POSTGRES_PASSWORD": PG_PASSWORD, "PGADMIN_DEFAULT_PASSWORD": PGADMIN_PASSWORD,
         "LANGFLOW_SUPERUSER_PASSWORD": SU_PASSWORD, "LANGFLOW_SECRET_KEY": FERNET,
         "LANGFLOW_API_KEY": OLD_KEY, "OPENAI_API_KEY": OPENAI_KEY,
-        "CLOUDFLARE_TUNNEL_TOKEN": CF_TOKEN, **ROLE_PASSWORDS,
+        "CLOUDFLARE_TUNNEL_TOKEN": CF_TOKEN, **ROLE_PASSWORDS, "BIFROST_SETUP_TOKEN": BIFROST_TOKEN,
     }
     values.update(override)
     lines = [
@@ -121,6 +122,7 @@ POSTGRES_ADMIN_PASSWORD=CHANGE_ME_postgres_admin_password
 POSTGRES_SEARCH_PASSWORD=CHANGE_ME_postgres_search_password
 POSTGRES_LANGFLOW_PASSWORD=CHANGE_ME_postgres_langflow_password
 POSTGRES_MIGRATOR_PASSWORD=CHANGE_ME_postgres_migrator_password
+BIFROST_SETUP_TOKEN=CHANGE_ME_bifrost_setup_token
 OPENAI_API_KEY={OPENAI_KEY}
 CLOUDFLARE_TUNNEL_TOKEN={CF_TOKEN}
 """

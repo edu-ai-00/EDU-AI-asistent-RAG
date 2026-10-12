@@ -555,7 +555,7 @@ class CheckTests(Tree):
         self.assertEqual(self.check().exit_code(), 0)
 
     def test_a_public_image_already_on_the_host_is_a_note_unless_the_operator_is_strict(self):
-        self.world.images = [{"Repository": "nginx", "Tag": "1.30.5-alpine"}, {"Repository": "maximhq/bifrost", "Tag": "v1.6.7"}]
+        self.world.images = [{"Repository": "nginx", "Tag": "1.30.5-alpine"}, {"Repository": "maximhq/bifrost", "Tag": "v2.2.6"}]
         r = self.check()
         self.assertEqual(r.exit_code(), 0)
         self.expect(r, "IMAGES_PRESENT_PULLED", NOTE)
