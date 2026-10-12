@@ -169,7 +169,7 @@ def _create_exclusive(target: pathlib.Path, data: bytes) -> None:
         raise
 
 
-def set_env(path: str | pathlib.Path, updates: dict[str, str]) -> None:
+def set_env(path: str | pathlib.Path, updates: dict[str, str], origin: str = "scripts/bootstrap.py") -> None:
     """Apply `updates` to a .env file, keeping comments, order and unknown keys.
 
     Keys already present are rewritten where they stand (every occurrence); new ones are appended.
@@ -195,7 +195,7 @@ def set_env(path: str | pathlib.Path, updates: dict[str, str]) -> None:
     if remaining:
         if lines and lines[-1].strip():
             lines.append("")
-        lines.append("# ── Added by scripts/bootstrap.py ─────────────")
+        lines.append(f"# ── Added by {origin} ─────────────")
         lines.extend(f"{key}={value}" for key, value in remaining.items())
 
     write_atomic(path, ("\n".join(lines) + "\n").encode("utf-8"))

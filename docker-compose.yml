@@ -165,6 +165,8 @@ services:
       - POSTGRES_SEARCH_PASSWORD=
       - POSTGRES_LANGFLOW_PASSWORD=
       - POSTGRES_MIGRATOR_PASSWORD=
+      # Bifrost's setup token is admin access to the gateway (every provider key) while no admin exists.
+      - BIFROST_SETUP_TOKEN=
       - LANGFLOW_CACHE_EXPIRE=1
       - LANGFLOW_LANGCHAIN_CACHE=false
       # Langflow 1.10 added SSRF protection to the API Request component, which
@@ -245,7 +247,9 @@ services:
       LOG_LEVEL: ${BIFROST_LOG_LEVEL:-info}
       LOG_STYLE: json
       # Read by bifrost/config.json (`env.BIFROST_SETUP_TOKEN`); bootstrap copies that file into bifrost_data.
-      BIFROST_SETUP_TOKEN: ${BIFROST_SETUP_TOKEN:?BIFROST_SETUP_TOKEN is missing from .env}
+      # Not `:?`: an older .env without it must still let `docker compose ps/logs/down` work. Empty means
+      # /api stays closed (403); bootstrap and the wizard add the key.
+      BIFROST_SETUP_TOKEN: ${BIFROST_SETUP_TOKEN:-}
     volumes:
       - ./bifrost_data:/app/data     # config.json (from bifrost/), config.db (provider keys), logs.db
     networks:
@@ -265,7 +269,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────
-  # Cloudflare tunnel → Bifrost UI
+  # Cloudflare tunnel → Bifrost UI and nginx :81 (optional, see docs/CLEAN_INSTALL.md)
   # ─────────────────────────────────────────────
   cloudflared:
     # Optional: enable explicitly with COMPOSE_PROFILES=cloudflare in .env.
@@ -290,11 +294,11 @@ services:
       # `app` and `tunnel` are internal:true and have no route out, so cloudflared needs a
       # network of its own to reach Cloudflare. Nothing else is on it.
       - tunnel_egress
-    # BIFROST HAS NO AUTHENTICATION — see its ports comment above. A tunnel only
-    # publishes; it authenticates nothing. The hostname is therefore protected by
-    # a Cloudflare Access policy, configured in the Zero Trust dashboard, and that
-    # policy is the ONLY thing between the internet and every provider key in the
-    # gateway. Turning it off is the whole security boundary, not a setting.
+    # Bifrost inference has NO authentication by design (bifrost/config.json), and its
+    # UI/API take the setup token until an admin account exists. A tunnel only publishes;
+    # it authenticates nothing. The hostname is therefore protected by a Cloudflare Access
+    # policy, configured in the Zero Trust dashboard, and that policy is the only thing
+    # between the internet and the gateway. Turning it off is the whole security boundary.
     depends_on:
       - bifrost
     restart: unless-stopped

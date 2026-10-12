@@ -179,7 +179,7 @@ def _nested(a, b) -> bool:
         return False
 
 
-def own_config(layout: L.Layout, *, newly_created: bool = False) -> tuple[dict | None, str, str]:
+def own_config(layout: L.Layout, sha: str | None = None, *, newly_created: bool = False) -> tuple[dict | None, str, str]:
     """(env values, '', '') when the config set is provably this installation's own; else (None, code, detail)."""
     cfg = str(layout.config_dir)
     try:
@@ -197,8 +197,14 @@ def own_config(layout: L.Layout, *, newly_created: bool = False) -> tuple[dict |
         values, _, _ = install.parse_assignments(install._read_regular(os.path.join(cfg, ENV_NAME), install.MAX_BLOB).decode("utf-8"))
     except (OSError, ValueError, UnicodeError):
         return None, "CONFIG_UNREADABLE", "record or .env"
-    # The recorded commit is not a condition: ownership rests on the key, project and Compose model below;
-    # keys a later template added are filled in by add_template_keys.
+    # Bound to the checkout, not to a commit: another commit of THIS checkout continues, another clone is refused.
+    # A record from before source_root existed keeps the old rule (same commit). History is not compared.
+    recorded_root = record.get("source_root")
+    if isinstance(recorded_root, str):
+        if os.path.realpath(recorded_root) != os.path.realpath(layout.source_root):
+            return None, "CONFIG_FROM_ANOTHER_CHECKOUT", "the record names another source checkout; nothing is touched"
+    elif sha is None or record.get("source_sha") != sha:
+        return None, "CONFIG_FROM_ANOTHER_SOURCE", "the record predates checkout binding and names another commit"
     named = values.get("COMPOSE_PROJECT_NAME", "").strip()
     if named and named != layout.project and not newly_created:
         return None, "CONFIG_OTHER_PROJECT", "COMPOSE_PROJECT_NAME of the .env differs from the project asked for"
@@ -211,14 +217,14 @@ def own_config(layout: L.Layout, *, newly_created: bool = False) -> tuple[dict |
     return values, "", ""
 
 
-def bind_new_project(layout: L.Layout) -> tuple[dict | None, str, str]:
+def bind_new_project(layout: L.Layout, sha: str) -> tuple[dict | None, str, str]:
     """Only the set just published by successful init-config may change its template project."""
-    values, code, detail = own_config(layout, newly_created=True)
+    values, code, detail = own_config(layout, sha, newly_created=True)
     if values is None:
         return values, code, detail
     if values.get("COMPOSE_PROJECT_NAME") != layout.project:
         set_env(layout.env_path, {"COMPOSE_PROJECT_NAME": layout.project})
-    return own_config(layout)
+    return own_config(layout, sha)
 
 
 def want_picker(values: dict | None, created_now: bool) -> bool:
@@ -476,10 +482,17 @@ def _changed_sources(layout: L.Layout, record: dict) -> list[str]:
 
 
 def _template_entries(layout: L.Layout) -> dict | None:
+    """Key -> the value text exactly as the template line has it (quotes kept), like install.render_env copies the line."""
     try:
-        return install.parse_assignments((layout.source_root / install.TEMPLATE_PATH).read_text(encoding="utf-8"))[0]
+        text = (layout.source_root / install.TEMPLATE_PATH).read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         return None
+    raw = {}
+    for line in text.split("\n"):
+        m = install._ASSIGN.match(line)
+        if m and not line.lstrip().startswith("#"):
+            raw[m.group(1)] = m.group(2).strip()
+    return raw
 
 
 def add_template_keys(layout: L.Layout, keys: list[str]) -> list[str]:
@@ -493,14 +506,14 @@ def add_template_keys(layout: L.Layout, keys: list[str]) -> list[str]:
             generated.append(key)
         else:
             updates[key] = entries.get(key, "")
-    set_env(layout.env_path, updates)
+    set_env(layout.env_path, updates, origin="scripts/setup.py")
     return generated
 
 
 def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
     if not os.path.lexists(layout.config_dir):
         return "absent"
-    values, code, detail = own_config(layout)
+    values, code, detail = own_config(layout, sha)
     if values is None:
         st.refuse(code, detail + ("; to look: ls -la, scripts/host_preflight.py check; never overwritten or removed here" if detail else ""))
         return "refused"
@@ -509,6 +522,10 @@ def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
         st.refuse("CONFIG_TEMPLATE_UNREADABLE", f"{install.TEMPLATE_PATH} of this checkout cannot be read")
         return "refused"
     st.missing_keys = sorted(k for k in entries if k not in values)
+    dollar = [k for k in st.missing_keys if k not in install.GENERATORS and "$" in entries[k]]
+    if dollar:                                          # init-config refuses the same (TEMPLATE_VALUE_HAS_DOLLAR)
+        st.refuse("TEMPLATE_VALUE_HAS_DOLLAR", ", ".join(dollar) + ": Compose would read part of the value as a variable")
+        return "refused"
     if st.missing_keys:
         made = [k for k in st.missing_keys if k in install.GENERATORS]
         st.notes.append("WILL_ADD_KEYS: " + ", ".join(st.missing_keys) + " (absent from the .env, present in this commit's template"
@@ -658,7 +675,7 @@ class Wizard:
             rc = made.rc
             if rc != 0:
                 return self.stop("init-config", rc, "Fix the reported cause and repeat the same command.")
-            values, code, detail = bind_new_project(layout)
+            values, code, detail = bind_new_project(layout, sha)
             if values is None:
                 return self.stop("init-config-verify", 3, f"The new set could not be confirmed ({code}); inspect {layout.config_dir}.")
             st.env_values = values
@@ -668,7 +685,7 @@ class Wizard:
             except OSError as exc:
                 return self.stop("add-keys", 3, f"The .env could not be updated ({type(exc).__name__}); it was left unchanged.")
             self.say("CONFIG_KEYS_ADDED: " + ", ".join(st.missing_keys) + (f" (generated: {', '.join(made)})" if made else ""))
-            values, code, detail = own_config(layout)
+            values, code, detail = own_config(layout, sha)
             if values is None:
                 return self.stop("add-keys-verify", 3, f"The configuration could not be confirmed after adding keys ({code}).")
             st.env_values = values

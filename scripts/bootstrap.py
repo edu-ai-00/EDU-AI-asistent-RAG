@@ -469,7 +469,7 @@ def _fix_data_dir_ownership() -> None:
                  f"Fix by hand: sudo chown <uid>:<gid> {' '.join(DATA_DIRS)}")
 
 
-BIFROST_CONFIG = ROOT / "bifrost" / "config.json"
+_bifrost_config_changed = False
 
 
 def _place_bifrost_config() -> None:
@@ -479,28 +479,55 @@ def _place_bifrost_config() -> None:
     caller here gets 401. It holds no secret (env. references only). Replaced
     whenever the checkout's copy differs; Bifrost itself never writes it.
     """
-    want = BIFROST_CONFIG.read_bytes()
+    global _bifrost_config_changed
+    source = ROOT / "bifrost" / "config.json"             # ROOT is the layout's source root once main() resolved it
+    try:
+        want = source.read_bytes()
+    except OSError as exc:
+        fail(f"bifrost/config.json is not readable ({type(exc).__name__})", "the checkout is incomplete")
+        return
     target = _data_path("bifrost_data") / "config.json"
     try:
-        if target.read_bytes() == want:
-            report("skip", "bifrost_data/config.json (already the checkout's)")
-            return
+        current = target.read_bytes()
+    except FileNotFoundError:
+        current = None
     except OSError:
-        pass                                   # absent, or not readable by this user: copy it
+        current = b""                          # not readable by this user: copy, the content is unknown
+    if current == want:
+        report("skip", "bifrost_data/config.json (already the checkout's)")
+        return
     if sys.platform != "linux":
-        write_atomic(target, want)
+        try:
+            write_atomic(target, want)
+        except OSError as exc:
+            fail(f"could not write bifrost_data/config.json ({type(exc).__name__})",
+                 "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand")
+            return
+        _bifrost_config_changed = True
         report("ok", "placed bifrost_data/config.json")
         return
     uid, gid, _ = DATA_DIRS["bifrost_data"]
     tmp = "/mnt/.config.json.edu_ai"
-    result = run(["docker", "run", "--rm", "-v", f"{target.parent}:/mnt", "-v", f"{BIFROST_CONFIG.parent}:/src:ro",
+    result = run(["docker", "run", "--rm", "-v", f"{target.parent}:/mnt", "-v", f"{source.parent}:/src:ro",
                   "alpine:3", "sh", "-c",
                   f"cp /src/config.json {tmp} && chown {uid}:{gid} {tmp} && chmod 0640 {tmp} && mv {tmp} /mnt/config.json"])
     if result.returncode == 0:
-        report("ok", "placed bifrost_data/config.json")
+        _bifrost_config_changed = True
+        report("ok", "placed bifrost_data/config.json" + (" (could not compare as this user)" if current == b"" else ""))
     else:
         fail(f"could not place bifrost_data/config.json: {(result.stderr or result.stdout).strip()[:200]}",
              "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand (owner 1000:1000)")
+
+
+def _restart_bifrost() -> bool:
+    """Bifrost reads config.json only at start; `up` keeps a running container whose image and model did not change."""
+    result = compose("restart", "bifrost", timeout=300)
+    if result.returncode != 0:
+        fail("bifrost did not restart after its config.json changed",
+             "run `docker compose restart bifrost` and check its log")
+        return False
+    report("ok", "restarted bifrost to read the new config.json")
+    return True
 
 
 # ───────────────────────────────────────────────────────────────
@@ -945,6 +972,8 @@ def main() -> int:
     # working internet to boot at all — it exits on its pricing fetch otherwise.
     if not step_up(["postgres", "bifrost", "edu_ai", "nginx"],
                    "4. start postgres + bifrost + langflow + nginx", build=args.build):
+        return 1
+    if _bifrost_config_changed and not _restart_bifrost():
         return 1
 
     api_key = step_api_key(args.langflow_url, allow_prompt=not args.no_input)

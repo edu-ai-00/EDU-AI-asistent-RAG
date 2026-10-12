@@ -90,10 +90,13 @@ first school is not chosen automatically.
 
 A non-zero return of the bootstrap is an error. Do not bypass the smoke. The
 wizard deletes and reverts nothing; it allows a retry only for its own
-configuration (the same keys, project and Compose model). A later commit of the
-checkout is accepted; keys its `.env.example` added are appended to the `.env`
-(`CONFIG_KEYS_ADDED`; secrets the installer generates are generated, others take
-the template value) and existing values are never changed. It verifies the local Docker
+configuration (the same checkout, keys, project and Compose model). Another
+commit of the same checkout is accepted (the tool does not compare history, so a
+later and an earlier commit are treated alike); a configuration created from
+another clone is refused (`CONFIG_FROM_ANOTHER_CHECKOUT`). Keys the commit's
+`.env.example` has and the `.env` lacks are appended (`CONFIG_KEYS_ADDED`; secrets
+the installer generates are generated, others are copied from the template line)
+and existing values are never changed. It verifies the local Docker
 engine and the ownership of containers, mounts, networks and volumes. It rejects a
 foreign configuration, a changed HEAD, a dirty tree or Compose overrides. The keys
 are not generated again on a retry.
@@ -110,10 +113,37 @@ git rev-parse HEAD
 The LLM provider is configured separately in Bifrost; a key in the client `.env`
 does not configure the provider by itself. Open the Bifrost UI over an SSH tunnel
 to `127.0.0.1:8099`; until an admin account exists it asks for the setup token,
-`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account
-(Workspace → Config → Security) before anyone else can reach the port. Inference
-stays unauthenticated for the internal callers (`bifrost/config.json`). Expose the
-administration UI only to an authorised administrator. Healthy containers and a smoke do not document a paid
+`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account before
+anyone else can reach the port, and when you create it **turn off "enforce auth on
+inference"**: Bifrost v2 otherwise switches it on with the first admin, and
+Langflow, search and the API then get `401 virtual key is required`. The smoke test
+fails in that state (`bifrost: inference requires a credential`). Inference stays
+unauthenticated for the internal callers by design (`bifrost/config.json`). Expose
+the administration UI only to an authorised administrator.
+
+## Cloudflare tunnel (optional)
+
+The tunnel is prepared but off: `cloudflared` runs only under the Compose profile
+`cloudflare`. To bring it up on an installed host:
+
+1. In the Cloudflare Zero Trust dashboard, use the existing tunnel (or create one;
+   a recreated tunnel may keep its ID) and copy its token. Its public hostnames
+   point at `http://edu_ai_nginx:81` (the `/search/` allowlist) and, for the
+   gateway UI, at `http://bifrost:8080`. Put a **Cloudflare Access** policy on every
+   hostname: the tunnel authenticates nothing and Bifrost inference has no auth.
+2. Create the Bifrost admin account first (see above).
+3. Add to `~/edu-ai/config/.env`:
+
+   ```bash
+   COMPOSE_PROFILES=cloudflare
+   CLOUDFLARE_TUNNEL_TOKEN=<token>
+   ```
+
+4. Re-run `python3 scripts/setup.py install`; it continues the same installation
+   and the smoke test then checks the `cloudflared` container as well.
+
+`EDU_AI_TUNNEL_SUBNET` (pinned at installation) is the range nginx trusts for
+`CF-Connecting-IP`; it is internal and need not match the old host. Healthy containers and a smoke do not document a paid
 ingestion or the RAG quality.
 
 Operations and backups: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Development and

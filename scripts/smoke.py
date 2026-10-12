@@ -199,6 +199,25 @@ def check_health_endpoints(langflow_base: str | None) -> None:
         else:
             ok(f"{service}: {payload.get('status', 'ok')}")
 
+    check_bifrost_inference_open()
+
+
+def check_bifrost_inference_open() -> None:
+    """Bifrost v2 turns inference auth on when an admin account is created without unticking it;
+    every caller here then gets 401. Read from edu_ai_search, the callers' own path; the endpoint is public."""
+    try:
+        state = _http_json_in("edu_ai_search", "http://bifrost:8080/api/session/is-auth-enabled")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        bad(f"bifrost: auth state not readable from edu_ai_search ({exc})")
+        return
+    if state.get("inference_auth_enforced") is not False:
+        bad("bifrost: inference requires a credential, so Langflow, search and the API get 401 — "
+            "turn off 'enforce auth on inference' in the Bifrost UI (Config → Security)")
+    elif state.get("is_auth_enabled"):
+        ok("bifrost: inference open to the internal callers; dashboard has an admin account")
+    else:
+        ok("bifrost: inference open to the internal callers; no admin yet, /api needs the setup token")
+
 
 # ───────────────────────────────────────────────────────────────
 #  3. Flow aliases

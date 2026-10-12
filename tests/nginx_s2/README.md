@@ -29,11 +29,12 @@ The evidence above ran on the production image (1.27.5). `docker-compose.yml` ma
 same checks against it, set both variables (the ID is the one `docker image inspect <tag> --format '{{.Id}}'` prints):
 
 ```bash
-EDU_AI_LAB_NGINX_IMAGE=nginx:1.30.5-alpine EDU_AI_LAB_NGINX_ID=sha256:<id> python tests/nginx_r2/r2lab.py run --out r2.json
+EDU_AI_LAB_NGINX_IMAGE=nginx:1.30.5-alpine EDU_AI_LAB_NGINX_ID=sha256:<id> python tests/nginx_s2/run_s2.py static --baseline <SHA>
 ```
 
-The `env.nginx_image` check then compares against that ID. The rehearsals that check out historical commits
-(`rehearsal*.py`, `candidate.py`, `switch_offline.py`, the S2 `--baseline`) need a clone with that history.
+The `static` check "image is the production nginx image" then compares against that ID. `--baseline` and the
+rehearsal check out historical commits and need a clone with that history; the baseline commits name
+`nginx:1.27-alpine` in their own Compose file.
 
 ## Running
 

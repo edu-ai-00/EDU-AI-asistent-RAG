@@ -82,16 +82,19 @@ needs_links = unittest.skipUnless(SYMLINKS, "needs symlinks (run on Linux)")
 SYN_TEMPLATE = "COMPOSE_PROJECT_NAME=edu_ai\nLANGFLOW_SECRET_KEY=\nPOSTGRES_PASSWORD=\nCHAT_LEGAL_ENTITY=CHANGE_ME_legal_entity_code\n"
 
 
-def make_config(cfg, sha=SHA, project="edu_ai", sources=None, **extra):
+def make_config(cfg, sha=SHA, project="edu_ai", sources=None, source_root=None, **extra):
     """A config set exactly as init-config leaves it (names, record, key fingerprint); the values are synthetic."""
     cfg = pathlib.Path(cfg)
     cfg.mkdir(parents=True)
     env = {"COMPOSE_PROJECT_NAME": project, "LANGFLOW_SECRET_KEY": SECRET, "POSTGRES_PASSWORD": PG_SECRET,
            "CHAT_LEGAL_ENTITY": "CHANGE_ME_legal_entity_code", **extra}
     (cfg / ".env").write_text("".join(f"{k}={v}\n" for k, v in env.items()), encoding="utf-8")
+    os.chmod(cfg / ".env", 0o600)
     record = {"schema": install.RECORD_SCHEMA, "source_sha": sha, "langflow_secret_key_sha256": install.sha256_hex(SECRET)}
     if sources is not None:
         record["sources"] = sources
+    if source_root is not None:
+        record["source_root"] = str(source_root)
     (cfg / "install-record.json").write_text(__import__("json").dumps(record), encoding="utf-8")
 
 
@@ -278,7 +281,7 @@ class WizardCase(unittest.TestCase):
         """An own configuration set at the default place, as an interrupted run would leave it."""
         (self.home / "edu-ai").mkdir(exist_ok=True)
         sources = {rel: install.sha256_hex((self.root / rel).read_bytes()) for rel in (install.COMPOSE_PATH, install.TEMPLATE_PATH)}
-        make_config(self.host.cfg, sources=sources, **env)
+        make_config(self.host.cfg, sources=sources, source_root=self.root, **env)
 
 
 class PlanTests(WizardCase):
@@ -552,6 +555,48 @@ class ExistingConfigTests(WizardCase):
         before = snapshot(self.home)
         self.assertEqual(self.run_cli("plan"), 0, self.host.text)
         self.assertIn("WILL_ADD_KEYS: NEW_SETTING", self.host.text)
+        self.assertEqual(snapshot(self.home), before)
+
+    @needs_links
+    def test_a_configuration_of_another_checkout_is_refused_and_untouched(self):
+        self.prepare_own()
+        record = self.host.cfg / "install-record.json"
+        data = json.loads(record.read_text(encoding="utf-8"))
+        data["source_root"] = str(self.root.parent / "other-clone")
+        record.write_text(json.dumps(data), encoding="utf-8")
+        before = snapshot(self.home)
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 2, self.host.text)
+        self.assertIn("CONFIG_FROM_ANOTHER_CHECKOUT", self.host.text)
+        self.assertEqual(snapshot(self.home), before)
+        self.assertNotIn("pin-env", self.host.keys)
+
+    @needs_links
+    def test_a_record_without_source_root_still_needs_the_same_commit(self):
+        for recorded, rc in ((SHA, 0), (OTHER_SHA, 2)):
+            with self.subTest(recorded=recorded):
+                self.reset(); self.prepare_own()
+                record = self.host.cfg / "install-record.json"
+                data = json.loads(record.read_text(encoding="utf-8"))
+                data.pop("source_root"); data["source_sha"] = recorded
+                record.write_text(json.dumps(data), encoding="utf-8")
+                self.assertEqual(self.run_cli("plan"), rc, self.host.text)
+                if rc:
+                    self.assertIn("CONFIG_FROM_ANOTHER_SOURCE", self.host.text)
+
+    @needs_links
+    def test_an_added_key_keeps_the_template_quoting_and_a_dollar_is_refused(self):
+        self.prepare_own()
+        (self.root / ".env.example").write_text(SYN_TEMPLATE + 'QUOTED="a b # c"\n', encoding="utf-8")
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 0, self.host.text)
+        text = (self.host.cfg / ".env").read_text(encoding="utf-8")
+        self.assertIn('QUOTED="a b # c"\n', text)
+        self.assertIn("Added by scripts/setup.py", text)
+        self.assertEqual(oct(os.stat(self.host.cfg / ".env").st_mode & 0o777), "0o600")
+        self.reset(); self.prepare_own()
+        (self.root / ".env.example").write_text(SYN_TEMPLATE + "WITH_DOLLAR=a$b\n", encoding="utf-8")
+        before = snapshot(self.home)
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 2, self.host.text)
+        self.assertIn("TEMPLATE_VALUE_HAS_DOLLAR: WITH_DOLLAR", self.host.text)
         self.assertEqual(snapshot(self.home), before)
 
     @needs_links

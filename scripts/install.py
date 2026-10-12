@@ -1011,7 +1011,8 @@ def init_config(sha: str, target_arg: str, repo: str, *, gen: dict | None = None
     now = (clock or (lambda: datetime.now(timezone.utc)))()
     record = {
         "schema": RECORD_SCHEMA, "status": "CONFIG_PREPARED", "created_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "source_sha": ctx.sha, "sources": {COMPOSE_PATH: ctx.sources.compose_sha256, TEMPLATE_PATH: ctx.sources.template_sha256},
+        "source_sha": ctx.sha, "source_root": os.path.realpath(ctx.repo),
+        "sources": {COMPOSE_PATH: ctx.sources.compose_sha256, TEMPLATE_PATH: ctx.sources.template_sha256},
         "generated_keys": list(GENERATED), "langflow_secret_key_sha256": sha_key,
         "env_sha256_at_creation": sha256_hex(env_text),
         "input_gaps": {"missing_manual": ctx.inputs.missing_manual, "service_issued_later": ctx.inputs.service_issued,
