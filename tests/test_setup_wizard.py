@@ -79,7 +79,10 @@ SYMLINKS = _symlinks_possible()
 needs_links = unittest.skipUnless(SYMLINKS, "needs symlinks (run on Linux)")
 
 
-def make_config(cfg, sha=SHA, project="edu_ai", **extra):
+SYN_TEMPLATE = "COMPOSE_PROJECT_NAME=edu_ai\nLANGFLOW_SECRET_KEY=\nPOSTGRES_PASSWORD=\nCHAT_LEGAL_ENTITY=CHANGE_ME_legal_entity_code\n"
+
+
+def make_config(cfg, sha=SHA, project="edu_ai", sources=None, **extra):
     """A config set exactly as init-config leaves it (names, record, key fingerprint); the values are synthetic."""
     cfg = pathlib.Path(cfg)
     cfg.mkdir(parents=True)
@@ -87,6 +90,8 @@ def make_config(cfg, sha=SHA, project="edu_ai", **extra):
            "CHAT_LEGAL_ENTITY": "CHANGE_ME_legal_entity_code", **extra}
     (cfg / ".env").write_text("".join(f"{k}={v}\n" for k, v in env.items()), encoding="utf-8")
     record = {"schema": install.RECORD_SCHEMA, "source_sha": sha, "langflow_secret_key_sha256": install.sha256_hex(SECRET)}
+    if sources is not None:
+        record["sources"] = sources
     (cfg / "install-record.json").write_text(__import__("json").dumps(record), encoding="utf-8")
 
 
@@ -249,6 +254,7 @@ class WizardCase(unittest.TestCase):
         self.home.mkdir()
         self.root.mkdir()
         (self.root / "docker-compose.yml").write_text("name: syn\n", encoding="utf-8")
+        (self.root / ".env.example").write_text(SYN_TEMPLATE, encoding="utf-8")
         self.host = FakeHost(self.home, self.root)
 
     def reset(self):
@@ -271,7 +277,8 @@ class WizardCase(unittest.TestCase):
     def prepare_own(self, **env):
         """An own configuration set at the default place, as an interrupted run would leave it."""
         (self.home / "edu-ai").mkdir(exist_ok=True)
-        make_config(self.host.cfg, **env)
+        sources = {rel: install.sha256_hex((self.root / rel).read_bytes()) for rel in (install.COMPOSE_PATH, install.TEMPLATE_PATH)}
+        make_config(self.host.cfg, sources=sources, **env)
 
 
 class PlanTests(WizardCase):
@@ -454,8 +461,6 @@ class ExistingConfigTests(WizardCase):
             (cfg / ".env").write_text("A=1\n", encoding="utf-8")
         elif how == "file":
             cfg.write_text("x", encoding="utf-8")
-        elif how == "other-source":
-            make_config(cfg, sha=OTHER_SHA)
         elif how == "other-project":
             make_config(cfg, project="another")
         elif how == "key-mismatch":
@@ -463,7 +468,7 @@ class ExistingConfigTests(WizardCase):
             (cfg / ".env").write_text("LANGFLOW_SECRET_KEY=" + "x" * 43 + "=\n", encoding="utf-8")
 
     def test_every_foreign_or_unprovable_config_is_refused_and_left_byte_identical(self):
-        for how in ("empty", "foreign-dir", "partial", "file", "other-source", "other-project", "key-mismatch"):
+        for how in ("empty", "foreign-dir", "partial", "file", "other-project", "key-mismatch"):
             with self.subTest(how=how):
                 self.reset()
                 self.foreign(how)
@@ -485,6 +490,63 @@ class ExistingConfigTests(WizardCase):
         self.assertTrue((self.host.cfg / ".env").read_bytes().startswith(before))      # only appended to, every value kept
         self.assertNotIn(SECRET, self.host.text)
         self.assertNotIn(PG_SECRET, self.host.text)
+
+    def set_recorded_sha(self, value):
+        record = self.host.cfg / "install-record.json"
+        data = json.loads(record.read_text(encoding="utf-8"))
+        data["source_sha"] = value
+        record.write_text(json.dumps(data), encoding="utf-8")
+
+    @needs_links
+    def test_config_from_an_earlier_commit_of_the_same_installation_continues(self):
+        """Editing a file and committing changes the SHA; the installation proven by its own key, project and model is not locked out."""
+        for mode in ("plan", "install"):
+            with self.subTest(mode=mode):
+                self.reset(); self.prepare_own(); self.set_recorded_sha(OTHER_SHA)
+                before, env = snapshot(self.home), (self.host.cfg / ".env").read_bytes()
+                record = (self.host.cfg / "install-record.json").read_bytes()
+                rc = self.run_cli("plan") if mode == "plan" else self.install("--accept-unmeasured-network-pools")
+                self.assertEqual(rc, 0, self.host.text)
+                self.assertIn("CONFIG_RECORDED_COMMIT: " + OTHER_SHA, self.host.text)
+                self.assertNotIn("CONFIG_SOURCES_CHANGED", self.host.text)
+                self.assertNotIn("init-config", self.host.keys)
+                if mode == "plan":
+                    self.assertEqual(snapshot(self.home), before)
+                else:                                                  # the fake pin-env appends only absent keys
+                    self.assertTrue((self.host.cfg / ".env").read_bytes().startswith(env))
+                    self.assertEqual((self.host.cfg / "install-record.json").read_bytes(), record)
+                self.assertNotIn(SECRET, self.host.text)
+
+    @needs_links
+    def test_an_unusable_recorded_commit_is_never_printed(self):
+        for value in (OTHER_SHA + "\nBACKEND_READY: yes", "not-a-sha", 42, None, OTHER_SHA.upper()):
+            with self.subTest(value=value):
+                self.reset(); self.prepare_own(); self.set_recorded_sha(value)
+                self.assertEqual(self.run_cli("plan"), 0, self.host.text)
+                self.assertNotIn("CONFIG_RECORDED_COMMIT", self.host.text)
+                self.assertNotIn("BACKEND_READY: yes", self.host.text)
+
+    @needs_links
+    def test_a_new_template_key_the_env_lacks_is_refused_and_named(self):
+        self.prepare_own()
+        self.set_recorded_sha(OTHER_SHA)
+        (self.root / ".env.example").write_text(SYN_TEMPLATE + "NEW_SETTING=1\n", encoding="utf-8")
+        before = snapshot(self.home)
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 2, self.host.text)
+        self.assertIn("CONFIG_LACKS_TEMPLATE_KEYS", self.host.text)
+        self.assertIn("NEW_SETTING", self.host.text)
+        self.assertEqual(snapshot(self.home), before)
+        for step in ("init-config", "pin-env", "bootstrap"):
+            self.assertNotIn(step, self.host.keys)
+
+    @needs_links
+    def test_changed_sources_with_every_template_key_continue_with_a_note(self):
+        self.prepare_own()
+        self.set_recorded_sha(OTHER_SHA)
+        (self.root / "docker-compose.yml").write_text("name: syn\n# nginx bumped\n", encoding="utf-8")
+        (self.root / ".env.example").write_text("# comment only\n" + SYN_TEMPLATE, encoding="utf-8")
+        self.assertEqual(self.install("--accept-unmeasured-network-pools"), 0, self.host.text)
+        self.assertIn("CONFIG_SOURCES_CHANGED: docker-compose.yml, .env.example", self.host.text)
 
     @needs_links
     def test_resume_with_the_stack_and_links_in_place_repeats_only_bootstrap(self):

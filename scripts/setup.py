@@ -11,8 +11,9 @@ It reuses the existing environment checks and proves ownership of a running stac
 or school-setting flag: the school is chosen later, in the browser. A new configuration
 gets the existing CHAT_ENTITY_PICKER=true through pin-env; an existing one keeps what it has.
 
-Nothing is ever deleted, replaced or forced. A repeated run continues only on proof that config, source and project are
-this installation's own; otherwise it refuses and says how to look. Secrets never go through arguments or this tool's output:
+Nothing is ever deleted, replaced or forced. A repeated run continues only on proof that config, key, project and Compose
+model are this installation's own, and that the .env has every key of this commit's template; the commit itself may
+differ. Otherwise it refuses and says how to look. Secrets never go through arguments or this tool's output:
 the one-time overview of init-config appears only on the terminal that child inherits.
 Exit status: 0 backend ready | 2 refused | 3 could not verify or complete | a failing child's own status otherwise.
 Standard library only.
@@ -177,7 +178,7 @@ def _nested(a, b) -> bool:
         return False
 
 
-def own_config(layout: L.Layout, sha: str, *, newly_created: bool = False) -> tuple[dict | None, str, str]:
+def own_config(layout: L.Layout, *, newly_created: bool = False) -> tuple[dict | None, str, str]:
     """(env values, '', '') when the config set is provably this installation's own; else (None, code, detail)."""
     cfg = str(layout.config_dir)
     try:
@@ -195,8 +196,8 @@ def own_config(layout: L.Layout, sha: str, *, newly_created: bool = False) -> tu
         values, _, _ = install.parse_assignments(install._read_regular(os.path.join(cfg, ENV_NAME), install.MAX_BLOB).decode("utf-8"))
     except (OSError, ValueError, UnicodeError):
         return None, "CONFIG_UNREADABLE", "record or .env"
-    if record.get("source_sha") != sha:
-        return None, "CONFIG_FROM_ANOTHER_SOURCE", "the record names another commit; this tool installs, it does not update"
+    # The recorded commit is not a condition: ownership rests on the key, project and Compose model below,
+    # and _classify_config refuses a .env that lacks keys of this commit's template.
     named = values.get("COMPOSE_PROJECT_NAME", "").strip()
     if named and named != layout.project and not newly_created:
         return None, "CONFIG_OTHER_PROJECT", "COMPOSE_PROJECT_NAME of the .env differs from the project asked for"
@@ -209,14 +210,14 @@ def own_config(layout: L.Layout, sha: str, *, newly_created: bool = False) -> tu
     return values, "", ""
 
 
-def bind_new_project(layout: L.Layout, sha: str) -> tuple[dict | None, str, str]:
+def bind_new_project(layout: L.Layout) -> tuple[dict | None, str, str]:
     """Only the set just published by successful init-config may change its template project."""
-    values, code, detail = own_config(layout, sha, newly_created=True)
+    values, code, detail = own_config(layout, newly_created=True)
     if values is None:
         return values, code, detail
     if values.get("COMPOSE_PROJECT_NAME") != layout.project:
         set_env(layout.env_path, {"COMPOSE_PROJECT_NAME": layout.project})
-    return own_config(layout, sha)
+    return own_config(layout)
 
 
 def want_picker(values: dict | None, created_now: bool) -> bool:
@@ -435,7 +436,7 @@ def inspect(host: Host, root, config: str, state_dir: str, project: str, *, offl
                 st.refuse("STACK_WITHOUT_LINKS", f"containers of project {project} exist but the checkout links are incomplete; "
                                                 "inspect with docker compose ps and scripts/host_preflight.py check, nothing is changed")
         else:
-            st.notes.append("RESUME: configuration of this installation found (same commit, key, project); steps already done are idempotent")
+            st.notes.append("RESUME: configuration of this installation found (same key, project and Compose model); steps already done are idempotent")
     elif config_state == "absent":
         if stack:
             st.refuse("STACK_WITHOUT_OWN_CONFIG", f"containers of project {project} exist but no configuration of this tool does; nothing is touched")
@@ -451,14 +452,59 @@ def inspect(host: Host, root, config: str, state_dir: str, project: str, *, offl
     return st
 
 
+def _record(layout: L.Layout) -> dict:
+    try:
+        data = json.loads(install._read_regular(os.path.join(str(layout.config_dir), RECORD_NAME), 1 << 16))
+    except (OSError, ValueError, UnicodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _changed_sources(layout: L.Layout, record: dict) -> list[str]:
+    """Install sources whose bytes differ from what the record says init-config used (the tree is clean, so it is HEAD)."""
+    recorded = record.get("sources") if isinstance(record.get("sources"), dict) else {}
+    changed = []
+    for rel in (install.COMPOSE_PATH, install.TEMPLATE_PATH):
+        try:
+            now = install.sha256_hex((layout.source_root / rel).read_bytes())
+        except OSError:
+            now = ""
+        if recorded.get(rel) != now:
+            changed.append(rel)
+    return changed
+
+
+def _missing_template_keys(layout: L.Layout, values: dict) -> list[str]:
+    """Keys of this commit's .env.example absent from the .env: init-config renders every template key, pin-env adds none of them."""
+    try:
+        template = (layout.source_root / install.TEMPLATE_PATH).read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return [install.TEMPLATE_PATH]
+    entries, _, _ = install.parse_assignments(template)
+    return sorted(k for k in entries if k not in values)
+
+
 def _classify_config(st: State, layout: L.Layout, sha: str) -> str:
     if not os.path.lexists(layout.config_dir):
         return "absent"
-    values, code, detail = own_config(layout, sha)
+    values, code, detail = own_config(layout)
     if values is None:
         st.refuse(code, detail + ("; to look: ls -la, scripts/host_preflight.py check; never overwritten or removed here" if detail else ""))
         return "refused"
+    missing = _missing_template_keys(layout, values)
+    if missing:
+        st.refuse("CONFIG_LACKS_TEMPLATE_KEYS", ", ".join(missing) + ": this commit's .env.example has keys the .env lacks; "
+                  "add them to the .env yourself (this tool installs, it does not migrate a configuration)")
+        return "refused"
     st.env_values = values
+    record = _record(layout)
+    recorded = record.get("source_sha")
+    if isinstance(recorded, str) and install.SHA_RE.fullmatch(recorded) and recorded != sha:
+        st.notes.append(f"CONFIG_RECORDED_COMMIT: {recorded} (this checkout is {sha}); the .env keeps its values")
+    changed = _changed_sources(layout, record)
+    if changed:
+        st.notes.append("CONFIG_SOURCES_CHANGED: " + ", ".join(changed) + " differ from the files the configuration was created from; "
+                        "the .env has every template key, existing data is reused as it is")
     return "own"
 
 
@@ -595,7 +641,7 @@ class Wizard:
             rc = made.rc
             if rc != 0:
                 return self.stop("init-config", rc, "Fix the reported cause and repeat the same command.")
-            values, code, detail = bind_new_project(layout, sha)
+            values, code, detail = bind_new_project(layout)
             if values is None:
                 return self.stop("init-config-verify", 3, f"The new set could not be confirmed ({code}); inspect {layout.config_dir}.")
             st.env_values = values

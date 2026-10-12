@@ -90,7 +90,9 @@ first school is not chosen automatically.
 
 A non-zero return of the bootstrap is an error. Do not bypass the smoke. The
 wizard deletes and reverts nothing; it allows a retry only for its own
-configuration of the same commit, keys and project. It verifies the local Docker
+configuration (the same keys, project and Compose model). A later commit of the
+checkout is accepted when the `.env` has every key of that commit's `.env.example`;
+otherwise it refuses with `CONFIG_LACKS_TEMPLATE_KEYS` and names the keys. It verifies the local Docker
 engine and the ownership of containers, mounts, networks and volumes. It rejects a
 foreign configuration, a changed HEAD, a dirty tree or Compose overrides. The keys
 are not generated again on a retry.
