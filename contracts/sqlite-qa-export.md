@@ -3,12 +3,12 @@
 The exact approved layout is [sqlite-qa-export.sql](sqlite-qa-export.sql).
 `pack_manifest` retains its original eleven columns in order; legacy `subject`
 and `grade` are nullable and always SQL NULL. `entries` retains its original five
-columns and `variants` its original five. All added metadata columns follow those
+columns and `variants` its original six (including `stem_text`). All added metadata columns follow those
 legacy prefixes in the exact DDL order. The two FTS5 definitions are unchanged.
 
 Input `legal_entity` is required, has no default, and is validated before any
 PostgreSQL connection as a safe nonempty code segment: ASCII letters, digits,
-underscore or hyphen. `pack_id` additionally permits internal dots, but neither
+underscore or hyphen, with the first character restricted to a letter, digit or underscore (a leading hyphen is rejected). `pack_id` additionally permits internal dots, but neither
 value can contain path separators, traversal segments, controls or a trailing
 dot. PostgreSQL schema names must be bare SQL identifiers. All data values are
 bound parameters. PostgreSQL is read through one read-only REPEATABLE READ

@@ -133,7 +133,7 @@ def _load_turns(state: SearchState, window: str, limit: int) -> list[tuple[str, 
             rows = cur.fetchall()
         return [(r[0], r[1]) for r in reversed(rows) if r[0]]
     except Exception as e:
-        logger.warning("resolve_context: turn lookup failed (%s)", e)
+        logger.warning("resolve_context: turn lookup failed (%s)", type(e).__name__)
         return []
 
 
@@ -215,7 +215,7 @@ def _answers_as_typed(question: str, cfg, state: SearchState) -> bool:
                     return True
         return False
     except Exception as e:
-        logger.warning("resolve_context: cover probe failed (%s) — rewriting", e)
+        logger.warning("resolve_context: cover probe failed (%s) — rewriting", type(e).__name__)
         return False
 
 
@@ -243,7 +243,7 @@ def _has_exact_variant(question: str, cfg, state: SearchState) -> bool:
                 (entities, norm, lemma, *_dp))
             return cur.fetchone() is not None
     except Exception as e:
-        logger.warning("resolve_context: exact probe failed (%s) — rewriting", e)
+        logger.warning("resolve_context: exact probe failed (%s) — rewriting", type(e).__name__)
         return False
 
 
@@ -289,15 +289,13 @@ def resolve_context(state: SearchState, cfg: dict | None = None) -> dict:
     # 2027" from the previous answer, lost the exact match and answered from an
     # unrelated entry — 2.5 s for a wrong answer where 30 ms had the right one.
     if _has_exact_variant(question, cfg, state):
-        logger.info("resolve_context: %r matches a curated variant as typed — "
-                    "no rewrite", question)
+        logger.info("resolve_context: skip reason=exact_qa_match")
         return {"context_skip_reason": "raw text is an exact QA match"}
 
     # One ranking query (tens of ms) before an LLM call (~700 ms) — cheaper on
     # average, and it keeps a confident deterministic match from being spent.
     if params.get("skip_when_covered", True) and _answers_as_typed(question, cfg, state):
-        logger.info("resolve_context: %r is already covered by a curated question "
-                    "— no rewrite", question)
+        logger.info("resolve_context: skip reason=qa_covered")
         return {"context_skip_reason": "raw text covers a curated question"}
 
     turns = _load_turns(state,
@@ -309,7 +307,7 @@ def resolve_context(state: SearchState, cfg: dict | None = None) -> dict:
     try:
         resolved = _rewrite(turns, question, params)
     except Exception as e:
-        logger.warning("resolve_context: rewrite failed (%s) — keeping raw question", e)
+        logger.warning("resolve_context: rewrite failed (%s) — keeping raw question", type(e).__name__)
         return {}
 
     if resolved == _NOT_A_QUESTION:
@@ -328,11 +326,9 @@ def resolve_context(state: SearchState, cfg: dict | None = None) -> dict:
         except Exception:
             _offered = set()
         if question.strip().casefold() in _offered:
-            logger.info("resolve_context: %r was offered as a chip — taken as typed",
-                        question)
+            logger.info("resolve_context: skip reason=offered_suggestion")
             return {"context_skip_reason": "text was offered as a suggestion"}
-        logger.info("resolve_context: %r is not a question — answering directly",
-                    question)
+        logger.info("resolve_context: answer reason=not_a_question")
         # outcome `answer`, not `no_answer`: nothing failed. The turn is complete
         # and the reply is deliberate, while no_answer makes the chat print
         # "Odpověď nebyla nalezena" over it (OUTCOME_LABELS in the web client).
@@ -351,11 +347,10 @@ def resolve_context(state: SearchState, cfg: dict | None = None) -> dict:
     # asks again for an answer still on their screen. Only the LAST turn —
     # further back, repeating a question is a normal thing to do.
     if turns and (turns[-1][0] or "").strip().casefold() == resolved.strip().casefold():
-        logger.info("resolve_context: rewrite of %r echoes the previous question "
-                    "— discarded", question)
+        logger.info("resolve_context: skip reason=previous_turn_echo")
         return {"context_skip_reason": "rewrite echoed the previous question"}
 
-    logger.info("resolve_context: %r → %r (%d turns)", question, resolved, len(turns))
+    logger.info("resolve_context: rewritten turns=%d", len(turns))
     # user_question is overwritten on purpose: every step downstream should search
     # for the resolved text. The log writes raw_query from the REQUEST object, so
     # what the user actually typed is recorded regardless of what happens here.

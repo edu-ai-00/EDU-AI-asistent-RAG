@@ -21,12 +21,7 @@ last_verified: 2026-09-06
 
 # Evaluations
 
-**Public examples:** the shipped JSONL and flat question files contain synthetic
-examples, not the historical private regression benchmark. Copy the JSONL to an
-ignored local file, replace `ENTITY_CODE` with an active entity and prepare matching
-synthetic data. Pass that file with `--questions`. Do not compare its scores with
-private or historical snapshots. The legacy flat harness sends no required
-`legal_entity`; use the metadata harness for the current API.
+Public shipped cases are synthetic placeholders, not the private benchmark. Use an ignored local metadata set with a real active entity and matching synthetic corpus; do not compare it with historical private scores.
 
 **Track:** human (AI-relevant). How search quality, behaviour and resilience are
 checked, and where the gaps are. Control types as in [routing.md](routing.md).
@@ -66,7 +61,7 @@ This is the difference between measuring and guessing: without the repeat, a
 one-case "improvement" is indistinguishable from the model changing its mind.
 
 **What `--repeat` cannot do.** It measures the model's variance, not the
-corpus's. A regression set must be calibrated against a specific document and pack corpus, so
+corpus's. The set is calibrated against a specific document and pack corpus, so
 a snapshot is only comparable with another snapshot taken **on the same data**.
 Two consequences worth stating because both have been assumed away before:
 measuring a code change and measuring a data change are separate runs, and a
@@ -115,18 +110,13 @@ failure cases — those are deterministic and belong in
 `tests/test_domain_scope_api.py`; the scoped set keeps one of each only so that
 the harness is shown to surface them.
 
-### Flat question sets (`evaluated`)
+### Legacy flat question sets
 
-`tests/eval_*_questions.txt` — one question per line, blank lines and `#`
-comments ignored. Useful for sweeping a topic quickly.
-
-```bash
-bash tests/run_all_evals.sh                        # all sets + CSV export
-python3 tests/eval_search.py tests/eval_prijimacky_questions.txt
-```
-
-`run_all_evals.sh` exports the combined per-query table from the query log, so a
-run can be read as a table rather than as scrollback.
+`eval_search.py` and `run_all_evals.sh` are retained historical tools. They do not
+send the required legal entity and still assume obsolete DB roles/log names;
+they are not supported commands for the current stack. Use `eval_rag.py` with
+an explicit metadata JSONL carrying entity and role. Public sample sets are
+synthetic examples; a corpus-specific regression set remains private.
 
 ## Metrics
 
@@ -211,9 +201,9 @@ Piped via stdin, the script finds `stoplist.json` in its working directory, so
 A failure is not cosmetic: the stored index and what a query builds have diverged,
 so either the change is reverted or every affected language is re-ingested.
 
-## Resilience tests (`evaluated`)
+## Legacy resilience harness (not a current release gate)
 
-`tests/test_resilience.py` injects real faults into a running stack and asserts
+`tests/test_resilience.py` is historical fault-injection code whose request/DB helpers require repair. Do not run it against production or use its current commands as a supported release gate. Its intended checks assert
 graceful failure: a garbage upload, the model provider down (deterministic curated
 answers still work, generation degrades to silence), Postgres down (a bounded
 handled response, then recovery), and a rolled-back QA insert. A covered subset

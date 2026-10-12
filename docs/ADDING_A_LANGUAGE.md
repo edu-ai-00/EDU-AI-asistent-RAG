@@ -136,7 +136,7 @@ Snowball and simplemma already cover, **there is nothing to edit here**.
 |---|---|
 | `eduai_normalize/stemmer.py` | **Already generalized.** The Snowball branch resolves `snowball_<language>` from the configured engine name through a per-language singleton cache, so any of snowballstemmer's ~30 languages is a NAME in configuration, not code. Czech deliberately stays on the hand-written light stemmer, which measured better on our corpus than Snowball Czech. |
 | `eduai_normalize/lemmatizer.py` | Nothing structural — lemmatization already accepts any simplemma language. |
-| `eduai_normalize/normalize.py` | **Already rewritten.** Detection is langdetect, restricted to the registry's active codes, with a simplemma dictionary vote for fragments and abstention when neither decides (§1b). The old two-way Czech-versus-English marker score is gone. What a new language may still need is a built-in stop-word fallback, and only as a safety net — the real list belongs in `qa_stopword`. |
+| `eduai_normalize/normalize.py` | **Already rewritten.** Detection is langdetect, restricted to the registry's active codes, with a simplemma dictionary vote for fragments and abstention when neither decides (§1b). The old two-way Czech-versus-English marker score is gone. There is no built-in stop-word list: normalisation requires the supplied map; an absent map raises ValueError and a missing language in an existing map uses an empty list. Supply the real list from `qa_stopword`. |
 | `pyproject.toml` | Bump the version only if you actually changed the library. |
 
 So the library is a **zero-hour item** for a language Snowball already covers.
@@ -154,7 +154,7 @@ affected languages** — old rows keep tokens reduced by the old rules.
 | `qa_stopword` | German stoplist (`lang='de'`, ~100 rows). Do NOT include interrogatives (`was/wann/wie/wo/warum/welche`) — same design as cs/en |
 | `qa_synonym` | interrogative group `kind='interrogative'` for German wh-words (excluded from QA coverage), plus any domain entity groups |
 | `qa_blocklist` | German profanity / self-harm / hate / sexual terms. ⚠️ phrase `term_norm` must be stored **pipeline-normalized** (stopwords stripped) — see the comment in migration 35 |
-| `system_message` | all keys × `de`: `guard_profanity`, `guard_self_harm`, `guard_unusable`, `no_answer`, `qa_suggest`. **self_harm must not be a translation** — a German deployment needs a German helpline number, not Linka bezpečí |
+| `system_message` | all active message keys × `de`; the current seed keys are listed below. **self_harm must not be a translation** — a German deployment needs a German helpline number, not Linka bezpečí |
 | `settings.config.engines` | two more entries `{"kind":"lemmatizer","name":"simplemma","language":"de"}` and `{"kind":"stemmer","name":"snowball_german","language":"de"}` with `active: {ingest_qa: true, ingest_docs: true}` |
 | `taxonomy_rules`, `code_list` labels | see §5 — this is where the current design does not scale |
 
@@ -211,7 +211,7 @@ language:
 
 | Where | What to change |
 |---|---|
-| `system_message` číselník | needs ALL keys × the new language: `guard_profanity`, `guard_self_harm`, `guard_unusable`, `no_answer`, `qa_suggest`. **`guard_self_harm` must not be a translation** — a German deployment needs a German helpline, not Linka bezpečí. Missing rows fall back to the registry's `is_ui_default` language and then to the Czech code constant in `config.py`, so a missing row shows up as Czech text. |
+| `system_message` číselník | needs ALL active keys × the new language; the current seed contains 13 keys listed below. **`guard_self_harm` must not be a translation** — a German deployment needs a German helpline, not Linka bezpečí. Missing rows try the registry's UI-default language. Only five keys have a code fallback; other missing keys may return an empty string. Do not assume every missing message becomes Czech text. |
 | `search/app/messages.py` | the last literal `"cs"` in the service, deliberately: the guard must never crash, so if the registry read fails it degrades to Czech rather than raising. Change the constant when Czech is retired. |
 | `web_chat/web_chat.py` | error strings ("Odpověď nyní trvá příliš dlouho…") are hardcoded Czech in code, bypassing `system_message`. Move them to the číselník. |
 | `web_chat/frontend/index.html`, `tools/*.html` | `<html lang="cs">` and the UI labels. The web chat also does not send `language` at all, so it searches across every language — see the separate web-chat task. |
@@ -222,18 +222,14 @@ language:
 
 1. `code_list`: set `cs` `is_active=false` (keeps history, removes it from
    filters, validation and menus) — do **not** delete the rows.
-2. `is_default` on `code_list('language')` → `de`.
-3. Change the fallback default language in one place: introduce
-   `config.DEFAULT_LANGUAGE` (env `DEFAULT_LANGUAGE=de`) and replace the
-   scattered `or "cs"` with it. **Do this as a single refactor** — it is the
-   difference between "a German deployment" and "a Czech deployment that
-   accepts German".
+2. Set the intended registry `is_ui_default` and `is_processing_fallback` fields for the target language; there is no current `is_default` field.
+3. Historical, unimplemented proposal: introducing a new `DEFAULT_LANGUAGE` flag and refactoring code is not a current configuration step. Use the registry UI-default and processing-fallback fields; a new flag requires a separately accepted design.
 4. `qa_pack_manifest`: build/upload a `de-core` pack; deactivate `cs-core`
    (per-pack deactivation is already scoped, so uploads won't collide).
 5. Re-ingest all documents (Czech-reduced tokens are useless for a German
    corpus) or archive them.
 6. Guard messages: the German self-harm message MUST carry a locally valid
-   helpline (e.g. Nummer gegen Kummer 116 111 works EU-wide, plus 112).
+   contact valid for the deployment country and audience; verify local coverage instead of assuming a number works throughout the EU.
 
 ## 8. Checklist (order matters)
 
@@ -245,18 +241,15 @@ Czech, and ingesting German / Spanish / bilingual PDFs.
 2. [ ] `labels` on `code_list` + `taxonomy_rules`: `labels || '{"de": …}'`
 3. [ ] `settings.config.engines`: a `simplemma` lemmatizer row + a
        `snowball_<language>` stemmer row for the language, as a NEW setting
-       version (chunks carry `setting_id`; editing the active row in place makes
+       version in every affected active organisation settings row (chunks carry `setting_id`; editing the active row in place makes
        every stored row's provenance a lie)
-4. [ ] `qa_stopword` for the language — without it nothing is dropped (the
-       built-in fallback is empty for unregistered languages, deliberately: the
-       Czech list would delete German words that spell Czech function words)
+4. [ ] `qa_stopword` and a supplied stop-word map for the language. There is no built-in language list; a missing map fails, a missing language entry in a valid map is empty.
 5. [ ] `qa_synonym`: an interrogative group, plus any domain entity groups
 6. [ ] `qa_blocklist`: profanity / self-harm / hate, `term_norm` stored
        pipeline-normalized
 7. [ ] `system_message`: all keys × the language — **`guard_self_harm` is not a
        translation**, it needs a local helpline
-8. [ ] parity vectors: `gen_vectors.py <lang>`, then `check_vectors.py` must pass
-       (run it BEFORE any library change too — drift = re-ingest everything)
+8. [ ] parity vectors: the committed generator currently supports only cs/en. Adding another language needs its own verified generation path; passing `<lang>` alone does not implement it. Run existing parity before and after library changes.
 9. [ ] **only now** flip `code_list` to `is_active = true`
 10. [ ] rebuild **both** images if the library changed (it should NOT need to —
         see §2; `snowball_<language>` needs no code)
@@ -288,3 +281,6 @@ deactivation). Those traps are now closed and documented.
 ---
 
 *Updated by Martin Šafránek on 2026-08-28.*
+
+
+Current clean-seed message keys: `capabilities`, `clarify_domains`, `guard_profanity`, `guard_self_harm`, `guard_unusable`, `llm_unavailable`, `no_answer`, `no_answer_missing_topic`, `not_a_question`, `qa_suggest`, `role_required`, `school_identity`, `unknown_caller`. These are a source snapshot, not proof that every deployed organisation has all translations.

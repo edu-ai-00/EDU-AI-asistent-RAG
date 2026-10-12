@@ -1,9 +1,10 @@
 # QA pravidla a požadavky na offline pack
 
-Dokument soustřeďuje pravidla, váhy, parametry a jejich přítomnost v exportu.
-Účinné hodnoty jsou data konkrétní organizace; veřejný zdroj ani fallback není
-výpis aktuální produkční konfigurace. Mobilní aplikace má samostatný veřejný
-[repozitář](https://github.com/edu-ai-00/EDU-AI-asistent-APP).
+Ověřeno 11. 10. 2026 proti kódu `main` na `fa593d1` a čtecímu snapshotu QA konfigurace
+produkčního zdroje `4a8aff1`. Dokument soustřeďuje rozhodovací pravidla, váhy, aktuální parametry
+a jejich přítomnost v exportu. Mobilní aplikace existuje v samostatném veřejném
+[EDU-AI-asistent-APP](https://github.com/edu-ai-00/EDU-AI-asistent-APP); offline QA-pack engine
+v prohlédnutém main na `e653aea54d5e408bd3667f4ab087e0920814cc76` nebyl implementovaný.
 
 **Současný SQLite QA pack nepřenáší všechna pravidla potřebná ke stejnému offline chování.**
 Obsahuje QA obsah, varianty, metadata a tři manifestové prahy. Chybí účinný profil kroků,
@@ -51,17 +52,37 @@ Výběr konfigurace je v [settings.py](../../search/app/settings.py#L433), říz
 klíč subjektu. Po vyřešení executor končí, pokud `on_hit` není `continue`; chybu kroku zachytí
 a pokračuje. Po vyčerpání využije odložené návrhy, jinak bezpečný `no_answer`.
 
-## Účinný profil a váhy
+## Aktuální provozní hodnoty
 
-Před exportem odvoďte účinné `settings`, aktivní pipeline a manifesty pro danou
-organizaci. Zaznamenejte pořadí kroků, `enabled`, `on_hit`, formy normalizace,
-lexikální váhy, coverage, synonyma, prahy a guard. Parametr kroku může přepsat
-packový práh; zdrojový fallback je až poslední vrstva. Hodnoty se nepřebírají
-z historického profilu jiné instalace.
+Čtecí kontrola 11. 10. 2026 našla čtyři aktivní settings řádky: platformový, Kavčí hory,
+Svobodná škola Praha a Jedovnice. Jejich níže uvedená QA část byla shodná. Jednotky Kavčích hor
+přebírají profil kořenové organizace. Snapshot zachycuje tento okamžik; konfigurace není konstantou
+aplikace. Identifikátory a úplný povolený výpis jsou v lokálním ignorovaném
+`tests/eval_out/main_closeout_20261011/QA_ACTIVE_SETTINGS_METADATA.json`.
 
-Čistý seed je veřejný zdroj konfiguračních dat, nikoli živá konfigurace všech
-škol. Následující tabulky rozlišují mechanismus a zdrojové fallbacky; budoucí
-offline kontrakt musí přenést účinné hodnoty i potřebné slovníky.
+| Parametr aktivního profilu | Ověřená hodnota |
+|---|---|
+| Exact a lexical `form` | `[norm, lemma, stem]` |
+| Lexical `fetch_k` / `suggest_top_n` | `50 / 3` |
+| Lexical `synonyms` | `true` |
+| Lexical `trgm_suggest_min` | `0.40` |
+| `other_grade_top_n` / `other_grade_min_ratio` | `2 / 0.50` |
+| QA vector `cosine_min` | **`0.65`**, explicitní parametr aktivních profilů |
+| Exact / lexical / vector | všechny povolené, `on_hit=stop`; stop se uplatní až při vyřešeném výsledku |
+| Guard `phrase_slack` | `3` |
+| Guard pořadí kategorií | `self_harm, hate, sexual, violence, profanity` |
+| Guard minimální severity | `1` pro každou uvedenou kategorii |
+
+Aktivní profily neobsahovaly explicitní `t_answer`, `t_suggest` ani `m_margin`. Všech **sedm
+aktivních manifestů** mělo `0.60 / 0.30 / 0.08`: dva pro Svobodnou školu Praha, dva pro Jedovnice,
+jeden pro SOS Kavčí hory a dva pro ZS Kavčí hory. Kořen Kavčích hor neměl aktivní pack.
+Počty jsou počty aktivních manifestů, nikoli všech historických packů nebo záznamů.
+
+Runtime fallbacky běžícího search kontejneru byly také přečtené: A/B/C `0.60 / 0.30 / 0.08`,
+vector `0.75`, vector `fetch_k=20`, `tier_band=0.001`, návrhy `3` a lexical `fetch_k=50`.
+Pro vector nyní platí **0.65**, protože aktivní parametr přepisuje fallback **0.75**.
+Prahy a fallbacky jsou v lokálním `QA_THRESHOLD_METADATA.json`; kontrola nečetla QA texty,
+prompt texty ani klíče a neprováděla dotazy s LLM.
 
 ## Příprava dotazu a normalizace
 
@@ -139,7 +160,7 @@ odpověď se skóre a margin `1.0`, bez generování. Neshoda nebo chyba pokrač
 Související otázky používají aktivní lexical profil, nikoli izolované defaulty exact kroku;
 odstraňují zodpovězenou otázku a deduplikují text. `suggest_top_n` se bere z exact parametru,
 potom lexical parametru, nakonec fallbacku. Zdrojový resolver formy má default `[norm, lemma]`,
-aktivní profil může výslovně zapnout i stem.
+ale provozní profil výše výslovně používá i stem.
 
 Zdroj: [qa_exact.py](../../search/app/nodes/qa_exact.py).
 
@@ -172,7 +193,8 @@ ročníkový tier stejný. Entity tier je vlastní `0`, organizace `1`, ostatní
 například „70 % lexical + 30 % škola“; lepší tier má přednost před následujícím skóre.
 
 Prahy se řeší **parametr kroku → manifest vítězného packu → environment/code fallback**.
-Účinný profil může A/B/C override přidat změnou settings i bez reexportu packu. Exporter ukládá manifestové hodnoty, nikoli jejich účinný přepis.
+Aktuální čtyři profily A/B/C override nemají, ale budoucí změna settings ho může přidat bez
+reexportu packu. Exporter ukládá manifestové hodnoty, nikoli jejich účinný přepis.
 
 | Větev | Podmínka a výsledek |
 |---|---|
@@ -207,7 +229,7 @@ jen kvůli rekonstrukci denominatoru.
 
 ## Další parametry a nabídky
 
-Tabulka uvádí zdrojový fallback, který může účinný parametr organizace přepsat. Nepřítomný parametr
+Tabulka rozlišuje zdrojový fallback od explicitního provozního parametru výše. Nepřítomný parametr
 neznamená vypnutou funkci; nastupuje default příslušného kroku. Číselné hodnoty nejsou konstantami
 budoucího klienta.
 
@@ -227,7 +249,7 @@ budoucího klienta.
 | `other_grade_min_ratio` | `0.50` | Podíl nejlepšího ranku pro other-grade nabídku. |
 | `other_grade_max_df_share` | `0.10` | Odstranění příliš obecných tokenů v offered korpusu. |
 | `other_grade_min_rank` | `0.15` | Absolutní minimum other-grade ranku. |
-| Vector `cosine_min / fetch_k / tier_band` | `0.75 / 20 / 0.001` | Zdrojový semantic fallback; účinný floor určuje profil organizace. |
+| Vector `cosine_min / fetch_k / tier_band` | `0.75 / 20 / 0.001` | Zdrojový semantic fallback; aktivní floor je 0.65. |
 | Vector `suggest_top_n` | `3` | Related návrhy vedle vektorové odpovědi. |
 | Route `phrase_slack / meta_max_words / identity_max_words` | `3 / 10 / 8` | Guard phrase okno, krátká meta/identity otázka. |
 | Route `meta_intent_guard` | `true` | Meta intent guard. |
@@ -308,10 +330,9 @@ AGENTS.md; následující seznam je požadavek, nikoli již implementovaný form
 8. **Parity sada:** syntetické dotazy a očekávané tokeny, vybraný entry_id, rank/coverage/margin,
    rozhodnutí, nabídky a scope; překlepy, více packů, ročníky, platnost, změna profilu a odmítnutí neznámé verze.
 
-## Rozpory nalezené při ověření
+## Historické rozpory a jejich oprava
 
-Zdroje se nesmějí zaměnit bez přiznání rozporu. Následující jsou závady dokumentace proti
-aktuálnímu kódu; tento audit nemění kaskádu ani scoring, nezavírá je změnou backendového chování.
+Tabulka zachovává nálezy původního auditu. Uvedené formulace v QA fast-path a parity README byly dokumentačně opraveny 2026-10-12; backendové chování se tím nemění. Mezery offline exportu a klientské parity zůstávají otevřené.
 
 | Místo | Popis v dokumentaci | Zkoumaný kód |
 |---|---|---|
@@ -324,7 +345,7 @@ aktuálnímu kódu; tento audit nemění kaskádu ani scoring, nezavírá je zm�
 | Parity README | existující offline Dart engine v jiném repo | APP existuje; QA normalizační port/pack engine v prohlédnutém main nalezen nebyl, klientská parita není PASS. |
 
 `SETTINGS_REFERENCE` uvádí referenční vector floor `0.65`; zdrojový fallback je `0.75`.
-Jde o různé konfigurační vrstvy; účinnou hodnotu určuje konkrétní profil.
-Veřejná kopie nevypisuje hodnoty živé instalace. Souhrn ostatních konfigurací:
+Čtecí snapshot potvrdil explicitní aktivní `0.65`, takže zde jde o různé konfigurační vrstvy,
+nikoli o důvod přepsat jednu hodnotu druhou. Souhrn ostatních konfigurací:
 [SETTINGS_REFERENCE](../SETTINGS_REFERENCE.md). Důkazy auditu zůstávají mimo Git; do mobilního
 balíku se nesmějí přibalit serverové klíče, executable prompty nebo rozšířený školní obsah.

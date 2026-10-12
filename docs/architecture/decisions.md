@@ -221,3 +221,21 @@ to its own units, so a unit's answer omitted rules that governed it.
 a subordinate unit sees what the organisation above it published.
 **Consequence:** units see their parent's binding documents. Isolation between
 different legal persons is unaffected and remains non-configurable.
+
+
+### D-19 — Preserve the current production visibility model (2026-10-12)
+
+**Context:** D-18 and the early multi-entity design describe hierarchy-based entity
+visibility, but production and current source use a strict three-level model. A
+read-only check of the running production `server.py` and `scope.py` matched
+source c079bd8 byte for byte before documentation-comment cleanup. The executed
+visibility predicates remain identical after that cleanup. The owner instructed us to retain production behaviour.
+
+**Decision:** `entity` reaches only the owning entity; `organization` explicitly
+shares within the tenant tree; `private` requires the verified owner within that
+organisation. Hierarchy alone never expands `entity` access. The stored legacy
+`entity_visible_to_parent` flag is unused by search.
+
+**Consequence:** D-19 supersedes D-18. Documentation and source comments follow the
+production rule; retrieval predicates, schema, settings and role checks are unchanged.
+The early partition/RLS/global-scope proposal is historical, not an implemented contract.

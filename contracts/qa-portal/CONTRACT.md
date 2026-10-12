@@ -702,3 +702,12 @@ vlastníka a metadat; integrita kategorií a překladů; `tests/eval_rag.py --re
 před i po (včetně souvisejících otázek); paritní kontrola normalizace, pokud by se
 normalizace dotklo (jinak se normalizace kvůli portálu **nemění**);
 browser flow podle §10.
+
+## Version and schema coverage note (documentation audit 2026-10-12)
+
+The document revision, runtime `qa-portal/1.3.0` context/export identifier,
+OpenAPI snapshot revision and frontend package/type revision are separate labels.
+They should not be assumed to describe identical coverage. The committed OpenAPI
+files do not yet enumerate every implemented delete route; consult the current
+router models/tests before generating a client. This audit records the gap and
+does not change wire identifiers or implement new API behaviour.

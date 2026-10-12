@@ -70,6 +70,8 @@ afterwards. Existing chunks keep the shape they were written with.
 
 ### Changing a value
 
+Pipeline/context settings resolve per organisation. `config.search.*` platform presentation/idempotency settings and the two caller-requirement switches are read from the global row.
+
 Configuration is data, so it changes through a **numbered migration**, never through an ad-hoc `UPDATE`. Two traps:
 
 1. **Settings are per organisation.** A new flag must be written to *every*
@@ -138,13 +140,15 @@ present. The stop-word list itself is a code list, not code and not config.
 
 ### `visibility`
 
+`search_requires_user` and `search_requires_role` are read from the global settings row. They do not resolve per organisation.
+
 | Key | Reference | Meaning |
 |---|---|---|
-| `search_requires_user` | `false` | Whether a query must carry an authenticated user. |
-| `entity_visible_to_parent` | `true` | **Not read by the search code** (audit c8fe0543): `server.py` `_prepare_search` applies a strict model where `entity` documents reach only the owning entity. Older text, `spec.multi-entity` and decision D-18 describe parent/sibling visibility; the conflict is unresolved. |
+| `search_requires_user` | `false` | Global policy from the platform settings row: whether a query must carry an authenticated user. |
+| `entity_visible_to_parent` | `true` (legacy stored value) | Not read by search. The user confirmed the current production model on 2026-10-12: `entity` reaches only its owning entity; `organization` is the explicit sharing mode. D-19 supersedes the old D-18 rule. |
 | `child_may_publish_organization` | `true` | Enforced at ingest: a unit may mark a document `organization`, which reaches the parent and the siblings — never another legal person. |
 
-Both tighten when set to `false`. Cross-tenant isolation is not configurable.
+`child_may_publish_organization=false` restricts publishing organisation-wide content. The legacy `entity_visible_to_parent` value has no effect on search. Cross-tenant isolation is not configurable.
 
 **The thematic-area filter has NO setting, deliberately.** It arrives per
 request as `domains` (see `spec.search-domain-scope`) and there is nothing about
@@ -170,8 +174,8 @@ Control fields present on every step:
 | `step` | Step name; binds to the node implementation in `search/app/nodes/`. |
 | `enabled` | `false` skips the step entirely. |
 | `on_hit` | `stop` ends the cascade when this step produced a result; `continue` passes its candidates on and keeps going. |
-| `only_if_empty` | Run only when no earlier step produced candidates. |
-| `only_if_max_coverage_below` | Run only when the best candidate's term coverage is below this ratio — "the lexical pool is weak, try vectors". |
+| `only_if_empty` | With an existing chunk pool, skip unless coverage/duration exceptions permit this step. |
+| `only_if_max_coverage_below` | Exception inside the only_if_empty gate for weak body coverage; not an independent condition. |
 | `run_on_timespan` | Run even for date/period questions, where lexical matching is typically poor. |
 | `params` | Step-specific parameters — sections below. |
 
@@ -274,6 +278,8 @@ the first passage in 2 cases while adding 134 chunks to the pool.
 
 ### 3.7 `rag_vector` — document chunks, semantic match
 
+In the committed seed, `only_if_empty=false`. The executor evaluates coverage/timespan exceptions only inside the `only_if_empty` gate, so the stored coverage and timespan fields do not gate this seeded step. Runtime configuration may differ; this audit does not change the cascade.
+
 | Parameter | Reference | Meaning |
 |---|---|---|
 | `top_k` | `5` | Chunks kept. |
@@ -282,8 +288,8 @@ the first passage in 2 cases while adding 134 chunks to the pool.
 | `heading_quality` | `1.0` | Weight of the heading part of the embedded text. |
 | `grade_query_enrich` | `true` | Prefix the embedded query with the asker's grade. |
 | `grade_query_prefix` | `Pro {grade}. ročník: ` | The prefix template; `{grade}` is substituted. |
-| `only_if_max_coverage_below` | `0.75` | Run only when the lexical pool is weak. |
-| `run_on_timespan` | `true` | Run for date questions even so. |
+| `only_if_max_coverage_below` | `0.75` | Stored coverage exception; effective only with only_if_empty=true. |
+| `run_on_timespan` | `true` | Stored duration exception; effective only with only_if_empty=true. |
 
 `document_chunks.embedding` is the only vector store for documents (curated QA vectors live in `qa_embedding`).
 
@@ -401,7 +407,7 @@ answer anything.
 | Parameter | Reference | Meaning |
 |---|---|---|
 | `model` | `gpt-5.6-luna` | Answering model. |
-| `temperature` | `0` | Deterministic. |
+| `temperature` | `0` | Used only when no reasoning effort is passed; it is not a guarantee of identical model outputs. |
 | `reasoning_effort` | `medium` | Reasoning effort. |
 | `max_tokens` | `2000` | Output cap. |
 | `token_budget` | `8000` | Budget for the assembled context. |

@@ -28,7 +28,7 @@ Estimated time: 30–45 minutes (most of it = docker build).
 - **git**, **python3**
 - An LLM provider key for the **paid** features (embeddings, generated answers), configured in the Bifrost UI. Curated QA
   exact matches work without one.
-- The repository: `github.com/edu-ai-00/EDU-AI-asistent-RAG` (public)
+- The repository: `github.com/edu-ai-00/EDU-AI-asistent-RAG` (public source)
 
 ---
 
@@ -53,49 +53,16 @@ profile does not stop an already running connector. To deliberately disable it,
 stop and remove only its `cloudflared` container in the same verified project;
 smoke still flags leftover broken containers. Preserve all other services and data.
 
-# The short way
+# Current entry point
 
-```bash
-git clone https://github.com/edu-ai-00/EDU-AI-asistent-RAG.git
-cd EDU-AI-asistent-RAG
-python3 scripts/bootstrap.py
-```
+For a fresh isolated Ubuntu host use [CLEAN_INSTALL.md](docs/CLEAN_INSTALL.md):
+prepare the host, re-login for Docker access, then run `scripts/setup.py install`
+from its clean pinned checkout. The wizard supplies the tunnel subnet and school
+picker configuration before bootstrap. No paid provider is needed for its smoke checks.
 
-That was the whole first deployment when this page was written; see the status note at the top for what it no longer covers. It generates `.env` with strong passwords, brings the stack up waiting for each service
-to report *healthy*, creates the Langflow API key over REST, imports the missing flows (`--missing-only`), runs
-a smoke test, and prints the URLs and the path to `.env` at the end. The passwords and
-keys this run generated are shown once there too, but only at an interactive terminal (never
-in CI, with `--no-input` or with redirected output, and never values that already existed or
-that you supplied); `.env` stays their permanent source, so put them in your password vault
-at that moment.
-
-Every step is idempotent and prints `[ok]` / `[skip]` / `[fail]`; an existing file is
-never overwritten. Re-run it whenever something is missing — after a `git pull` that
-adds a variable to `.env.example`, for example.
-
-Then do the one thing it cannot do for you:
-
-```bash
-# put your real OpenAI key in .env — it cannot be generated
-#   OPENAI_API_KEY=sk-...
-docker compose up -d          # recreate, so the containers see the new value
-curl -s localhost:8080/health # -> {"status":"ok", "missing_config":[]}
-```
-
-Useful flags: `--build` (rebuild images after a local code change), `--no-input`
-(never prompt — for CI), `--skip-smoke`, `--langflow-url` (when port 7860 is not
-published on the host).
-
-Exit status: `0` done, `1` a step failed, `3` the Langflow API key in `.env` could not be
-verified (Langflow did not answer normally); nothing was changed, so run it again later.
-
-To check a running stack at any time:
-
-```bash
-python3 scripts/smoke.py      # no OpenAI cost — safe to run from cron
-```
-
----
+This does not claim a validated one-command Windows/macOS development setup.
+The detailed development walkthrough below is historical and needs its stated
+configuration prerequisites. `bootstrap.py` alone is not the current clean-install entry point.
 
 # The long way, step by step
 

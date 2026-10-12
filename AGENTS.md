@@ -21,14 +21,12 @@ curl -s -X POST http://localhost:8090/v1/ask -H 'content-type: application/json'
 python3 tests/eval_rag.py --repeat 3
 python3 tests/eval_rag.py --baseline tests/eval_out/<snapshot>.json
 
-# flat question sets (outcome distribution + CSV export)
-bash tests/run_all_evals.sh
-python3 tests/eval_search.py tests/eval_prijimacky_questions.txt
+# Flat eval_search/run_all_evals are legacy: missing required entity/current DB roles.
+# Use eval_rag with an explicit local metadata set as above; see docs/ai/evaluations.md.
 
 # behavioural and fault-injection tests (dev stack only)
 python3 tests/test_route_guard.py
-python3 tests/test_resilience.py
-python3 tests/test_resilience.py r4        # one targeted case
+# test_resilience is legacy and mutates services; its helpers need repair before use.
 
 # docs validation
 make docs-check
@@ -47,7 +45,8 @@ docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search python - \
   > contracts/parity/cs-normalization-vectors.json
 
 # migration registry and runner (isolated synthetic databases only; spec.migration-registry)
-python3 scripts/migrate.py status --container <name>        # read-only; plan likewise
+# No published release manifest: plan/apply need an operator-generated synthetic release.
+python3 scripts/migrate.py status --container <name> --user edu_ai_admin --db edu_ai        # read-only; plan likewise
 python3 tests/test_migrate_lint.py && python3 tests/test_migrate_fingerprint.py
 python3 tests/migrate_test_env.py up b03e_pg_a              # own container, then:
 EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py

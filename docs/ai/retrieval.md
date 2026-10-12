@@ -46,16 +46,16 @@ it.
 5. **`answer`** (fusion and ordering `enforced`, generation `prompt`).
 
 Each step carries its own run condition in the settings row, evaluated by
-`search/app/executor.py`:
+`search/app/executor.py`. Coverage and timespan are exceptions to the `only_if_empty` gate, not independent gates:
 
 | Condition | Meaning |
 |---|---|
 | `enabled` | `false` skips the step entirely. |
-| `only_if_empty` | run only when the pool is still empty. |
-| `only_if_max_coverage_below` | run only when the best candidate's term coverage is below the given ratio — "the lexical pool is weak". |
-| `run_on_timespan` | run even for date/period questions, where lexical matching is typically poor. |
+| `only_if_empty` | With a nonempty pool, skip unless a configured coverage/duration exception allows this step. |
+| `only_if_max_coverage_below` | Evaluated only inside the only_if_empty gate: low body coverage permits running despite existing chunks. |
+| `run_on_timespan` | Evaluated inside that gate: a detected duration permits running despite an existing pool; this is not every date question. |
 
-A step may therefore be enabled and still not run on a given query. Whether a
+The committed `rag_vector` seed has `only_if_empty=false`, so its coverage/timespan values do not restrict execution. A step may otherwise be enabled and still not run on a given query. Whether a
 step is on, and under which condition, is configuration — see
 [../SETTINGS_REFERENCE.md](../SETTINGS_REFERENCE.md) §3.
 
@@ -66,10 +66,8 @@ which is the single enforcement point:
 
 - A **legal person never sees another legal person's content**, under any
   configuration. This is not a setting.
-- Within one organisation, `entity`-visible documents reach the ancestors of the
-  owning unit **and downward to the units below an ancestor**, so a unit sees
-  what the organisation above it published. A sibling unit is neither an ancestor
-  nor a descendant and is not reached by this rule alone.
+- `entity`-visible documents reach only the owning entity. Hierarchy does not
+  grant a parent, child or sibling access to them; D-19 supersedes the old D-18 rule.
 - `organization`-visible documents reach the parent and its units.
 - `private` documents reach their owner alone.
 - Excluded documents (`not_excluded`) and inactive metadata rows are filtered

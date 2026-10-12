@@ -29,7 +29,7 @@ from eduai_migrate import commands, fingerprint, manifest, pg  # noqa: E402
 
 C1 = os.environ.get("EDU_AI_MIGRATE_TEST_CONTAINER")
 C2 = os.environ.get("EDU_AI_MIGRATE_TEST_CONTAINER_2")
-USER, TEMPLATE = "edu_ai", "edu_ai_tpl"
+USER, TEMPLATE = "edu_ai_admin", "edu_ai_tpl"
 needs_db = unittest.skipUnless(C1, "EDU_AI_MIGRATE_TEST_CONTAINER not set (see module docstring)")
 
 M217 = "ALTER TABLE edu_ai.settings ADD COLUMN b03e_note text;\n"
@@ -127,7 +127,14 @@ class BaselineTest(Base):
             self.assertEqual(0, rc, text)
             outs.append(out.read_bytes())
         self.assertEqual(outs[0], outs[1])
-        self.assertEqual(outs[0], (ROOT / "postgres" / "baseline" / "B216.json").read_bytes())
+        # Informational provenance follows the input commit, while the committed
+        # B216 retains its historical generation commit. All other bytes must match.
+        current = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
+        generated = json.loads(outs[0])
+        self.assertEqual(generated["source"]["base_commit"], current)
+        expected = json.loads((ROOT / "postgres" / "baseline" / "B216.json").read_bytes())
+        expected["source"]["base_commit"] = current
+        self.assertEqual(outs[0], manifest.dump_json(expected).encode("utf-8"))
 
     def test_reference_image_is_built_on_the_pinned_digest(self):
         base = self.baseline["postgres"]["base_image"]

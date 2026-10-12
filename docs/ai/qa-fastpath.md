@@ -22,10 +22,10 @@ last_verified: 2026-09-06
 any document retrieval and returns author-written answers verbatim (no LLM).
 Control types as in [routing.md](routing.md).
 
-**Audit 2026-10-11:** several descriptions below differ from current code (threshold precedence,
-B-deferred, weighted coverage, category ordering and validity). See the explicit discrepancy
-list and the consolidated [QA rules and offline audit](../integrations/offline-qa-rules.md).
-The older verification date remains; this notice does not change cascade semantics.
+The historical discrepancy list in the [QA rules and offline audit](../integrations/offline-qa-rules.md)
+records wording corrected on 2026-10-12. The older verification date is retained
+because this review checked the affected claims, not every source on this page.
+No cascade/scoring behaviour changed.
 
 Record shape: [../../contracts/schemas/qa-record.schema.json](../../contracts/schemas/qa-record.schema.json)
 (do not inline it here). Physically: `qa_entries` (answers) + `qa_variants`
@@ -64,12 +64,12 @@ request and costs one indexed read when there is one.
 **Empty lists are filled from the CATEGORY, not from lower-scoring candidates.**
 When the ranking offers nothing above `t_suggest`, the chips come from other
 entries a curator filed under the same `tags->>'category'` as the answered one,
-**within that entry's own pack**, in the same entity/validity scope and excluding
-years the caller does not belong to. Pack-local because a category name means what
+**within that entry's own pack**, in the same entity/validity scope and compatible with the answered entry's school-grade IDs (or with no declared grades),
+with pack, identity, validity and domain restrictions unchanged. Pack-local because a category name means what
 its own pack's author meant: faq-provoz files report cards under `Hodnocení` and
 retake exams under `Zkoušky`, and the per-school packs repeat 31 of 33 questions
 verbatim, so matching a name across packs mixes topics and offers the same
-question back under another entity's answer. Stable order (`entry_key`), so the per-conversation dedupe rotates
+question back under another entity's answer. With query concepts they are ordered by weighted coverage; without concepts by `entry_key`. Per-conversation dedupe rotates
 them as a user works through a topic. Off with `related_category_fill: false`.
 The alternative — offering the next-best SCORING candidates — was built, measured
 and reverted: it filled every hole, but with chips like "Jak funguje další kolo
@@ -78,7 +78,7 @@ even a common verb ("funguje", "požádat") has a df share under 25 %, so the
 rare-concept gate admits it; the shared word is grammar, not topic. An entry with
 no category yields nothing — `faq-jpz` has all 110 blank, which is pack work.
 
-**Relevance is NOT filtered further, and that is a measured decision** (2026-09-03,
+**Historical relevance measurement** (2026-09-03,
 80 real questions, `tools/measure_related_chips.py`). Raising `t_suggest` does not
 work: a right and a wrong chip routinely score identically (0.3482 for both on one
 query), so a floor cuts them at the same rate, and at 0.45 more than half the
@@ -96,28 +96,27 @@ BM25-style ranking with synonym expansion, then an A/B/C decision:
   (entity groups only; interrogative groups are NOT expanded — expanding them
   floods the OR-query and collapses the top1↔top2 margin). Rank active variants
   with `ts_rank_cd`, aggregate variants → entries.
-- **coverage** = fraction of the query's CONTENT concepts (lemma form, minus
-  function words and interrogatives) present in the top entry. **margin** =
+- **coverage** = IDF-weighted share of the query's CONTENT concepts present in the top entry; a plain share is used only when no usable weights exist. **margin** =
   `(rank1 − rank2) / rank1`.
 - Decision:
 
   | Branch | Condition | Result |
   |---|---|---|
-  | **A** answer | `coverage ≥ t_answer` AND `margin ≥ m_margin` | the curated answer, stop |
-  | **B** suggest | `coverage ≥ t_suggest` (not A) | up to `suggest_top_n` "myslel jsi?" questions, stop |
+  | **A** answer | `coverage ≥ t_answer` AND `margin ≥ m_margin` AND topical gate does not reject | curated resolved answer; step on_hit controls stopping |
+  | **B-deferred** | `coverage ≥ t_suggest` (not A) | retain up to `suggest_top_n` suggestions and continue; present them only if later steps do not answer |
   | **C** fall | `coverage < t_suggest` | continue cascade |
 
-- Thresholds resolve pack manifest → pipeline params → environment fallback, in
+- Thresholds resolve pipeline params → winning pack manifest → environment/code fallback, in
   that order. They are `evaluated` against the eval sets but **not calibrated** —
   do not treat them as tuned. Their values are in
   [../SETTINGS_REFERENCE.md](../SETTINGS_REFERENCE.md) §3.3, the canonical owner.
 - **Typo fallback:** if the tsquery matches nothing, a trigram similarity search
   can produce **suggestions only**, never a confident answer, above a configured
   similarity floor.
-- **Other-grade safety net:** when the asker's own year yields nothing, a small
+- **Other-grade safety net:** a small
   number of matches from a *different* year may be offered, provided they are
   good enough relative to the best match. The answer then states which year the
-  passage applies to, so a rule for ninth-graders is never presented to a
+  passage applies to. Other-grade suggestions can also accompany an answer, not only an empty own-year result, so a rule for ninth-graders is never presented to a
   second-grader as if it were theirs.
 
 ### qa_vector (`enforced`)
@@ -198,7 +197,7 @@ array overlap; 274 such rows on production, 2026-09-06) from a genuine mislabel.
 Curated packs are authored as CSV and ingested by the Langflow QA flow, outside
 this module. The reduced token forms MUST follow the parity contract
 ([../../contracts/parity/](../../contracts/parity/)); the index columns are built
-from them. This module only reads.
+from them. Retrieval reads the eligible content; the separate internal QA administration router also writes curated data.
 
 Upload is a **merge** by default: a row present in the file is inserted or
 updated, a row marked inactive is deactivated, and a row **absent** from the file
@@ -210,7 +209,7 @@ mode deactivates what the file omits.
 
 Soft-versioning via `is_active` (`enforced`): re-ingesting a pack deactivates the
 previous rows and inserts the new ones as active; only active rows are matched.
-There is no time-based expiry. A normalization/stemming change requires
+The runtime scope also applies `valid_from`/`valid_to` as a hard eligibility filter; absence of a bound does not imply a TTL. A normalization/stemming change requires
 regenerating parity vectors and re-ingesting the pack (the index bakes the tokens
 in).
 

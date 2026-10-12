@@ -1,6 +1,6 @@
 ---
 id: spec.multi-entity
-status: active
+status: deprecated
 components: [db, api, ingestion, retrieval, config]
 sources:
   - postgres/init/
@@ -18,7 +18,7 @@ last_verified: 2026-08-01
 > `_TEMPLATE`. Izolaci entit dnes zajišťuje jen aplikační kód (`search/app/scope.py`, viditelnost `private`/`entity`/`organization`),
 > proto nelze spoléhat na to, že databáze zachytí zapomenuté `WHERE`. Nastavení je v tabulce `edu_ai.settings` s `legal_entity_code`
 > (ne `search_setting`), viditelnost `public` byla zrušena (migrace 91) a parametr požadavku `scope=all` neexistuje.
-> Rozpor mezi `status: active` a skutečností je nutné rozhodnout vlastníkem; viz zpráva auditu.
+> Tento historický návrh je supersedovaný skutečným produkčním modelem, který vlastník potvrdil 2026-10-12. Závaznou viditelnost popisuje D-19 v docs/architecture/decisions.md; tato stránka není návodem k zavedení RLS, partition ani širšího scope.
 
 ## Problem
 

@@ -209,8 +209,7 @@ Two things worth knowing:
 | `qa_conversation_v` | A view assembling a session's turns into a conversation. |
 | `idempotency_key` | Replay cache for `POST /v1/ask`, so a retried request does not produce a second answer. 24-hour retention. |
 
-The query path performs **no `UPDATE`s** — the log is append-only by design, so
-an answer can never be rewritten after the fact.
+The query log is append-only. Idempotency state may be updated during a query, and the separate internal QA administration router writes curated data; this statement does not imply the entire service is read-only.
 
 ### `question_answer_log.domains` (migration 213)
 
@@ -599,16 +598,16 @@ owner has to move with it.
 
 ### Visibility inside such an organisation
 
-Two settings govern what crosses between the units — both in
-`settings.config.visibility`, both documented in SETTINGS_REFERENCE §2:
+Sharing uses explicit visibility modes. `settings.config.visibility` contains one publishing switch and one unused legacy field, documented in SETTINGS_REFERENCE §2:
 
 * `child_may_publish_organization` (enforced at ingest) lets a unit mark a
   document `organization`, which then reaches the parent **and the sibling
   unit** — the secondary school sees what the primary school published
   organisation-wide.
-* `entity_visible_to_parent` is described as letting the parent, and through it the siblings, see a unit's own
-  `entity` documents, but the search code does not read it: `server.py` `_prepare_search` makes `entity` documents
-  visible to the owning entity only (audit c8fe0543; conflict with decision D-18 unresolved).
+* `entity_visible_to_parent` is a stored legacy field and is not read by search.
+  Current production and the user's confirmed model (2026-10-12) permit `entity`
+  only for the owning entity. A parent, child or sibling must use content explicitly
+  marked `organization`; see architecture decision D-19.
 
 Neither ever crosses to another legal person. Between `SKOLA_NOVA_VES` and
 `ZAKLADNI_SKOLA_BOROVA` nothing is shared under any configuration.

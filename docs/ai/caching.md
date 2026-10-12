@@ -172,3 +172,5 @@ Query-log writes are append-only, fire-and-forget background tasks that run afte
 the response has been sent, and are never read back into the request path. They
 are analytics, not a cache — and because the query path performs no updates, a
 logged answer can never be rewritten after the fact.
+
+The stale-claim 5-minute and retention 24-hour values are validated defaults of the global `search.idempotency_stale_claim` and `search.idempotency_retention` settings, not immutable limits.

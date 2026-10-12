@@ -103,3 +103,5 @@ Zdravé kontejnery ani smoke nedokládají placenou ingesci nebo kvalitu RAG.
 
 Provoz a zálohy: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Vývoj a testy:
 [DEVELOPMENT.md](DEVELOPMENT.md). Balení: [RELEASING.md](RELEASING.md).
+
+Repeated wizard installation was actually verified on upstream06de66d. Later public commits have separate offline evidence, not automatically a new live VM PASS.

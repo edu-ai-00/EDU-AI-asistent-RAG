@@ -1,7 +1,7 @@
 # Veřejný zdroj a rozsah ověření
 
 Zdroj publikace z 11. 10. 2026: upstream integrační commit
-`c079bd8065061a0a6e58f8468f4233014d0d71f1`. Veřejný Git má vlastní SHA; pro instalaci
+`64290d53317753dd1d4adbcc3de01527036cbf06`. Veřejný Git má vlastní SHA; pro instalaci
 použijte skutečný commit tohoto repozitáře z `git rev-parse HEAD`.
 
 Runtime kód, konfigurace a role, čistý DB seed, flow, kontrakty, normalizace,
@@ -47,3 +47,18 @@ Veřejná historie pokračuje od původních dvou commitů a obsahuje jejich his
 QA cesty, i když aktuální strom `QA/` nemá. Privátní Git objekty nebyly přeneseny.
 Viz [RELEASING.md](../RELEASING.md), [QA/offline audit](../integrations/offline-qa-rules.md),
 [čistá instalace](../CLEAN_INSTALL.md) a [Markdown index](../README.md).
+
+
+## Semantic audit follow-up (2026-10-12)
+
+The documentation audit corrects obsolete CI/CD/flow-import descriptions and
+preserves the production visibility model: entity=owner entity, organization=tenant,
+private=verified owner. Only log output in resolve_context was changed; its control
+flow and return values match the previous source. Ten privacy cases pass and detect
+the original ten content leaks; normalisation parity30 and existing context/query-log
+tests pass. The fixed isolated migration fixture passed all47runner scenarios across
+its primary run and the second independent-start check, plus15offline owner guards.
+This is synthetic lab validation, not production migration support or a new VM install.
+Legacy flat eval/resilience commands remain unsupported; QA OpenAPI coverage and
+mobile offline integration gaps are explicit. Historical public QA paths remain in
+old ancestors; no private source Git history is transferred.

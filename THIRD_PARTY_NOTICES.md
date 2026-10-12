@@ -1,26 +1,17 @@
 # Third-Party Notices
 
-**What is listed and what is not.** This file enumerates the dependencies this
-project DIRECTLY declares — the contents of `requirements*.txt`, the packages
-installed by the Dockerfiles, the frontend's `package.json`, and the
-infrastructure images. It deliberately does NOT enumerate the transitive
-dependency trees those components bring with them (the Langflow base image alone
-ships ~550 Python packages): attributing an upstream's own dependencies is that
-upstream's responsibility, and each package's metadata carries its licence.
-This repository distributes SOURCE (Dockerfiles + requirements), not built
-images; whoever redistributes BUILT images should regenerate the full runtime
-inventory first — `scripts/dump_pkgs.py` run inside each container produces it
-(verified 2026-07-30: 569/60/31/22 packages per container, predominantly
-MIT/Apache-2.0/BSD; one dual-licensed copyleft row, see the note below).
+**Scope and dates.** This file combines the source-declared components below
+with historical package inventories recorded on 2026-07-30. Those inventories
+are retained as snapshots, not a claim about every current image. Requirements
+and image layers are not all locked; record the actual image digests and regenerate
+package inventories with `scripts/dump_pkgs.py` for a specific built release.
+Packages and components retain their upstream licences and supplied notices.
+This list is not a complete current runtime licence inventory.
 
-**Copyleft note.** The Langflow base image includes `grandalf` 0.8
-(`GPLv2 | EPLv1`, graph layout). It is dual-licensed — the recipient may elect
-EPL-1.0 — and is consumed unmodified as Langflow's runtime dependency, not
-linked into the module's code. `psycopg2-binary` (the PostgreSQL driver used by
-several containers) is LGPL-3.0 with exceptions — standard practice for Python
-use, no obligation propagates to code importing it. Eleven transitive packages
-of the Langflow image declare no licence in their metadata; review before
-commercially redistributing built images.
+**Historical copyleft entries.** The recorded Langflow image included `grandalf`
+with GPLv2/EPLv1 metadata and psycopg2 with LGPL exceptions. Consult the exact
+upstream licence files supplied with the redistributed versions; the historical
+inventory is not a blanket conclusion about redistribution obligations.
 
 ## Infrastructure components
 
@@ -29,6 +20,9 @@ commercially redistributing built images.
 | Langflow (base image of `edu_ai`) | 1.10.1 | MIT | Langflow (Carlos Coelho et al.) |
 | PostgreSQL | 16.3 | PostgreSQL License | PostgreSQL Global Development Group |
 | pgvector (extension; base image `pgvector/pgvector:0.7.4-pg16`) | 0.7.4 | PostgreSQL License | Andrew Kane |
+| pg_search (installed by Dockerfile.postgres) | 0.25.1 | [AGPL-3.0](https://github.com/paradedb/paradedb/blob/v0.25.1/LICENSE) | ParadeDB contributors |
+| Bifrost gateway | image v1.6.7 | [Apache-2.0](https://github.com/maximhq/bifrost/blob/4ba2ca5dfb6c2974b629211d8c5c021cd4273f30/LICENSE), upstream transports/v1.6.7 source | Maxim AI / Bifrost contributors |
+| cloudflared (optional Compose profile) | unpinned image tag latest | [Apache-2.0](https://github.com/cloudflare/cloudflared/blob/master/LICENSE), upstream checked 2026-10-12 | Cloudflare contributors |
 | pg_trgm, unaccent (extensions) | bundled with 16.3 | PostgreSQL License | PostgreSQL Global Development Group |
 | pgAdmin 4 (image `dpage/pgadmin4`) | 9.11.0 | PostgreSQL License | pgAdmin Development Team (Dave Page et al.) |
 | nginx | 1.27.5 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
@@ -62,8 +56,7 @@ Base image `langflowai/langflow:1.10.1` (MIT). Packages WE add on top (`requirem
 
 ## `edu_ai_search (retrieval microservice)`
 
-Base image `python:3.12-slim` (PSF-2.0). This is the **complete set installed in the
-running image** — the direct dependencies declared in `search/requirements.txt` are in
+Base image `python:3.12-slim` (PSF-2.0). The table below is the **historical installed-image inventory from 2026-07-30**, not the current runtime inventory — the direct dependencies declared in `search/requirements.txt` are in
 **bold**, the rest are transitive. Licences and authors were read from the installed
 package metadata (`License-Expression`, then trove classifiers, then the bundled
 licence file); rows the metadata left empty were filled in by hand from the projects'
@@ -225,3 +218,17 @@ Declared in `web_chat/frontend/package.json`; the runtime container ships only t
 |---|---|
 | OpenAI API | embeddings (`text-embedding-3-small`) and LLM calls (chunking, classification, answer generation) — governed by OpenAI's terms, no OpenAI code is distributed |
 
+
+## QA portal
+
+`qa_portal/` is EDU-AI project code under this repository's LICENSE and NOTICE,
+not a separate third-party product. Its backend declares FastAPI, uvicorn,
+pydantic, python-multipart and requests; its frontend declares React, React DOM,
+react-markdown, rehype-sanitize and remark-gfm. See the source requirements and
+package/lock files for actual versions; shared components are attributed above.
+Its build/test dependencies and their transitive licence files need to be retained
+with any specific redistributed artifact just like the web chat's dependencies.
+
+The pg_search, Bifrost and cloudflared source licence references above were read
+from their official upstream LICENSE files on 2026-10-12. This records source
+licences, not an audit of every package bundled in those container images.

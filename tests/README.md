@@ -157,8 +157,8 @@ What it covers, and why each row is distinct rather than a variation:
 # Flow invariants (static)
 
 Asserts that the Langflow flow JSON still carries the config the flows need to
-reach Postgres. The flows hold 197 hand-maintained `load_from_db` attributes and
-186 `override_skip` attributes; re-exporting a flow from the Langflow UI can drop
+reach Postgres. The flows hold 220 hand-maintained `load_from_db` attributes and
+210 `override_skip` attributes; re-exporting a flow from the Langflow UI can drop
 them, and every way of dropping them **fails silently at runtime** — an unresolved
 `pg_host` becomes a local unix socket, an unresolved `pg_password` becomes "no
 password supplied". No error names the variable, so it reads as a Postgres fault.
@@ -221,20 +221,18 @@ JSON, check 6 guards everything around it (`.env`, Langflow settings, upgrades).
 
 ---
 
-# Resilience tests (fault injection)
+# Historical resilience tests (unsupported current helpers)
+
+> Legacy request/DB helpers do not match current required entity, C2 roles or log names. The scenarios below are historical, not supported commands. Do not run them against production or a current installation.
 
 Black-box tests that inject real faults into the **running dev stack** and
 assert the system fails *gracefully* — no crashes, no hangs, no partial/corrupt
 state — then restore the stack.
 
-## Run
-```bash
-# from the repo root; needs Docker + `requests` on the host (no pytest required)
-python3 tests/test_resilience.py            # all
-python3 tests/test_resilience.py r4 atom    # selected
-```
-Backends are hit on **loopback** (`127.0.0.1:8080` API, `:8090` search), which
-bypasses the nginx auth edge. DB state is checked via `docker exec psql`.
+## Historical run prerequisites
+
+These scenarios require repaired request/DB helpers and a separately owned isolated
+stack. The former run commands are intentionally not offered as a current workflow.
 
 ## What each test does
 | id | fault injected | asserts |
@@ -245,7 +243,7 @@ bypasses the nginx auth edge. DB state is checked via `docker exec psql`.
 | **atom** | force a QA-insert to fail mid-transaction | the `is_active=false` deactivation **rolls back** — a failed upload never leaves the corpus "all-inactive, nothing-active" |
 
 Each test restores what it changed in a `finally` block (recreates the search
-container with the real key, restarts Postgres). Safe to re-run.
+container with the real key, restarts Postgres). Historical claim, not current support: safe to re-run.
 
 > ⚠️ Destructive against the *dev* stack: r4/r8 briefly recreate/stop containers.
 > Don't run against production.
@@ -263,18 +261,17 @@ R2 (empty/oversized/mismatched file), R5 (LLM 429), R7 (malformed LLM output),
 R11 (partial: tables ok / embeddings fail), plus a fast **unit** layer
 (`decode_html`, cz-scoring, blocklist) run in-container.
 
-## eval_rag.py — regresní set s metadaty (od 2026-08-22)
+## eval_rag.py — metadata regression harness
 
-`eval_search.py` posílá jen otázku; `eval_rag.py` posílá i **roli, ročník a entitu**,
-protože ty rozhodují o odpovědi stejně jako formulace — a bez nich se vlastníkovy nálezy
-nedaly reprodukovat. **Veřejný checkout:** `eval_rag_regression.jsonl` obsahuje jen 3 syntetické případy s `ENTITY_CODE`; soukromý set o 38 případech a snapshoty `eval_out/` (Git je ignoruje) zde nejsou, `--only M` proto nevybere nic a `baseline-20260822.json` neexistuje. Níže popsaný privátní set je vlastníkových 9
-otázek + 29 ručních dotazů z testování 21.–22. 8. 2026, každý se slovním očekáváním
-(`expect`) a tím, co systém udělal tu noc (`observed_21_8`).
+This public checkout ships three synthetic unrestricted examples and three
+scoped examples with placeholder ENTITY_CODE, not the private regression corpus.
+Copy them to an ignored local set and replace the entity for your synthetic corpus.
+Historical 38/46-case measurements and M cases are not reproducible from these examples.
 
 ```bash
-python3 tests/eval_rag.py                                      # běh + snapshot do eval_out/
+python3 tests/eval_rag.py --questions <local_metadata.jsonl> --repeat 3
 python3 tests/eval_rag.py --baseline tests/eval_out/baseline-20260822.json
-python3 tests/eval_rag.py --only M                             # jen vlastníkovy
+# Historical --only M assumes private cases; public examples have no M IDs.
 ```
 
 `--baseline` vypíše, co se pohnulo (outcome, počet citovaných dokumentů, jiný 1. zdroj) —
@@ -322,3 +319,7 @@ z **týchž dat**. Sada je kalibrovaná na konkrétní korpus dokumentů a pack�
 běh proti databázi s jiným korpusem (starší restore, čistá instalace jen s
 fixtures) vrátí téměř všude `no_answer` — je to číslo, ale není to měření. Měření
 změny kódu a měření změny dat jsou dva samostatné běhy.
+
+This index is a selection of the main suites, not an exhaustive inventory. Legacy flat eval/resilience scripts have stale request/role/log-table assumptions; use the metadata eval harness and do not treat those scripts as supported fault-injection commands until repaired.
+
+Do not execute legacy resilience Run blocks below/above against a current installation. They are retained historical examples and require helper repair plus a separately isolated stack.

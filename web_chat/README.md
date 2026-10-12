@@ -37,7 +37,7 @@ docker run --rm -e CHAT_LEGAL_ENTITY=SKOLA_TEST -v "$PWD:/w" -w /w \
 ```
 
 The browser checks (`tests/test_school_selection_browser.py`) start their own
-fake search and four chat processes and need only Playwright and a built
+fake search and four chat processes and need the web-chat runtime dependencies plus Playwright and browser binaries and a built
 `static/` directory; see the docstring in that file. The older
 `test_domain_picker_browser.py` needs the dev stack and a chat whose
 `CHAT_LEGAL_ENTITY` is a valid default (it is preselected, so that test is
@@ -236,3 +236,5 @@ message; widening the search is the user's decision, not the client's.
 - no response streaming (the BFF calls `/v1/ask`, not `/v1/ask/stream`),
 - no persistent thread storage,
 - no Assistant Cloud.
+
+Test commands referring to `web_chat.py` run from `web_chat/` (or set its directory on PYTHONPATH). Browser tests require FastAPI/uvicorn/httpx plus Playwright and its browser binaries; parsing or offline tests are not a browser PASS.

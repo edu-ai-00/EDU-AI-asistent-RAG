@@ -1,6 +1,6 @@
 ---
 id: spec.search-domain-scope
-status: draft
+status: active
 components: [api, retrieval, db, webchat, mobile, contracts]
 sources:
   - search/app/server.py
@@ -46,68 +46,12 @@ last_verified: 2026-09-06
 
 # Výběr oblasti hledání pro mobilní aplikaci a webchat
 
-> **Pozn. auditu (SHA c8fe0543):** funkce je implementovaná (`search/app/scope.py`, `search/app/domain_scope.py`, migrace
-> `postgres/init/213_log_domains.sql`, testy `tests/test_domain_scope*.py`) a podle
-> [záznamu nasazení](../../docs/nasazeni/2026-09-06_domain_scope.md) nasazená 6. 9. 2026; `status: draft` a věta „Nasazeno není nic“
-> níže popisují stav před nasazením. Tvrzení o mobilním klientu: viz [mobile-domain-scope.md](../../docs/integrations/mobile-domain-scope.md).
->
-> **Stav 6. 9. 2026 (aktualizováno po implementaci).** Backend, webchat,
-> kontrakty, migrace logu, nástroje a testy jsou **hotové a ověřené na dev
-> stacku a přes skutečné HTTP na třech cestách** (interní, nginx, BFF).
-> **Nasazeno není nic** — produkce byla kontrolována jen read-only. Otevřené
-> zůstává: neproměřená regresní sada (chybí autorizovaná kopie produkčního
-> korpusu), **neoznačená data** (230 QA odpovědí a 274 chunků, viz §6 a
-> deployment runbook §7) a **mobilní klient**, který neexistuje.
-> Postup nasazení a návratu:
-> [`docs/nasazeni/2026-09-06_domain_scope.md`](../../docs/nasazeni/2026-09-06_domain_scope.md).
-> Kontrakt pro mobilní tým:
-> [`docs/integrations/mobile-domain-scope.md`](../../docs/integrations/mobile-domain-scope.md).
->
-> **Revize 6. 9. proběhla ve dvou kolech, našla šest nálezů a všechny jsou
-> opravené**, ke každému test,
-> který na předchozím kódu selže: prázdný guard v datové migraci (souběžná
-> kurátorská změna se přepisovala), snapshot zapisovaný až po zápisech a
-> rollback sahající na celou tabulku, UI, které po vyřazení uloženého kódu
-> mlčky hledalo ve všech oblastech, a chybějící parametry v trigramovém dotazu
-> `document_lexical` — pod explicitním filtrem tam spadl a step výjimku spolkl,
-> takže **celá dokumentová větev tiše zmizela**. Druhé kolo našlo ještě dvě
-> věci, které oprava z prvního kola nepokryla: zápisy migrace vybíraly podle
-> packu, ne podle snapshotu (řádek přidaný po snapshotu se změnil bez kontroly,
-> a scan surfaces ve snapshotu vůbec nebyly), a rollback kontroloval pozdější
-> změny před transakcí. Rozpis a příkazy:
-> [runbook §11](../../docs/nasazeni/2026-09-06_domain_scope.md).
->
-> Poslední nález ukázal mezeru v metodě, ne jen v kódu: krok si výjimku sám
-> odloží a vrátí prázdno, takže aserce „žádné řádky mimo oblast“ projde právě
-> proto, že tam nejsou řádky žádné. Testy proto obsahují log watcher a sadu
-> dotazů, které okrajové větve pod filtrem skutečně projdou.
->
-> **Rozhodnutí, která tato implementace uzavřela** (byla v návrhu otevřená):
->
-> * **Migrace logu schválena a provedena v repu** jako `postgres/init/213`
->   (číslo 212 bylo v workspace obsazené). Transakční, opakovatelná, bez
->   defaultu, bez backfillu, **s kontrolou typu** — `IF NOT EXISTS` samo
->   nedokazuje, že sloupec je `text[]`.
-> * **Request hash** zachovává stávající replay: nové pole se před hashováním
->   vynechá, **jen když je NULL**. Ověřeno claimem hašovaným *starým* kódem, ne
->   dvěma požadavky na novou verzi. Sémantika se nemění, takže rozhodnutí
->   vlastníka to nevyžaduje.
-> * **Statistiky (IDF/df) se se kandidáty NEzužují.** V návrhu to bylo otevřené
->   („prověřit spolu s filtrací“); měření rozhodlo: se zúženým jmenovatelem
->   označila třípoložková oblast každý token za generický a topical gate zamítl
->   i ten dokument, o který v oblasti šlo. Filtr je na kandidátském dotazu,
->   prahy zůstávají na korpusu školy. Viz `docs/ai/retrieval.md`. **Vlastník
->   to schválil jako návrh k ověření regresí**, ne jako uzavřené rozhodnutí.
-> * **Pojmenované profily „Přijímačky / Provoz“ (§8) nejsou implementované** a
->   nejsou v tomto rozsahu — zůstávají samostatným rozhodnutím.
-
-Implementační draft, nikoli popis nasazené funkce. Produktové upřesnění ze
-stejné konverzace: více tematických QA packů na školu; velké RAG dokumenty
-zůstávají celé a mohou mít více domén. Nezavádí se tematická klasifikace
-jednotlivých chunků. Prováděcí postup a předání pro Claude jsou v
-[technickém runbooku](../../docs/nasazeni/2026-09-06_domain_scope.md).
-Vychází z kontroly repozitáře a produkce přes SSH dne 6. 9. 2026.
-`last_verified` označuje kontrolu výchozích zdrojů, nikoli ověření budoucí implementace.
+> **Aktivní kontrakt backendu a webchatu.** Implementace a její historické nasazení jsou doložené
+> ve zdrojích a [runbooku](../../docs/nasazeni/2026-09-06_domain_scope.md). Stavový nadpis
+> zde není tvrzením o hotové mobilní integraci nebo regresi nejnovějšího SHA.
+> Mobilní APP existuje, ale jeho doménová/offline QA integrace v prohlédnutém zdroji
+> není doložená; viz [mobile-domain-scope.md](../../docs/integrations/mobile-domain-scope.md).
+> Staré počty neoznačených dat a testovací výsledky v této specifikaci jsou historické snímky.
 
 ## 1. Doporučený výsledek
 

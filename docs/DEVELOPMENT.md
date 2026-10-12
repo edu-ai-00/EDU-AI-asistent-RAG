@@ -36,8 +36,7 @@ is a defect to report, not something to resolve silently.
 
 ## 2. Local stack
 
-`python3 scripts/bootstrap.py` brings up the dev stack defined by Compose from a clean clone; the step-by-step
-version and troubleshooting are in [ONBOARDING.md](../ONBOARDING.md). Search is a baked image: after a code
+For a fresh isolated Ubuntu installation use [CLEAN_INSTALL.md](CLEAN_INSTALL.md). The development walkthrough in [ONBOARDING.md](../ONBOARDING.md) is historical; `bootstrap.py` alone does not supply all current clean-install prerequisites. Search is a baked image: after a code
 change run `docker compose build edu_ai_search && docker compose up -d edu_ai_search`.
 
 On a Windows host without `make`, or where `python3` is only a stub, run the commands directly

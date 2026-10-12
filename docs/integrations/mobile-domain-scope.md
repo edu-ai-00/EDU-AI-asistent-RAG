@@ -233,7 +233,7 @@ neomezenému hledání. Platí i tehdy, když `conversation_id` recykluješ.
 
 ## 7. Co ještě není a co je potřeba domluvit
 
-* **Mobilní klient.** Neexistuje. API je hotové a ověřené přes skutečný
+* **Mobilní aplikace existuje.** Doménová a offline QA integrace není v prohlédnutém APP snapshotu doložená; nejde o tvrzení, že mobilní aplikace neexistuje. API je hotové a ověřené přes skutečný
   proxy hop; UI, ukládání volby a vydání je na mobilním týmu.
 * **Data.** Filtr je jen tak dobrý, jak jsou označené zdroje. Ke 6. 9. 2026 je
   na produkci **pět aktivních QA packů (230 odpovědí) bez jakéhokoli označení** —
