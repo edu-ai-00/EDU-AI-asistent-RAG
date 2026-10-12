@@ -270,7 +270,7 @@ Historical 38/46-case measurements and M cases are not reproducible from these e
 
 ```bash
 python3 tests/eval_rag.py --questions <local_metadata.jsonl> --repeat 3
-python3 tests/eval_rag.py --baseline tests/eval_out/baseline-20260822.json
+python3 tests/eval_rag.py --questions <local_metadata.jsonl> --baseline <existing_snapshot.json>
 # Historical --only M assumes private cases; public examples have no M IDs.
 ```
 
@@ -323,3 +323,5 @@ změny kódu a měření změny dat jsou dva samostatné běhy.
 This index is a selection of the main suites, not an exhaustive inventory. Legacy flat eval/resilience scripts have stale request/role/log-table assumptions; use the metadata eval harness and do not treat those scripts as supported fault-injection commands until repaired.
 
 Do not execute legacy resilience Run blocks below/above against a current installation. They are retained historical examples and require helper repair plus a separately isolated stack.
+
+Baseline comparison requires the same local metadata set and the same corpus as the existing snapshot. Historical private snapshots are not bundled here.

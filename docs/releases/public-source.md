@@ -1,6 +1,6 @@
 # Veřejný zdroj a rozsah ověření
 
-Zdroj publikace z 11. 10. 2026: upstream integrační commit
+Původní publikace proběhla 11. 10. 2026; aktualizovaný upstream po auditu z 12. 10. 2026:
 `64290d53317753dd1d4adbcc3de01527036cbf06`. Veřejný Git má vlastní SHA; pro instalaci
 použijte skutečný commit tohoto repozitáře z `git rev-parse HEAD`.
 
