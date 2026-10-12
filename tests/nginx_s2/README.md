@@ -23,6 +23,18 @@ docker tag  nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76f
 docker pull python:3.12-slim
 ```
 
+## Rehearsing a newer nginx image
+
+The evidence above ran on the production image (1.27.5). `docker-compose.yml` may name a newer tag; to run the
+same checks against it, set both variables (the ID is the one `docker image inspect <tag> --format '{{.Id}}'` prints):
+
+```bash
+EDU_AI_LAB_NGINX_IMAGE=nginx:1.30.5-alpine EDU_AI_LAB_NGINX_ID=sha256:<id> python tests/nginx_r2/r2lab.py run --out r2.json
+```
+
+The `env.nginx_image` check then compares against that ID. The rehearsals that check out historical commits
+(`rehearsal*.py`, `candidate.py`, `switch_offline.py`, the S2 `--baseline`) need a clone with that history.
+
 ## Running
 
 From the repository root, with the S2 candidate in the working tree and **not yet committed** on the commit that is the baseline:
