@@ -10,7 +10,7 @@ for init-config, publishes ONE new directory with .env and install-record.json. 
 builds and inspects nothing: every result says HOST_NOT_CHECKED and INSTALLATION_NOT_STARTED,
 and a written set is CONFIG_PREPARED, not an installation.
 Secrets: the protected .env stays the permanent source. Only the final overview of a successful init-config, and only in an
-interactive terminal (stdout and stdin are ttys, no CI environment), shows the four values THIS run generated, once; anywhere else
+interactive terminal (stdout and stdin are ttys, no CI environment), shows the values THIS run generated, once; anywhere else
 the output carries the path alone. No other line, error or log ever holds a value.
 Exit status: 0 ok | 2 refused | 3 could not verify or complete. Standard library only.
 """
@@ -49,7 +49,7 @@ CAN_PUBLISH = sys.platform.startswith("linux")   # init-config needs renameat2(R
 # The secrets scripts/bootstrap.py already generates (GENERATED_SECRETS); nothing else is generated here.
 GENERATED = ("POSTGRES_PASSWORD", "PGADMIN_DEFAULT_PASSWORD", "LANGFLOW_SUPERUSER_PASSWORD", "LANGFLOW_SECRET_KEY",
              "POSTGRES_ADMIN_PASSWORD", "POSTGRES_SEARCH_PASSWORD", "POSTGRES_LANGFLOW_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD",
-             "BIFROST_SETUP_TOKEN")
+             "BIFROST_SETUP_TOKEN", "BIFROST_ADMIN_PASSWORD")
 KEY_NAME = "LANGFLOW_SECRET_KEY"
 SERVICE_ISSUED = ("LANGFLOW_API_KEY",)  # minted by Langflow in a later stage
 MARKERS = ("HOST_NOT_CHECKED", "INSTALLATION_NOT_STARTED")
@@ -73,7 +73,7 @@ GENERATORS = {"POSTGRES_PASSWORD": gen_password, "PGADMIN_DEFAULT_PASSWORD": gen
               "LANGFLOW_SUPERUSER_PASSWORD": gen_password, "LANGFLOW_SECRET_KEY": gen_fernet,
               "POSTGRES_ADMIN_PASSWORD": gen_password, "POSTGRES_SEARCH_PASSWORD": gen_password,
               "POSTGRES_LANGFLOW_PASSWORD": gen_password, "POSTGRES_MIGRATOR_PASSWORD": gen_password,
-              "BIFROST_SETUP_TOKEN": gen_password}
+              "BIFROST_SETUP_TOKEN": gen_password, "BIFROST_ADMIN_PASSWORD": gen_password}
 
 
 def sha256_hex(data: str | bytes) -> str:

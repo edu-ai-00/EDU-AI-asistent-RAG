@@ -3,5 +3,12 @@
   "client": {
     "enforce_auth_on_inference": false
   },
-  "setup_token": "env.BIFROST_SETUP_TOKEN"
+  "setup_token": "env.BIFROST_SETUP_TOKEN",
+  "governance": {
+    "auth_config": {
+      "admin_username": "env.BIFROST_ADMIN_USERNAME",
+      "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+      "is_enabled": true
+    }
+  }
 }

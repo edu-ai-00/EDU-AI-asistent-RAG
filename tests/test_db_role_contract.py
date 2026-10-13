@@ -205,7 +205,7 @@ class WiringTests(unittest.TestCase):
         block = service_block(self.compose, "edu_ai")
         self.assertIn("env_file:", block)
         for key in ("POSTGRES_ADMIN_PASSWORD", "POSTGRES_SEARCH_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD", "POSTGRES_LANGFLOW_PASSWORD",
-                    "BIFROST_SETUP_TOKEN"):
+                    "BIFROST_SETUP_TOKEN", "BIFROST_ADMIN_PASSWORD"):
             self.assertRegex(block, rf"(?m)^\s+- {key}=\r?$")
         self.assertIn("LANGFLOW_DATABASE_URL=postgresql://edu_ai_langflow:${POSTGRES_LANGFLOW_PASSWORD}@", block)
 

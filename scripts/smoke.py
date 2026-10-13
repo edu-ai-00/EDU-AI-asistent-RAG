@@ -224,11 +224,12 @@ def check_bifrost_inference_open() -> None:
     # `false` is also what Bifrost answers when it cannot read its client config; that state is not detectable here.
     if state.get("inference_auth_enforced") is not False:
         bad("bifrost: inference requires a credential, so Langflow, search and the API get 401 — "
-            "turn off 'enforce auth on inference' in the Bifrost UI (Config → Security)")
-    elif state.get("is_auth_enabled"):
-        ok("bifrost: inference open to the internal callers; dashboard has an admin account")
+            "turn off 'Enforce Virtual Keys on Inference' in the Bifrost UI (Security Settings)")
+    elif not state.get("is_auth_enabled"):
+        bad("bifrost: the dashboard has no admin login — bifrost/config.json creates it from "
+            "BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD; check bifrost_data/config.json and the .env")
     else:
-        ok("bifrost: inference open to the internal callers; no admin yet, /api needs the setup token")
+        ok("bifrost: inference open to the internal callers; dashboard behind the admin login")
 
 
 # ───────────────────────────────────────────────────────────────

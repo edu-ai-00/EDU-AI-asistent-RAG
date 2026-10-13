@@ -85,7 +85,7 @@ the diagram does not consider their presence verified.
 | Host `80` → nginx `80` | `/search/`, `/api/`, `/chat/`, `/qa/`, `/qa-api/v1/` and the local nginx health. |
 | Host `8443` → nginx `8443` | `/pgadmin/`; the port does not automatically mean TLS. |
 | Host `8444` → nginx `8444` | Langflow UI on `/`; the port does not automatically mean TLS. |
-| Default `127.0.0.1:8099` → Bifrost `8080` | Gateway administration and inference; the bind and port are determined by `BIFROST_BIND` / `BIFROST_PORT`. Inference has no authentication (internal callers); the UI/API take the setup token until an admin account exists. |
+| Default `127.0.0.1:8099` → Bifrost `8080` | Gateway administration and inference; the bind and port are determined by `BIFROST_BIND` / `BIFROST_PORT`. Inference has no authentication (internal callers); the UI/API need the admin login from `BIFROST_ADMIN_USERNAME` / `BIFROST_ADMIN_PASSWORD`. |
 | Internal nginx `81` | Allowlist `/search/`; not published on the host. Cloudflared reaches it over `tunnel`. |
 
 Nginx on port 81 does not add a general login; the path is restricted by the allowlist.

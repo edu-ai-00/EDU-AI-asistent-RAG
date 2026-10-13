@@ -119,18 +119,20 @@ git rev-parse HEAD
 ```
 
 The LLM provider is configured separately in Bifrost; a key in the client `.env`
-does not configure the provider by itself. Open the Bifrost UI over an SSH tunnel
-to `127.0.0.1:8099`; until an admin account exists it asks for the setup token,
-`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account (per the
-Bifrost documentation under Workspace → Config → Security) before
-anyone else can reach the port, and when you create it **turn off "enforce auth on
-inference"**: Bifrost v2 otherwise switches it on with the first admin, and
-Langflow, search and the API then get `401 virtual key is required`. The smoke test
-fails in that state (`bifrost: inference requires a credential`); an installation
-that wants inference auth on is outside this design and does not pass the smoke.
-Inference stays unauthenticated for the internal callers by design
-(`bifrost/config.json`). Expose the administration UI only to an authorised
-administrator. Healthy containers and a smoke do not document a paid ingestion or
+does not configure the provider by itself. The Bifrost admin login exists from the
+first start: `bifrost/config.json` creates it from `BIFROST_ADMIN_USERNAME`
+(default `admin`) and `BIFROST_ADMIN_PASSWORD` (generated) in `~/edu-ai/config/.env`.
+Open the UI over an SSH tunnel to `127.0.0.1:8099` and log in; add the provider
+and its key there. To change the password, edit `BIFROST_ADMIN_PASSWORD` in the
+`.env` and run `docker compose restart bifrost` (the `.env` value applies at every
+start; without a password Bifrost does not start). In the UI's Security Settings
+keep **"Enforce Virtual Keys on Inference" off**: with it on, Langflow, search and
+the API get `401 virtual key is required`. The smoke test fails in that state
+(`bifrost: inference requires a credential`) and when the admin login is missing;
+an installation that wants inference auth on is outside this design and does not
+pass the smoke. Inference stays unauthenticated for the internal callers by design.
+`BIFROST_SETUP_TOKEN` is only a fallback for `/api` if the dashboard login is ever
+switched off. Expose the administration UI only to an authorised administrator. Healthy containers and a smoke do not document a paid ingestion or
 the RAG quality.
 
 ## Cloudflare tunnel (optional)
@@ -143,7 +145,7 @@ The tunnel is prepared but off: `cloudflared` runs only under the Compose profil
    point at `http://edu_ai_nginx:81` (the `/search/` allowlist) and, for the
    gateway UI, at `http://bifrost:8080`. Put a **Cloudflare Access** policy on every
    hostname: the tunnel authenticates nothing and Bifrost inference has no auth.
-2. Create the Bifrost admin account first (see above).
+2. Check that the Bifrost admin login works (see above).
 3. Add to `~/edu-ai/config/.env`:
 
    ```bash

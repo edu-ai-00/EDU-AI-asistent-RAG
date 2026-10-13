@@ -791,7 +791,7 @@ class Wizard:
         else:
             self.say("Chat nemá školu: zapněte výběr nebo nastavte pevnou školu; viz docs/CLEAN_INSTALL.md.")
         self.say("PROVIDER: the LLM provider is a separate input (Bifrost UI on 127.0.0.1:8099 over an SSH tunnel, "
-                 "setup token = BIFROST_SETUP_TOKEN in the config .env until an admin account exists); "
+                 "login BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD from the config .env); "
                  "this run made no paid call and does not claim answers work")
         self.say("NOT_TESTED: network isolation and firewall (published ports 80, 8443, 8444); explicit existing Cloudflare profiles require separate verification")
         return 0

@@ -17,12 +17,18 @@ class BifrostInferenceAuth(unittest.TestCase):
         self.assertEqual(get.call_args.args, ("edu_ai_search", "http://bifrost:8080/api/session/is-auth-enabled"))
         return bad, ok
 
-    def test_open_inference_passes_with_or_without_an_admin(self):
-        for admin in (False, True):
-            with self.subTest(admin=admin):
-                bad, ok = self.check({"inference_auth_enforced": False, "is_auth_enabled": admin})
-                bad.assert_not_called()
-                ok.assert_called_once()
+    def test_open_inference_with_an_admin_login_passes(self):
+        bad, ok = self.check({"inference_auth_enforced": False, "is_auth_enabled": True})
+        bad.assert_not_called()
+        ok.assert_called_once()
+
+    def test_a_dashboard_without_an_admin_login_fails(self):
+        for state in ({"inference_auth_enforced": False, "is_auth_enabled": False}, {"inference_auth_enforced": False}):
+            with self.subTest(state=state):
+                bad, ok = self.check(state)
+                bad.assert_called_once()
+                ok.assert_not_called()
+                self.assertIn("no admin login", bad.call_args.args[0])
 
     def test_enforced_or_unknown_inference_auth_fails(self):
         for state in ({"inference_auth_enforced": True}, {}, {"inference_auth_enforced": None}):
@@ -30,7 +36,7 @@ class BifrostInferenceAuth(unittest.TestCase):
                 bad, ok = self.check(state)
                 bad.assert_called_once()
                 ok.assert_not_called()
-                self.assertIn("enforce auth on inference", bad.call_args.args[0])
+                self.assertIn("Enforce Virtual Keys on Inference", bad.call_args.args[0])
 
     def test_an_unreadable_state_fails_instead_of_passing(self):
         bad, ok = self.check(OSError("exec failed"))
@@ -38,7 +44,7 @@ class BifrostInferenceAuth(unittest.TestCase):
         ok.assert_not_called()
 
     def test_a_restarting_bifrost_is_retried(self):
-        bad, ok = self.check([OSError("refused"), OSError("refused"), {"inference_auth_enforced": False}])
+        bad, ok = self.check([OSError("refused"), OSError("refused"), {"inference_auth_enforced": False, "is_auth_enabled": True}])
         bad.assert_not_called()
         ok.assert_called_once()
 

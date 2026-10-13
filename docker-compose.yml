@@ -167,6 +167,7 @@ services:
       - POSTGRES_MIGRATOR_PASSWORD=
       # Bifrost's setup token is admin access to the gateway (every provider key) while no admin exists.
       - BIFROST_SETUP_TOKEN=
+      - BIFROST_ADMIN_PASSWORD=
       - LANGFLOW_CACHE_EXPIRE=1
       - LANGFLOW_LANGCHAIN_CACHE=false
       # Langflow 1.10 added SSRF protection to the API Request component, which
@@ -232,10 +233,10 @@ services:
     image: maximhq/bifrost:v2.2.6    # pinned: `latest` moves under you
     container_name: bifrost
     ports:
-      # Until an admin account exists, the UI and the admin API take only the
-      # setup token (BIFROST_SETUP_TOKEN); inference is unauthenticated by design
-      # (bifrost/config.json), the callers here are on `app`. Whoever reaches this
-      # port with the token owns every provider key in it. Loopback by
+      # The UI and the admin API need the admin login (BIFROST_ADMIN_USERNAME /
+      # _PASSWORD, created by bifrost/config.json); inference is unauthenticated by
+      # design, the callers here are on `app`. Whoever reaches this port can use
+      # every provider key in it for inference. Loopback by
       # default; BIFROST_BIND=<server> hands it to every WireGuard peer, which
       # is a deliberate choice to make per host. Never 0.0.0.0 — that is public.
       # 8099, not 8090: docker-compose.override.yml already publishes 8090 for
@@ -246,10 +247,12 @@ services:
       APP_PORT: 8080
       LOG_LEVEL: ${BIFROST_LOG_LEVEL:-info}
       LOG_STYLE: json
-      # Read by bifrost/config.json (`env.BIFROST_SETUP_TOKEN`); bootstrap copies that file into bifrost_data.
-      # Not `:?`: an older .env without it must still let `docker compose ps/logs/down` work. Empty means
-      # /api stays closed (403); bootstrap and the wizard add the key.
+      # Read by bifrost/config.json (`env.…`); bootstrap copies that file into bifrost_data.
+      # Not `:?`: an older .env without them must still let `docker compose ps/logs/down` work.
+      # Bootstrap and the wizard add them; without a password Bifrost refuses to start.
       BIFROST_SETUP_TOKEN: ${BIFROST_SETUP_TOKEN:-}
+      BIFROST_ADMIN_USERNAME: ${BIFROST_ADMIN_USERNAME:-admin}
+      BIFROST_ADMIN_PASSWORD: ${BIFROST_ADMIN_PASSWORD:-}
     volumes:
       - ./bifrost_data:/app/data     # config.json (from bifrost/), config.db (provider keys), logs.db
     networks:

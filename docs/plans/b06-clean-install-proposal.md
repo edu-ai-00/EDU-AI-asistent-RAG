@@ -79,7 +79,8 @@ Origin: **gen** = generated once by the installer, **supplied** = by the adminis
 | `OPENAI_API_KEY` | key for the SDK; the real provider key is held by Bifrost | required (non-empty) | supplied, or a formal value (Q4) | edu_ai (Global Variable), search | `EX:111`, `DC:182-183,379` |
 | `OPENAI_BASE_URL` | direction to Bifrost | optional | default in Compose | edu_ai, search | `EX:117`, `DC:184,387` |
 | LLM provider key | real LLM and embedding calls | required for LLM paths | supplied in the **Bifrost UI**, not in `.env` | bifrost (`bifrost_data/config.db`) | `EX:160-161` |
-| `BIFROST_SETUP_TOKEN` | Bifrost v2 setup token: UI/API access until an admin account exists | required; secret | gen (install.py, bootstrap) | bifrost; blanked for Langflow | `bifrost/config.json` |
+| `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD` | Bifrost admin login, created by `bifrost/config.json` | username default `admin`; password required, secret | const / gen (install.py, bootstrap) | bifrost; password blanked for Langflow | `bifrost/config.json` |
+| `BIFROST_SETUP_TOKEN` | Bifrost v2 fallback access to `/api` if the dashboard login is switched off | required; secret | gen (install.py, bootstrap) | bifrost; blanked for Langflow | `bifrost/config.json` |
 | `BIFROST_BIND`, `_PORT`, `_LOG_LEVEL` | publication of the gateway (inference without authentication) | optional; default 127.0.0.1:8099 | const / supplied | bifrost | `EX:127-129`, `DC:234-238` |
 | `CLOUDFLARE_TUNNEL_TOKEN` | tunnel | optional; empty = cloudflared starts and only logs an error | supplied | cloudflared; via `env_file` also Langflow | `EX:131-142`, `DC:267`, `A4A:229` |
 | `CHAT_LEGAL_ENTITY` | webchat school; without it chat gets 422 | required for chat; **missing from `EX`** | supplied | web_chat | `DC:436-440`, `WC:40` |
