@@ -139,5 +139,6 @@ system does — the active configuration does. It is documented in
 ## Deployment
 
 A baked image, run under docker-compose. The application directory is not mounted,
-so a code change needs a rebuild — but a configuration change does not, and takes
-effect within the settings cache TTL.
+so a code change needs a rebuild — bootstrap does it for the images whose committed
+sources changed (see [OPERATIONS_LINUX.md](../OPERATIONS_LINUX.md)) — but a
+configuration change does not, and takes effect within the settings cache TTL.

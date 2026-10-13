@@ -72,6 +72,18 @@ using it, verify all the prerequisites from its README. The B03e migration runne
 is approved only for isolated synthetic databases; do not use it on production or a
 school installation. Roles contract: [B06 C2](plans/b06-c2-role-contract.md).
 
+After `git pull` in the source checkout, `python3 scripts/setup.py install`
+continues the same installation, and bootstrap rebuilds only the images whose
+inputs changed: each built image carries a second tag `<repository>:src-<fingerprint>`
+of its Dockerfile and the files it copies, as committed in git; a missing or
+different one means a rebuild of that service, the previous image stays as
+`<image>-prev`. An uncommitted change or a checkout without git rebuilds that image
+every time (or, outside git, never: use `bootstrap.py --build`). Base-image
+updates without a source change still need `--build`. Not covered by this:
+database migrations, flows that already exist in Langflow (only missing ones are
+imported) and a Compose change of a service's mounts, which the wizard refuses
+(`RESUME_STACK_OTHER_LAYOUT`).
+
 A release records the exact commit, images, tests and limitations. An old PASS for
 a different commit does not replace a new clean run. See [RELEASING.md](RELEASING.md).
 

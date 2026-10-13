@@ -44,12 +44,14 @@ import os
 import pathlib
 import re
 import secrets
+import shlex
 import stat
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from datetime import datetime
+from hashlib import sha256
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from create_api_key import (  # noqa: E402
@@ -595,6 +597,124 @@ def _check_optional_cloudflare() -> bool:
     return True
 
 
+# Images built from this checkout. `up` reuses an existing tag, so after `git pull` the old code would keep running
+# behind a green smoke. Each image gets a second tag, <repo>:src-<fingerprint of what its Dockerfile copies>; a
+# missing or different one means a rebuild of that service only. The previous image stays as <image>-prev.
+_COPY = re.compile(r"^\s*(?:COPY|ADD)\s+(.+)$", re.IGNORECASE)
+_built_this_run: set[str] = set()        # --build rebuilds once per run, not again in step 6
+
+
+def _copy_sources(dockerfile: str) -> list[str] | None:
+    """Context-relative COPY/ADD sources; None when one cannot be pinned (whole context then)."""
+    text = re.sub(r"\\\r?\n", " ", dockerfile)
+    if re.search(r"--mount", text):
+        return None
+    sources: list[str] = []
+    for line in text.splitlines():
+        m = _COPY.match(line)
+        if not m:
+            continue
+        try:
+            words = shlex.split(m.group(1), comments=False, posix=True)
+        except ValueError:
+            return None
+        if any(w.startswith("--from") for w in words):
+            continue                                   # copies from another stage, not from the context
+        words = [w for w in words if not w.startswith("--")]
+        if len(words) < 2 or words[0].startswith("[") or words[0].startswith("<<"):
+            return None
+        for source in words[:-1]:
+            if any(ch in source for ch in "*?[") or "://" in source:
+                return None
+            sources.append(source)
+    return sources
+
+
+def _image_fingerprint(spec: dict) -> str | None:
+    """12 hex of the build section and the git objects of the Dockerfile and its COPY sources; None if not pinned in git."""
+    build = dict(spec["build"])
+    context = pathlib.Path(build.pop("context"))
+    relative = pathlib.Path(os.path.relpath(context, ROOT))
+    if relative.parts[:1] == ("..",):
+        return None
+    dockerfile = context / build.get("dockerfile", "Dockerfile")
+    sources = _copy_sources(dockerfile.read_text(encoding="utf-8"))
+    inputs = {os.path.relpath(dockerfile, ROOT)}
+    if sources is None or any(os.path.normpath(s) == "." for s in sources):
+        inputs.add(str(relative))
+    else:
+        inputs.update(os.path.normpath(relative / s) for s in sources)
+    paths = sorted(p.replace(os.sep, "/") for p in inputs)
+    dirty = run(["git", "-C", str(ROOT), "status", "--porcelain", "--", *paths])
+    if dirty.returncode != 0 or dirty.stdout.strip():
+        return None
+    oids = []
+    for path in paths:
+        done = run(["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet", f"HEAD:{'' if path == '.' else path}"])
+        if done.returncode != 0:
+            return None
+        oids.append(f"{path} {done.stdout.strip()}")
+    payload = json.dumps({"build": build, "context": str(relative).replace(os.sep, "/"), "inputs": oids}, sort_keys=True)
+    return sha256(payload.encode("utf-8")).hexdigest()[:12]
+
+
+def _image_id(ref: str) -> str | None:
+    done = run(["docker", "image", "inspect", "--format", "{{.Id}}", ref])
+    return done.stdout.strip() if done.returncode == 0 and done.stdout.strip() else None
+
+
+def _refresh_images(services: list[str], rebuild_all: bool = False) -> bool:
+    """Rebuild the images of these services (all when empty) whose source fingerprint changed; False on a failed build."""
+    try:
+        result = run(["docker", "compose", "config", "--format", "json"])
+        model = json.loads(result.stdout) if result.returncode == 0 else {}
+        specs = model.get("services") or {}
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+        specs = {}
+    built = [(name, spec) for name, spec in specs.items()
+             if isinstance(spec, dict) and spec.get("build") and spec.get("image") and (not services or name in services)]
+    if not built:
+        return True
+    inside = run(["git", "-C", str(ROOT), "rev-parse", "--is-inside-work-tree"])
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        report("warn", "not a git checkout: images are built only when missing; after a code change run with --build")
+        return True
+    seen: set[str] = set()
+    for name, spec in built:
+        image = spec["image"]
+        if image in seen or image in _built_this_run:
+            continue
+        seen.add(image)
+        repo = image.rsplit(":", 1)[0] if ":" in image.rsplit("/", 1)[-1] else image
+        try:
+            fingerprint = _image_fingerprint(spec)
+        except (OSError, ValueError, KeyError, TypeError):
+            fingerprint = None
+        current = _image_id(image)
+        marker = f"{repo}:src-{fingerprint}" if fingerprint else None
+        if current and marker and not rebuild_all and _image_id(marker) == current:
+            report("skip", f"{name}: image matches its source ({fingerprint})")
+            continue
+        why = ("rebuild requested" if rebuild_all else "image missing" if not current
+               else "source not committed or not in git" if not fingerprint else "source changed")
+        if current:
+            run(["docker", "tag", current, f"{image}-prev"])
+        result = compose("build", name, stream=True, timeout=3600)
+        if result.returncode != 0:
+            fail(f"building {name} failed (exit {result.returncode})", "check the build output above; the previous image is kept")
+            return False
+        _built_this_run.add(image)
+        new = _image_id(image)
+        if marker and new:
+            run(["docker", "tag", new, marker])
+            tags = run(["docker", "image", "ls", repo, "--format", "{{.Tag}}"])
+            for tag in (tags.stdout or "").split():
+                if tag.startswith("src-") and tag != f"src-{fingerprint}":
+                    run(["docker", "image", "rm", f"{repo}:{tag}"])       # untag only; -prev keeps the previous image
+        report("ok", f"{name}: built ({why})" + (f", source {fingerprint}" if fingerprint else ""))
+    return True
+
+
 def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = False,
             apply_pending_recreate: bool = False) -> bool:
     """`up -d --wait` — a real readiness gate now that every service has a
@@ -609,6 +729,8 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
     global _needs_recreate
     phase(label)
     if not _check_optional_cloudflare():
+        return False
+    if not _refresh_images(services, rebuild_all=build):
         return False
 
     args = ["up", "-d", "--wait", "--wait-timeout", "900"]
