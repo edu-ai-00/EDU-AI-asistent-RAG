@@ -69,6 +69,13 @@ class RelayTests(ks.Offline):
         self.assertIn("5. dry-run ingest", out)                                  # a heading ends the message
         self.assertIn("[pass] gate", out)
 
+    def test_a_note_is_relayed_and_its_body_is_not(self):
+        out = self.relayed("  [note] jina: the active settings use the Jina prefilter, but JINA_API_KEY is empty\n"
+                           "  " + BODY + "\n  [pass] next\n")
+        self.assertIn("[note] jina: the active settings use the Jina prefilter", out)
+        self.assertNotIn(BODY, out)
+        self.assertIn("[pass] next", out)
+
     def test_the_rest_of_a_multi_line_pass_or_skip_message_is_dropped_too(self):
         out = self.relayed("  [pass] reached the service\n  Got: " + BODY + "\n  [skip] no staff user\n  payload {\"k\": 1}\n")
         self.assertIn("[pass] reached the service", out)

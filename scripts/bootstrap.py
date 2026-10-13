@@ -176,7 +176,7 @@ def fail(message: str, hint: str = "") -> None:
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")                 # terminal escapes, CR, NUL
 _USERINFO = re.compile(r"(://)[^/\s@]+@")                           # user:password@ inside a URL
-_CHILD_MARKER = re.compile(r"^\s*\[(pass|skip|FAIL)\]")                # smoke.py result lines
+_CHILD_MARKER = re.compile(r"^\s*\[(pass|skip|FAIL|note)\]")           # smoke.py result lines and notes
 _CHILD_LINE = re.compile(r"^\s*(\d+\.\s|\d+ passed|Skipped checks|edu_ai smoke|[+~] |Importing |Done\.)")
 
 
