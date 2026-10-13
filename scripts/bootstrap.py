@@ -692,11 +692,15 @@ def _refresh_images(services: list[str], rebuild_all: bool = False) -> bool:
             fingerprint = None
         current = _image_id(image)
         marker = f"{repo}:src-{fingerprint}" if fingerprint else None
-        if current and marker and not rebuild_all and _image_id(marker) == current:
+        marked = _image_id(marker) if marker else None
+        if current and marked == current and not rebuild_all:
             report("skip", f"{name}: image matches its source ({fingerprint})")
             continue
+        unmarked = not any(tag.startswith("src-") for tag in
+                           (run(["docker", "image", "ls", repo, "--format", "{{.Tag}}"]).stdout or "").split())
         why = ("rebuild requested" if rebuild_all else "image missing" if not current
-               else "source not committed or not in git" if not fingerprint else "source changed")
+               else "source not committed or not in git" if not fingerprint
+               else "no source tag yet" if unmarked else "source changed")
         if current:
             run(["docker", "tag", current, f"{image}-prev"])
         result = compose("build", name, stream=True, timeout=3600)

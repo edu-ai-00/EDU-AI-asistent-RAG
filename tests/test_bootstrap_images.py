@@ -150,6 +150,11 @@ class RefreshImages(unittest.TestCase):
         self.assertNotIn(["docker", "image", "rm", "edu_svc:src-abc123abc123"], calls)
         self.assertIn("source changed", report.call_args.args[1])
 
+    def test_an_image_without_any_source_tag_says_so(self):
+        result, calls, report, fail = self.refresh(marker=None, tags="1.0\n")
+        self.assertIn(["compose", "build", "svc"], calls)
+        self.assertIn("no source tag yet", report.call_args.args[1])
+
     def test_a_missing_image_is_built_without_a_prev_tag(self):
         result, calls, report, fail = self.refresh(current=None)
         self.assertIn(["compose", "build", "svc"], calls)
