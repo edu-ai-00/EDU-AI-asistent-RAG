@@ -104,7 +104,8 @@ class BootstrapTests(unittest.TestCase):
              mock.patch.object(bootstrap, 'read_env', return_value={}), \
              contextlib.redirect_stdout(io.StringIO()):
             self.assertTrue(bootstrap.step_up([], 'synthetic start', build=True, apply_pending_recreate=True))
-        args = up.call_args.args
+        args = up.call_args_list[0].args          # the `up`; a later `ps -q bifrost` decides on a restart
+        self.assertEqual(args[0], 'up')
         self.assertIn('--wait', args)
         self.assertIn('--build', args)
         self.assertIn('--force-recreate', args)

@@ -200,7 +200,9 @@ def own_config(layout: L.Layout, sha: str | None = None, *, newly_created: bool 
     # Bound to the checkout, not to a commit: another commit of THIS checkout continues, another clone is refused.
     # A record from before source_root existed keeps the old rule (same commit). History is not compared.
     recorded_root = record.get("source_root")
-    if isinstance(recorded_root, str):
+    if "source_root" in record:
+        if not isinstance(recorded_root, str) or not os.path.isabs(recorded_root):
+            return None, "CONFIG_FROM_ANOTHER_CHECKOUT", "the record's source_root is not an absolute path; nothing is touched"
         if os.path.realpath(recorded_root) != os.path.realpath(layout.source_root):
             return None, "CONFIG_FROM_ANOTHER_CHECKOUT", "the record names another source checkout; nothing is touched"
     elif sha is None or record.get("source_sha") != sha:

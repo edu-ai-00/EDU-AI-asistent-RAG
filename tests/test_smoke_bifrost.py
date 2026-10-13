@@ -10,9 +10,9 @@ import smoke  # noqa: E402
 
 class BifrostInferenceAuth(unittest.TestCase):
     def check(self, answer):
-        side = answer if isinstance(answer, Exception) else None
+        side = answer if isinstance(answer, (Exception, list)) and not isinstance(answer, dict) else None
         with patch.object(smoke, "_http_json_in", side_effect=side, return_value=answer) as get, \
-                patch.object(smoke, "bad") as bad, patch.object(smoke, "ok") as ok:
+                patch.object(smoke, "bad") as bad, patch.object(smoke, "ok") as ok, patch.object(smoke.time, "sleep"):
             smoke.check_bifrost_inference_open()
         self.assertEqual(get.call_args.args, ("edu_ai_search", "http://bifrost:8080/api/session/is-auth-enabled"))
         return bad, ok
@@ -36,6 +36,19 @@ class BifrostInferenceAuth(unittest.TestCase):
         bad, ok = self.check(OSError("exec failed"))
         bad.assert_called_once()
         ok.assert_not_called()
+
+    def test_a_restarting_bifrost_is_retried(self):
+        bad, ok = self.check([OSError("refused"), OSError("refused"), {"inference_auth_enforced": False}])
+        bad.assert_not_called()
+        ok.assert_called_once()
+
+    def test_an_answer_that_is_not_an_object_fails(self):
+        for answer in ([1, 2], "open", 7):
+            with self.subTest(answer=answer), patch.object(smoke, "_http_json_in", return_value=answer), \
+                    patch.object(smoke, "bad") as bad, patch.object(smoke, "ok") as ok:
+                smoke.check_bifrost_inference_open()
+            bad.assert_called_once()
+            ok.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -93,12 +93,17 @@ wizard deletes and reverts nothing; it allows a retry only for its own
 configuration (the same checkout, keys, project and Compose model). Another
 commit of the same checkout is accepted (the tool does not compare history, so a
 later and an earlier commit are treated alike); a configuration created from
-another clone is refused (`CONFIG_FROM_ANOTHER_CHECKOUT`). Keys the commit's
+another clone, or by a checkout that has since been moved or renamed (a release
+directory switched through a symlink counts as moved), is refused
+(`CONFIG_FROM_ANOTHER_CHECKOUT`): the checkout path is part of the installation.
+A configuration created before the record named its checkout (`source_root`)
+keeps the older rule and continues only on the same commit
+(`CONFIG_FROM_ANOTHER_SOURCE`); install such a host cleanly. Keys the commit's
 `.env.example` has and the `.env` lacks are appended (`CONFIG_KEYS_ADDED`; secrets
 the installer generates are generated, others are copied from the template line)
 and existing values are never changed. It verifies the local Docker
 engine and the ownership of containers, mounts, networks and volumes. It rejects a
-foreign configuration, a changed HEAD, a dirty tree or Compose overrides. The keys
+foreign configuration, a HEAD that changes during the run, a dirty tree or Compose overrides. The keys
 are not generated again on a retry.
 
 For diagnostics after a successful run:
@@ -113,13 +118,17 @@ git rev-parse HEAD
 The LLM provider is configured separately in Bifrost; a key in the client `.env`
 does not configure the provider by itself. Open the Bifrost UI over an SSH tunnel
 to `127.0.0.1:8099`; until an admin account exists it asks for the setup token,
-`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account before
+`BIFROST_SETUP_TOKEN` in `~/edu-ai/config/.env`. Create the admin account (per the
+Bifrost documentation under Workspace → Config → Security) before
 anyone else can reach the port, and when you create it **turn off "enforce auth on
 inference"**: Bifrost v2 otherwise switches it on with the first admin, and
 Langflow, search and the API then get `401 virtual key is required`. The smoke test
-fails in that state (`bifrost: inference requires a credential`). Inference stays
-unauthenticated for the internal callers by design (`bifrost/config.json`). Expose
-the administration UI only to an authorised administrator.
+fails in that state (`bifrost: inference requires a credential`); an installation
+that wants inference auth on is outside this design and does not pass the smoke.
+Inference stays unauthenticated for the internal callers by design
+(`bifrost/config.json`). Expose the administration UI only to an authorised
+administrator. Healthy containers and a smoke do not document a paid ingestion or
+the RAG quality.
 
 ## Cloudflare tunnel (optional)
 
@@ -139,12 +148,23 @@ The tunnel is prepared but off: `cloudflared` runs only under the Compose profil
    CLOUDFLARE_TUNNEL_TOKEN=<token>
    ```
 
-4. Re-run `python3 scripts/setup.py install`; it continues the same installation
-   and the smoke test then checks the `cloudflared` container as well.
+4. Start the tunnel and run the smoke test; the wizard itself never enables a
+   Cloudflare profile:
+
+   ```bash
+   docker compose --project-directory "$HOME/edu-ai/src" --env-file "$HOME/edu-ai/config/.env" -f "$HOME/edu-ai/src/docker-compose.yml" -p edu_ai up -d cloudflared
+   ```
+
+   ```bash
+   python3 scripts/smoke.py --config-dir "$HOME/edu-ai/config" --state-dir "$HOME/edu-ai/state" --project edu_ai
+   ```
+
+   With the profile active the smoke also checks that `cloudflared` runs. Whether
+   the hostnames answer through Cloudflare is checked from outside, in a browser.
 
 `EDU_AI_TUNNEL_SUBNET` (pinned at installation) is the range nginx trusts for
-`CF-Connecting-IP`; it is internal and need not match the old host. Healthy containers and a smoke do not document a paid
-ingestion or the RAG quality.
+`CF-Connecting-IP`; it is internal and need not match the old host. This procedure
+has not been run against a real tunnel token in the documented VM runs.
 
 Operations and backups: [OPERATIONS_LINUX.md](OPERATIONS_LINUX.md). Development and
 tests: [DEVELOPMENT.md](DEVELOPMENT.md). Packaging: [RELEASING.md](RELEASING.md).

@@ -36,6 +36,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -205,11 +206,22 @@ def check_health_endpoints(langflow_base: str | None) -> None:
 def check_bifrost_inference_open() -> None:
     """Bifrost v2 turns inference auth on when an admin account is created without unticking it;
     every caller here then gets 401. Read from edu_ai_search, the callers' own path; the endpoint is public."""
-    try:
-        state = _http_json_in("edu_ai_search", "http://bifrost:8080/api/session/is-auth-enabled")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        bad(f"bifrost: auth state not readable from edu_ai_search ({exc})")
+    state, error = None, ""
+    for attempt in range(5):                       # a Bifrost that is restarting refuses for a few seconds
+        try:
+            state = _http_json_in("edu_ai_search", "http://bifrost:8080/api/session/is-auth-enabled")
+            break
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            error = str(exc)
+            if attempt < 4:
+                time.sleep(2)
+    if state is None:
+        bad(f"bifrost: auth state not readable from edu_ai_search ({error})")
         return
+    if not isinstance(state, dict):
+        bad("bifrost: unexpected answer from /api/session/is-auth-enabled")
+        return
+    # `false` is also what Bifrost answers when it cannot read its client config; that state is not detectable here.
     if state.get("inference_auth_enforced") is not False:
         bad("bifrost: inference requires a credential, so Langflow, search and the API get 401 — "
             "turn off 'enforce auth on inference' in the Bifrost UI (Config → Security)")

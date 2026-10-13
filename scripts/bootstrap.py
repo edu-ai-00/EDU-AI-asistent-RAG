@@ -49,6 +49,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from create_api_key import (  # noqa: E402
@@ -469,17 +470,14 @@ def _fix_data_dir_ownership() -> None:
                  f"Fix by hand: sudo chown <uid>:<gid> {' '.join(DATA_DIRS)}")
 
 
-_bifrost_config_changed = False
-
-
 def _place_bifrost_config() -> None:
     """Copy bifrost/config.json into bifrost_data, the only place Bifrost reads it from (-app-dir).
 
     v2 needs it: without it a fresh gateway enforces auth on inference and every
     caller here gets 401. It holds no secret (env. references only). Replaced
-    whenever the checkout's copy differs; Bifrost itself never writes it.
+    only when the checkout's copy differs, so its mtime marks a real change;
+    _bifrost_config_newer decides on a restart from that.
     """
-    global _bifrost_config_changed
     source = ROOT / "bifrost" / "config.json"             # ROOT is the layout's source root once main() resolved it
     try:
         want = source.read_bytes()
@@ -503,20 +501,47 @@ def _place_bifrost_config() -> None:
             fail(f"could not write bifrost_data/config.json ({type(exc).__name__})",
                  "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand")
             return
-        _bifrost_config_changed = True
         report("ok", "placed bifrost_data/config.json")
         return
     uid, gid, _ = DATA_DIRS["bifrost_data"]
     tmp = "/mnt/.config.json.edu_ai"
+    # Compared inside the container too: an operator who cannot read the directory must not rewrite it every run.
     result = run(["docker", "run", "--rm", "-v", f"{target.parent}:/mnt", "-v", f"{source.parent}:/src:ro",
                   "alpine:3", "sh", "-c",
-                  f"cp /src/config.json {tmp} && chown {uid}:{gid} {tmp} && chmod 0640 {tmp} && mv {tmp} /mnt/config.json"])
-    if result.returncode == 0:
-        _bifrost_config_changed = True
-        report("ok", "placed bifrost_data/config.json" + (" (could not compare as this user)" if current == b"" else ""))
+                  f"if cmp -s /src/config.json /mnt/config.json; then echo SAME; else cp /src/config.json {tmp} && "
+                  f"chown {uid}:{gid} {tmp} && chmod 0640 {tmp} && mv {tmp} /mnt/config.json && echo COPIED; fi"])
+    if result.returncode == 0 and (result.stdout or "").strip().endswith("SAME"):
+        report("skip", "bifrost_data/config.json (already the checkout's)")
+    elif result.returncode == 0:
+        report("ok", "placed bifrost_data/config.json")
     else:
         fail(f"could not place bifrost_data/config.json: {(result.stderr or result.stdout).strip()[:200]}",
              "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand (owner 1000:1000)")
+
+
+def _bifrost_config_newer() -> bool:
+    """True when bifrost_data/config.json changed after the running Bifrost started; it reads the file only at start.
+
+    Stateless on purpose: a run that stopped between the copy and the restart is caught by the next one, and a fresh
+    container (created after the copy) is not restarted for nothing. Unknown (no container, no answer) is False:
+    the smoke test still checks the effect that matters, whether inference is open.
+    """
+    try:
+        ids = compose("ps", "-q", "bifrost")
+        cid = (ids.stdout or "").split()
+        if ids.returncode != 0 or not cid:
+            return False
+        started = run(["docker", "inspect", "-f", "{{.State.StartedAt}}", cid[0]])
+        mtime = run(["docker", "exec", cid[0], "stat", "-c", "%Y", "/app/data/config.json"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if started.returncode != 0 or mtime.returncode != 0:
+        return False
+    stamp = re.sub(r"(\.\d{6})\d+", r"\1", (started.stdout or "").strip()).replace("Z", "+00:00")
+    try:
+        return int((mtime.stdout or "").strip()) > datetime.fromisoformat(stamp).timestamp()
+    except ValueError:
+        return False
 
 
 def _restart_bifrost() -> bool:
@@ -600,6 +625,8 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
         return False
 
     report("ok", f"{', '.join(services) if services else 'all services'} healthy")
+    if (not services or "bifrost" in services) and _bifrost_config_newer():
+        return _restart_bifrost()
     return True
 
 
@@ -972,8 +999,6 @@ def main() -> int:
     # working internet to boot at all — it exits on its pricing fetch otherwise.
     if not step_up(["postgres", "bifrost", "edu_ai", "nginx"],
                    "4. start postgres + bifrost + langflow + nginx", build=args.build):
-        return 1
-    if _bifrost_config_changed and not _restart_bifrost():
         return 1
 
     api_key = step_api_key(args.langflow_url, allow_prompt=not args.no_input)

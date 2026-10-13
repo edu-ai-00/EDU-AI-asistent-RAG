@@ -571,6 +571,20 @@ class ExistingConfigTests(WizardCase):
         self.assertNotIn("pin-env", self.host.keys)
 
     @needs_links
+    def test_an_unusable_source_root_is_refused(self):
+        for value in ("", "relative/src", 42, None):
+            with self.subTest(value=value):
+                self.reset(); self.prepare_own()
+                record = self.host.cfg / "install-record.json"
+                data = json.loads(record.read_text(encoding="utf-8"))
+                data["source_root"] = value
+                record.write_text(json.dumps(data), encoding="utf-8")
+                before = snapshot(self.home)
+                self.assertEqual(self.run_cli("plan"), 2, self.host.text)
+                self.assertIn("CONFIG_FROM_ANOTHER_CHECKOUT", self.host.text)
+                self.assertEqual(snapshot(self.home), before)
+
+    @needs_links
     def test_a_record_without_source_root_still_needs_the_same_commit(self):
         for recorded, rc in ((SHA, 0), (OTHER_SHA, 2)):
             with self.subTest(recorded=recorded):
