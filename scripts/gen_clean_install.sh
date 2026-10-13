@@ -18,7 +18,7 @@
 # header and no command, so the only way to add a column was the hand edit the
 # rule forbids, which is why the consolidated install has been drifting behind
 # postgres/init since about migration 205 (documented in
-# docs/nasazeni/2026-09-05_stoplist_a_normalize_3.md).
+# docs/deployments/2026-09-05_stoplist_and_normalize_3.md).
 #
 # ── WHAT A "CONTROLLED REFERENCE DATABASE" IS, AND IS NOT ────────────────────
 #

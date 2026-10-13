@@ -40,14 +40,14 @@ sources:
   - tests/test_domain_scope.py
   - tests/test_domain_scope_api.py
   - docs/integrations/mobile-domain-scope.md
-  - docs/nasazeni/2026-09-06_domain_scope.md
+  - docs/deployments/2026-09-06_domain_scope.md
 last_verified: 2026-09-06
 ---
 
 # Search domain selection for the mobile app and web chat
 
 > **Active contract for the backend and web chat.** The implementation and its historical
-> deployment are evidenced in the sources and the [runbook](../../docs/nasazeni/2026-09-06_domain_scope.md). The status
+> deployment are evidenced in the sources and the [runbook](../../docs/deployments/2026-09-06_domain_scope.md). The status
 > heading here is not a claim of a finished mobile integration or of a regression run on the latest SHA.
 > A mobile APP exists, but its domain/offline QA integration is not evidenced in the inspected source; see
 > [mobile-domain-scope.md](../../docs/integrations/mobile-domain-scope.md).

@@ -1,37 +1,38 @@
 # ══════════════════════════════════════════════════════════════
-#  IZOLOVANÝ DEV STACK PRO OVĚŘENÍ QA PORTÁLU — ne pro žádný server.
+#  ISOLATED DEV STACK FOR VERIFYING THE QA PORTAL — not for any server.
 #
-#  PROČ TENTO SOUBOR EXISTUJE. Základní docker-compose.yml má u KAŽDÉ služby
-#  pevný `container_name`. Ten je absolutní, nikoli per projekt, takže samotné
-#  `-p jiny_projekt` NEIZOLUJE: druhý stack by se pokusil vytvořit kontejner
-#  jménem edu_ai_postgres, srazil se s běžícím, nebo — hůř — by se testovalo
-#  proti cizímu. Tenhle override přejmenovává všechny kontejnery a přesouvá
-#  publikované porty na jiný rozsah.
+#  WHY THIS FILE EXISTS. The base docker-compose.yml gives EVERY service a fixed
+#  `container_name`. It is absolute, not per project, so `-p other_project` on its
+#  own does NOT ISOLATE: a second stack would try to create a container named
+#  edu_ai_postgres, collide with the running one or — worse — test against
+#  someone else's. This override renames every container and moves the
+#  published ports to another range.
 #
-#  IMAGE TAGY. Kontejnery i porty se přejmenovaly, ale `image:` v základním
-#  compose ne — každá služba se staví pod SDÍLENÝ tag (edu_ai_search:1.0 …).
-#  `docker compose build` v tomto projektu proto přepsal tentýž tag, ze kterého
-#  si běžný lokální stack bere image; běžící kontejner to nerozhodí, ale při
-#  příštím `up -d --force-recreate` by lokální stack najel na dev build.
-#  Stalo se to 14. 9. 2026. Každá zde stavěná služba má proto vlastní `:qadev`
-#  tag. Stahované image (nginx, pgadmin, bifrost, cloudflared) se netýkají.
+#  IMAGE TAGS. Containers and ports were renamed, but `image:` in the base compose
+#  was not — every service builds under a SHARED tag (edu_ai_search:1.0 …).
+#  `docker compose build` in this project therefore overwrote the very tag the
+#  normal local stack takes its image from; a running container does not notice,
+#  but on the next `up -d --force-recreate` the local stack would start the dev
+#  build. It happened on 14 Sep 2026. Every service built here therefore has its
+#  own `:qadev` tag. Pulled images (nginx, pgadmin, bifrost, cloudflared) are not
+#  affected.
 #
-#  Svazky se prefixují názvem projektu samy (eduai_qadev_postgres_data), takže
-#  s prázdným svazkem vznikne ČISTÁ databáze z postgres/init_clean —
-#  s vymyšlenými školami ze seedu, nikdy ne z produkce.
+#  Volumes are prefixed with the project name on their own
+#  (eduai_qadev_postgres_data), so an empty volume yields a CLEAN database from
+#  postgres/init_clean — with the made-up schools of the seed, never from production.
 #
-#  SPUŠTĚNÍ (z kořene repozitáře; -f i -p vždy explicitně, aby se nepoužil
-#  COMPOSE_FILE / COMPOSE_PROJECT_NAME z .env):
+#  START (from the repository root; always pass -f and -p explicitly so that
+#  COMPOSE_FILE / COMPOSE_PROJECT_NAME from .env are not used):
 #
 #      docker compose -p eduai_qadev \
 #        -f docker-compose.yml -f docker-compose.qa-dev.yml up -d
 #
-#  ÚKLID (smaže JEN svazky tohoto projektu):
+#  CLEANUP (removes ONLY this project's volumes):
 #
 #      docker compose -p eduai_qadev \
 #        -f docker-compose.yml -f docker-compose.qa-dev.yml down -v
 #
-#  Před jakýmkoli zápisem ověřit, do čeho je stack skutečně připojený:
+#  Before any write, check what the stack is really connected to:
 #      docker inspect qadev_edu_ai_search --format '{{json .NetworkSettings.Networks}}'
 #      docker exec qadev_edu_ai_postgres psql -U edu_ai -d edu_ai -c "select current_database()"
 # ══════════════════════════════════════════════════════════════
@@ -40,11 +41,11 @@ services:
 
   nginx:
     container_name: qadev_edu_ai_nginx
-    # !override REPLACES the list. Bez toho Compose porty přidá a 80/8443/8444
-    # by se srazily s uživatelským stackem.
+    # !override REPLACES the list. Without it Compose adds the ports and 80/8443/8444
+    # would collide with the user's stack.
     ports: !override
-      - "127.0.0.1:18000:80"   # VPN strana: /qa/, /qa-api/v1/, /chat/, /api/
-      - "127.0.0.1:18001:81"   # tunelový listener — MUSÍ na /qa/ vracet 404
+      - "127.0.0.1:18000:80"   # VPN side: /qa/, /qa-api/v1/, /chat/, /api/
+      - "127.0.0.1:18001:81"   # tunnel listener — MUST return 404 for /qa/
 
   edu_ai_api:
     container_name: qadev_edu_ai_api
@@ -106,16 +107,16 @@ services:
   edu_ai_qa_admin:
     container_name: qadev_edu_ai_qa_admin
     image: edu_ai_qa_admin:qadev
-    # Publikováno JEN pro testy tohoto stacku. V produkčním compose nemá
-    # portál žádný port na hostu — přístup vede výhradně přes nginx.
+    # Published ONLY for the tests of this stack. In the production compose the
+    # portal has no host port — access goes through nginx only.
     ports: !override
       - "127.0.0.1:18082:8082"
     environment:
-      # Testy volají portál i přímo na 127.0.0.1:18082 i přes nginx na 18000;
-      # obojí musí projít CSRF/origin kontrolou.
-      # http://nginx je origin, který vidí prohlížeč Playwrightu běžící
-      # UVNITŘ dev sítě (služba se jmenuje nginx). Bez něj by každý zápis
-      # z browser testu skončil na 403 z kontroly originu. Jen dev stack.
+      # The tests call the portal both directly on 127.0.0.1:18082 and through
+      # nginx on 18000; both must pass the CSRF/origin check.
+      # http://nginx is the origin seen by the Playwright browser running INSIDE
+      # the dev network (the service is called nginx). Without it every write
+      # from a browser test would end with a 403 from the origin check. Dev stack only.
       - QA_PORTAL_ALLOWED_ORIGINS=http://127.0.0.1:18000,http://localhost:18000,http://127.0.0.1:18082,http://localhost:18082,http://nginx
 
   bifrost:
@@ -124,5 +125,5 @@ services:
 
   cloudflared:
     container_name: qadev_cloudflared
-    # Tunel do dev stacku nepatří: vystavil by testovací data ven.
+    # A tunnel does not belong in the dev stack: it would expose the test data.
     profiles: ["disabled"]

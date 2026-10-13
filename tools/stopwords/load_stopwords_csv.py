@@ -1,43 +1,44 @@
 #!/usr/bin/env python3
 # last change in code by Martin Safranek (2026-09-05).
-"""Naplní edu_ai.qa_stopword z CSV a navrhne, která slova jsou bezpečná pro stemmer.
+"""Fill edu_ai.qa_stopword from a CSV and suggest which words are safe for the stemmer.
 
     docker exec -i -e PG_PASSWORD=… edu_ai_search python - < load_stopwords_csv.py \
         --csv /tmp/stopwords.csv [--apply]
 
-Bez --apply jen počítá a vypíše, co by udělal.
+Without --apply it only computes and prints what it would do.
 
-REDUKCE. Tři tvary se počítají TÝMIŽ funkcemi, které používá vyhledávání
-(eduai_normalize), s cfg složeným ze dvou zdrojů — stoplistu a settings.config.engines
-— přesně jako to dělá ChunkLemmatizer při ingestu. Dvě odchylky, obě nutné:
+REDUCTION. The three forms are computed with THE SAME functions search uses
+(eduai_normalize), with a cfg assembled from two sources — the stoplist and
+settings.config.engines — exactly as ChunkLemmatizer does at ingest. Two deviations,
+both necessary:
 
-  * drop_stopwords=False. Kdyby se stoplist aplikoval, stopslovo by samo sebe
-    odfiltrovalo a všechny tři sloupce by vyšly prázdné.
-  * redukce PO SLOVECH, spojená mezerou. fold() je normalizér jednoho slova a
-    strhne mezery, takže „lyžařský výcvik" by se slepilo na „lyzarskyvycvik".
+  * drop_stopwords=False. If the stoplist were applied, a stopword would filter
+    itself out and all three columns would come out empty.
+  * reduction PER WORD, joined with a space. fold() normalises a single word and
+    strips spaces, so "lyžařský výcvik" would be glued into "lyzarskyvycvik".
 
-PŘÍZNAKY. use_norm a use_lemma se plní TRUE — na těchto dvou tvarech stoplist
-funguje spolehlivě, protože redukce zachovává tvar funkčních slov. use_stem je
-FALSE a skript k němu jen navrhne kandidáty; zapnutí je vědomé rozhodnutí.
+FLAGS. use_norm and use_lemma are set TRUE — on these two forms the stoplist works
+reliably, because the reduction keeps the form of function words. use_stem is FALSE
+and the script only suggests candidates for it; switching it on is a deliberate decision.
 
-ALGORITMUS PRO STEMMER. Otázka nezní „je to stopslovo", ale „ukradne jeho stem
-nějaké obsahové slovo". Postup:
+THE STEMMER ALGORITHM. The question is not "is it a stopword" but "does its stem
+steal some content word". Steps:
 
-  1. S = stem termu T.
-  2. Ze slovníku daného jazyka se vezmou všechna slova W, jejichž stem je také S.
-  3. W se rozdělí podle lemmatu:
-       lemma(w) == lemma(T)  -> vlastní tvary téhož slova, neškodí
-       lemma(w) != lemma(T)  -> CIZÍ slovo se stejným stemem = kolize
-  4. Žádné cizí slovo            -> BEZPEČNÉ, navrhne se use_stem = TRUE.
-  5. Cizí slovo existuje         -> ověří se, jestli se v korpusu (chunk_stem_text,
-     qa_variants.stem_text) ten stem vůbec vyskytuje jinde než u tohoto termu:
-       vyskytuje se  -> NEBEZPEČNÉ, kolize je živá
-       nevyskytuje   -> HRANIČNÍ, teoretická kolize; rozhodne člověk
-  6. Pojistka: stem kratší než 3 znaky je nebezpečný vždy — je příliš obecný.
+  1. S = stem of the term T.
+  2. Take every word W from the dictionary of that language whose stem is also S.
+  3. Split W by lemma:
+       lemma(w) == lemma(T)  -> forms of the same word, harmless
+       lemma(w) != lemma(T)  -> a FOREIGN word with the same stem = a collision
+  4. No foreign word            -> SAFE, use_stem = TRUE is suggested.
+  5. A foreign word exists      -> check whether that stem occurs in the corpus at all
+     (chunk_stem_text, qa_variants.stem_text) other than for this term:
+       it occurs        -> UNSAFE, the collision is live
+       it does not      -> BORDERLINE, a theoretical collision; a person decides
+  6. Safeguard: a stem shorter than 3 characters is always unsafe — too generic.
 
-Krok 5 je tam proto, že kolize se slovem, které nikdo nikdy nenapíše, je jen
-teoretická. „během"→beh koliduje s „běh" a to je živé; kolize s knižním výrazem,
-který v korpusu není, by zbytečně zablokovala užitečné stopslovo.
+Step 5 exists because a collision with a word nobody ever writes is only
+theoretical. "během"->beh collides with "běh" and that is live; a collision with a
+literary expression absent from the corpus would block a useful stopword for nothing.
 """
 import argparse, csv, os, sys, collections
 import psycopg2, simplemma
@@ -47,7 +48,7 @@ from eduai_normalize.stemmer import stem_word
 
 
 def load_cfg(cur):
-    """Tentýž cfg, jaký si staví ChunkLemmatizer — stoplist + enginy, jen bez drop."""
+    """The same cfg ChunkLemmatizer builds — stoplist + engines, only without the drop."""
     cur.execute("SELECT lang, term_norm FROM edu_ai.qa_stopword "
                 "WHERE is_active AND scope = 'index' AND term_norm <> ''")
     by = collections.defaultdict(list)
@@ -69,7 +70,7 @@ def forms(term, lang, cfg):
 
 
 def stem_index(lang, cfg):
-    """stem -> {slovo: lemma} nad celým slovníkem jazyka. Postaví se jednou."""
+    """stem -> {word: lemma} over the whole dictionary of the language. Built once."""
     try:
         from simplemma import strategies
         d = strategies.dictionaries.DefaultDictionaryFactory().get_dictionary(lang)
@@ -87,7 +88,7 @@ def stem_index(lang, cfg):
 
 
 def corpus_stems(cur):
-    """Které stemy se v korpusu vůbec vyskytují (chunky + QA varianty)."""
+    """Which stems occur in the corpus at all (chunks + QA variants)."""
     seen = set()
     for q in ("SELECT chunk_stem_text FROM edu_ai.document_chunks WHERE chunk_stem_text <> ''",
               "SELECT stem_text FROM edu_ai.qa_variants WHERE stem_text <> ''"):
@@ -96,23 +97,23 @@ def corpus_stems(cur):
             for (txt,) in cur.fetchall():
                 seen.update((txt or "").split())
         except Exception as e:
-            print(f"[VAROVÁNÍ] korpus nešel načíst ({e}) — krok 5 se přeskočí", file=sys.stderr)
+            print(f"[WARNING] the corpus could not be read ({e}) — step 5 is skipped", file=sys.stderr)
     return seen
 
 
 def advise(term, lang, f_lemma, f_stem, idx, corpus):
-    """(navrh_use_stem, verdikt, důvod) podle algoritmu v docstringu."""
+    """(suggested_use_stem, verdict, reason) following the algorithm in the docstring."""
     if not f_stem:
-        return False, "NEBEZPEČNÉ", "prázdný stem"
+        return False, "UNSAFE", "empty stem"
     if len(f_stem) < 3:
-        return False, "NEBEZPEČNÉ", f"stem {f_stem!r} je kratší než 3 znaky — příliš obecný"
-    cizi = {w: lem for w, lem in idx.get(f_stem, {}).items() if lem != f_lemma}
-    if not cizi:
-        return True, "BEZPEČNÉ", f"stem {f_stem!r} nesdílí žádné jiné slovo"
-    ukazka = ", ".join(sorted(cizi)[:5])
+        return False, "UNSAFE", f"stem {f_stem!r} is shorter than 3 characters — too generic"
+    foreign = {w: lem for w, lem in idx.get(f_stem, {}).items() if lem != f_lemma}
+    if not foreign:
+        return True, "SAFE", f"stem {f_stem!r} is shared with no other word"
+    sample = ", ".join(sorted(foreign)[:5])
     if f_stem in corpus:
-        return False, "NEBEZPEČNÉ", f"stem {f_stem!r} je v korpusu a sdílí ho: {ukazka}"
-    return False, "HRANIČNÍ", f"stem {f_stem!r} sdílí {ukazka}, ale v korpusu není"
+        return False, "UNSAFE", f"stem {f_stem!r} is in the corpus and shared by: {sample}"
+    return False, "BORDERLINE", f"stem {f_stem!r} is shared by {sample}, but not in the corpus"
 
 
 def main():
@@ -126,7 +127,7 @@ def main():
     cur = conn.cursor()
     cfg = load_cfg(cur)
     corpus = corpus_stems(cur)
-    print(f"korpus: {len(corpus)} různých stemů", file=sys.stderr)
+    print(f"corpus: {len(corpus)} distinct stems", file=sys.stderr)
 
     rows = list(csv.DictReader(open(a.csv, encoding="utf-8-sig"), delimiter=";"))
     idxs, out = {}, []
@@ -135,28 +136,28 @@ def main():
         if not term:
             continue
         if lang not in idxs:
-            print(f"stavím index stemů pro {lang}…", file=sys.stderr)
+            print(f"building the stem index for {lang}…", file=sys.stderr)
             idxs[lang] = stem_index(lang, cfg)
         n, l, s = forms(term, lang, cfg)
-        use_stem, verdikt, duvod = advise(term, lang, l, s, idxs[lang], corpus)
+        use_stem, verdict, reason = advise(term, lang, l, s, idxs[lang], corpus)
         out.append({"term": term, "lang": lang, "scope": (r.get("scope") or "index").strip(),
                     "is_active": (r.get("is_active", "TRUE") or "TRUE").upper() != "FALSE",
                     "note": r.get("note") or None, "norm": n, "lemma": l, "stem": s,
-                    "navrh_use_stem": use_stem, "verdikt": verdikt, "duvod": duvod})
+                    "suggested_use_stem": use_stem, "verdict": verdict, "reason": reason})
 
-    c = collections.Counter(x["verdikt"] for x in out)
-    print(f"\n{len(out)} termů — návrh pro stemmer: {dict(c)}")
-    print("\nBEZPEČNÉ (navrhuje se use_stem = TRUE):")
+    c = collections.Counter(x["verdict"] for x in out)
+    print(f"\n{len(out)} terms — stemmer suggestion: {dict(c)}")
+    print("\nSAFE (use_stem = TRUE is suggested):")
     for x in out:
-        if x["verdikt"] == "BEZPEČNÉ":
+        if x["verdict"] == "SAFE":
             print(f"   {x['term']:<16} {x['lang']}  stem={x['stem']}")
 
     if not a.apply:
-        print("\n(bez --apply se nic nezapsalo)")
+        print("\n(nothing was written without --apply)")
         return
 
     cur.execute("UPDATE edu_ai.qa_stopword SET is_active = false")
-    print(f"\nvšech {cur.rowcount} stávajících řádků nastaveno na is_active = false")
+    print(f"\nall {cur.rowcount} existing rows set to is_active = false")
     ins = 0
     for x in out:
         cur.execute(
@@ -173,7 +174,7 @@ def main():
              x["norm"], x["lemma"], x["stem"], False))
         ins += 1
     conn.commit()
-    print(f"zapsáno {ins} řádků (use_norm=TRUE, use_lemma=TRUE, use_stem=FALSE)")
+    print(f"wrote {ins} rows (use_norm=TRUE, use_lemma=TRUE, use_stem=FALSE)")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ Contract for mobile: [`docs/integrations/mobile-domain-scope.md`](../integration
 
 > **Status: deployed on the evening of 6 Sep 2026, commit `59f8774` (parent `e0316a6`).**
 > Search, migration 213, nginx and webchat are in production; the default choice is
-> „Všechny oblasti“. Data labelling (§7) and the scoped regression (§8, last paragraph)
+> "Všechny oblasti" (all areas). Data labelling (§7) and the scoped regression (§8, last paragraph)
 > remain open — see §15 for the actual record and what stayed unverified.
 >
 > **The 6 Sep review took place in two rounds and found six findings; all of them are
@@ -481,7 +481,7 @@ would get a broader answer and think it is the requested one.
 * **`concept_idf_weights` is not scoped by entity/role.** A pre-existing
   asymmetry, described in the code and in `docs/ai/qa-fastpath.md`, left unchanged by this
   package — fixing it would move the numbers for every existing request.
-* **Named profiles „Přijímačky / Provoz“** are not implemented (spec §8)
+* **Named profiles "Přijímačky / Provoz"** (admissions / operations) are not implemented (spec §8)
   and are not in this scope.
 
 ---
@@ -565,7 +565,7 @@ compared to §1.
 **Webchat in the browser — NOT VERIFIED interactively.** `rag2.edu-ai.eu/chat/` is
 behind Cloudflare Access, which requires a login; from this environment I verified
 only server-side (static shell 200, `/chat/api/domains`, `/chat/api/config`
-with `entity_picker: true`), not actually clicking through „Všechny oblasti“ / the choice
+with `entity_picker: true`), not actually clicking through "Všechny oblasti" (all areas) / the choice
 of school / a new conversation in a running browser. It relies on the local Playwright
 suite (`test_domain_picker_browser.py`, 69/0 before the deployment) — I recommend
 a quick manual check in the browser before this is considered fully verified.

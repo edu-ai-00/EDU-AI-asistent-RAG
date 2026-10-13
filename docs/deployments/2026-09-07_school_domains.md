@@ -1,4 +1,4 @@
-# Code list: Provoz školy and Bezpečnost a zdraví
+# Code list: school operations and safety and health
 
 > **Historical record (7 Sep 2026).** The commands, image tags, SHAs and production state apply only to the state at that time; do not use them as a current procedure. The current nginx configuration is `nginx/conf/nginx.conf` (Compose mounts the `nginx/conf` directory); the older `nginx/nginx.conf` does not replace it.
 
@@ -7,7 +7,7 @@ Subsequently deployed to production together with the
 Below is the original record of the migration preparation.
 
 At the user's request, on 7 Sep 2026 the domains `SCHOOL_OPERATIONS`
-(Provoz školy) and `SCHOOL_SAFETY` (Bezpečnost a zdraví) were added. The translations are in cs,
+(school operations, Czech label "Provoz školy") and `SCHOOL_SAFETY` (safety and health, "Bezpečnost a zdraví") were added. The translations are in cs,
 en, de and es. The codes have the standard search role and have no new router
 keywords. The change does not assign domains to existing FAQs or documents.
 

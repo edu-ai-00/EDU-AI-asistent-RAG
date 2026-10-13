@@ -94,21 +94,22 @@ RFP/
 # private handover notes — shared with the team out of band, never public
 docs/HANDOFF_*.md
 
-# handover notes — mimo repo, mají vlastní život
+# handover notes — outside the repo, they live their own life
 For_*_and_*/
 
-# interní nálezy z testování — do repa nepatří (dumpy DB, korespondence, analýzy)
+# internal test findings — not for the repo (DB dumps, correspondence, analyses).
+# The pattern is the name of an existing local folder, so it stays as it is.
 nalezy z testování/
 
-# Měřicí výstupy a datové sady pilotních škol — zůstávají lokálně, do repa nepatří
+# Measurement output and the pilot schools' data sets — stay local, not for the repo
 eval/
 tests/eval_out/
 Instructions for documentation/
 scratchpad_server_flow_backup/
 
-# Lokální archiv — revertovaná práce a binárky, které se nesmí dostat
-# do repa ani na server. Viz archive/README.md.
+# Local archive — reverted work and binaries that must not reach the repo
+# or a server. See archive/README.md.
 /archive/
 
-# lokální zálohy tabulek — data, ne zdroják; regenerovatelné skripty v tools/stopwords/
+# local table backups — data, not source; the regenerating scripts are in tools/stopwords/
 /backup/

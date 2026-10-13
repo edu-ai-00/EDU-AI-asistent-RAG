@@ -54,7 +54,7 @@ This checkout does not contain the deployment record, [docs/plans](../docs/plans
 | `qa_deactivate_packs.py` | listing and deactivation of QA packs (there is no API for it) |
 | `qa_set_categories.py` | setting `tags->>'category'` of one pack from a CSV |
 | `restore_declared_metadata.py` | SQL that restores manually entered document metadata from the inventory export after a reingest |
-| `domain_inventory.py`, `domain_migration.py` | overview of domains per school and a reproducible, reversible migration of the curator's decisions; historical record of the procedure: [2026-09-06_domain_scope.md](../docs/nasazeni/2026-09-06_domain_scope.md) |
+| `domain_inventory.py`, `domain_migration.py` | overview of domains per school and a reproducible, reversible migration of the curator's decisions; historical record of the procedure: [2026-09-06_domain_scope.md](../docs/deployments/2026-09-06_domain_scope.md) |
 
 Historical procedures mention the external skill `qa-pack-variants`, which this checkout does not distribute. The scripts above work with already prepared packs or fix their metadata.
 

@@ -42,8 +42,8 @@ type ChatApiResponse = {
   answer: string;
   outcome: Outcome;
   answer_source: string;
-  // kind je string, ne union — server může přidat druh a build, který o něm
-  // neví, se nemá rozbít. Stejný důvod jako u OUTCOME_LABELS níž.
+  // kind is a string, not a union — the server may add a kind, and a build that
+  // does not know it must not break. The same reason as OUTCOME_LABELS below.
   suggestions: Array<{
     kind: string;
     entry_id: string;
@@ -121,7 +121,7 @@ function createAdapter(
   // The chosen areas and whether the catalog is still outstanding. REFS, not
   // props: the adapter is memoised once (a new adapter would reset the thread),
   // so a captured value would be the one from the first render forever — which
-  // is how the ročník and role are already handled here.
+  // is how the grade and role are already handled here.
   domainsRef: React.RefObject<string[] | null>,
   domainsPendingRef: React.RefObject<boolean>,
   domainsBlockReasonRef: React.RefObject<string>,
@@ -144,8 +144,8 @@ function createAdapter(
       // either carry a retired code (a 422) or silently search everything; and
       // when a retired code has been DROPPED, the selection falls back to
       // "all areas", which is the same silent widening arriving by another
-      // route. Spec §7: "Do dokončení ověření neodešle dotaz se starými kódy"
-      // and "dotaz automaticky neopakuje s širším scope".
+      // route. Spec §7: until the check completes, no query is sent with stale
+      // codes, and a query is never repeated automatically with a wider scope.
       if (domainsPendingRef.current) {
         return chatErrorResult(
           domainsBlockReasonRef.current ||
@@ -227,8 +227,8 @@ function ResponseDetails({ data }: { data: ChatApiResponse }) {
       {data.suggestions.length > 0 && (
         <div className="suggestions" aria-label="Navrhované otázky">
           {data.suggestions.map((suggestion) =>
-            // clarify je jediný druh, jehož question se posílat NESMÍ: je to
-            // výzva k upřesnění, posílatelný text nesou options.
+            // clarify is the only kind whose question must NOT be sent: it is a
+            // request to clarify; the sendable text is in its options.
             suggestion.kind === "clarify" ? (
               // own block, not loose pills in the shared row: the options belong
               // to the prompt above them, and the row also carries independent
@@ -363,8 +363,8 @@ function NewChatButton({ onNewChat }: { onNewChat: () => void }) {
  *  UUID cannot be relied upon — see conversation.load_seen), but the UI has its
  *  own reason: the visible transcript and the chips in it belong to the old
  *  scope. Leaving them on screen offers buttons that would search in an area
- *  the user has just left, which is spec §6's "staré chips nesmí odesílat
- *  dotazy v novém kontextu".
+ *  the user has just left, which spec §6 forbids: old chips must not send
+ *  queries in the new context.
  *
  *  The in-flight request is cancelled first, so a late answer cannot be
  *  appended to the new conversation.
@@ -419,7 +419,7 @@ function ChatThread({ gate }: { gate: { blocked: boolean; notice: string } }) {
           <ComposerPrimitive.Root className="composer">
             {/* maxLength is the same 2000 the BFF and /v1/ask enforce. Without it
                 the box takes a 3000-char paste and the only feedback is the BFF's
-                generic "Zkontrolujte zadanou otázku a ročník" — never "too long". */}
+                generic "check the question and the grade" message — never "too long". */}
             <ComposerPrimitive.Input
               className="composer-input"
               placeholder={gate.blocked ? "Nejdřív vyberte školu…" : "Napište otázku…"}
