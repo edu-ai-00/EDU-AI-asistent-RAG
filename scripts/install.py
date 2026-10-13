@@ -26,6 +26,7 @@ import os
 import pathlib
 import re
 import secrets
+import shlex
 import signal
 import stat
 import subprocess
@@ -591,10 +592,13 @@ def check_target(path: str, repo: str, report: Report, for_write: bool) -> Targe
         info = os.stat(real_parent)
         target.parent_ident = (info.st_dev, info.st_ino)
         if info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX:
-            report.refuse("TARGET_PARENT_WRITABLE_BY_OTHERS")
+            report.refuse("TARGET_PARENT_WRITABLE_BY_OTHERS",
+                          f"{real_parent} is writable by group or others; fix: chmod go-w {shlex.quote(real_parent)} "
+                          "(create a new parent with umask 022)")
             return None
         if info.st_uid not in (os.geteuid(), 0):
-            report.refuse("TARGET_PARENT_OWNED_BY_ANOTHER_USER")
+            report.refuse("TARGET_PARENT_OWNED_BY_ANOTHER_USER",
+                          f"{real_parent} belongs to another user; use a parent of your own (nothing here changes it)")
             return None
     try:
         state, detail = classify_target(target.real)

@@ -343,7 +343,10 @@ class TargetTests(Base):
     @unittest.skipUnless(install.IS_POSIX and os.geteuid() != 0, "POSIX modes, not as root")
     def test_parent_writable_by_others_or_owned_by_another_user_is_refused(self):
         os.chmod(self.parent, 0o770)
-        self.assertEqual(self.refused_code(self.run_cmd()[1]), "TARGET_PARENT_WRITABLE_BY_OTHERS")
+        lines = self.run_cmd()[1]
+        self.assertEqual(self.refused_code(lines), "TARGET_PARENT_WRITABLE_BY_OTHERS")
+        refused = next(l for l in lines if l.startswith("REFUSED"))
+        self.assertIn(f"chmod go-w {os.path.realpath(self.parent)}", refused)
         os.chmod(self.parent, 0o1777)
         self.assertEqual(self.run_cmd()[0], 0)
         os.chmod(self.parent, 0o700)
