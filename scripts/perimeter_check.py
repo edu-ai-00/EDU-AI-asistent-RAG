@@ -25,7 +25,7 @@ Checks:
                        "routed down the WireGuard tunnel and dropped"
   1. tunnel guarded  — an unauthenticated request to the tunnel hostname is
                        refused, AND Cloudflare Access is what refuses it
-  2. ports shut      — :80, :8443, :8444, :22, :8090 do not answer on the
+  2. ports shut      — :80, :8443, :8444, :22, :8090, :8099 do not answer on the
                        public IP
   3. last resort     — runs ONLY if check 1 found Access open: whether nginx's
                        path allowlist still keeps the admin endpoints off the
@@ -67,7 +67,8 @@ GUARDED_PORTS = [
     (8443, "pgAdmin"),
     (8444, "Langflow UI"),
     (22, "sshd"),
-    (8090, "bifrost — provider keys, no auth of its own"),
+    (8090, "edu_ai_search (published only by the development override)"),
+    (8099, "bifrost — inference without auth, provider keys behind the admin login"),
 ]
 
 CONNECT_TIMEOUT = 6

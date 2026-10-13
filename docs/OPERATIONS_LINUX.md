@@ -37,7 +37,9 @@ The provider and its key are managed by Bifrost. Its UI and admin API need the
 admin login (`BIFROST_ADMIN_USERNAME` / `BIFROST_ADMIN_PASSWORD` in the config
 `.env`); bootstrap places `bifrost/config.json` (the login from those variables,
 inference without auth for the internal callers) into `bifrost_data` and restarts
-Bifrost when it changes. Change the password in the `.env` and restart Bifrost; keep
+Bifrost when it changes. Change the login in the `.env` and recreate the container
+(`… up -d bifrost`, see [CLEAN_INSTALL.md](CLEAN_INSTALL.md); a restart keeps the old
+values); keep
 "Enforce Virtual Keys on Inference" and "Allow Direct API Keys" off (see
 [CLEAN_INSTALL.md](CLEAN_INSTALL.md)). A switch saved in the UI is kept over
 `config.json`; reinstalling or restarting does not reset it. An in-place upgrade of an installation

@@ -165,7 +165,7 @@ services:
       - POSTGRES_SEARCH_PASSWORD=
       - POSTGRES_LANGFLOW_PASSWORD=
       - POSTGRES_MIGRATOR_PASSWORD=
-      # Bifrost's setup token is admin access to the gateway (every provider key) while no admin exists.
+      # Bifrost's setup token and admin password: admin access to the gateway (every provider key).
       - BIFROST_SETUP_TOKEN=
       - BIFROST_ADMIN_PASSWORD=
       - LANGFLOW_CACHE_EXPIRE=1
@@ -297,8 +297,8 @@ services:
       # `app` and `tunnel` are internal:true and have no route out, so cloudflared needs a
       # network of its own to reach Cloudflare. Nothing else is on it.
       - tunnel_egress
-    # Bifrost inference has NO authentication by design (bifrost/config.json), and its
-    # UI/API take the setup token until an admin account exists. A tunnel only publishes;
+    # Bifrost inference has NO authentication by design (bifrost/config.json); its UI/API
+    # need the admin login (BIFROST_ADMIN_USERNAME / _PASSWORD). A tunnel only publishes;
     # it authenticates nothing. The hostname is therefore protected by a Cloudflare Access
     # policy, configured in the Zero Trust dashboard, and that policy is the only thing
     # between the internet and the gateway. Turning it off is the whole security boundary.

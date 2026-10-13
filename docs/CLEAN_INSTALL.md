@@ -123,9 +123,16 @@ does not configure the provider by itself. The Bifrost admin login exists from t
 first start: `bifrost/config.json` creates it from `BIFROST_ADMIN_USERNAME`
 (default `admin@edu-ai.eu`, the same as pgAdmin) and `BIFROST_ADMIN_PASSWORD` (generated) in `~/edu-ai/config/.env`.
 Open the UI over an SSH tunnel to `127.0.0.1:8099` and log in; add the provider
-and its key there. To change the password, edit `BIFROST_ADMIN_PASSWORD` in the
-`.env` and run `docker compose restart bifrost` (the `.env` value applies at every
-start; without a password Bifrost does not start). In the UI's Security Settings
+and its key there. To change the login, edit `BIFROST_ADMIN_USERNAME` or
+`BIFROST_ADMIN_PASSWORD` in the `.env` and recreate the container (a plain
+`restart` keeps the values it was created with; without a password Bifrost does
+not start):
+
+```bash
+docker compose --project-directory "$HOME/edu-ai/src" --env-file "$HOME/edu-ai/config/.env" -f "$HOME/edu-ai/src/docker-compose.yml" -p edu_ai up -d bifrost
+```
+
+In the UI's Security Settings
 keep **"Enforce Virtual Keys on Inference" off**: with it on, Langflow, search and
 the API get `401 virtual key is required`. The red warning below it is expected:
 inference is open on purpose and reachable only from the internal network, the

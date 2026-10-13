@@ -43,7 +43,9 @@ placeholder token before starting services. Smoke checks every enabled service;
 an absent or stopped enabled connector is a failure.
 
 Configure the tunnel routes and Cloudflare Access separately before publishing the
-Bifrost UI: Bifrost has no login and the tunnel itself does not authenticate users.
+Bifrost UI: Bifrost inference has no authentication by design (its UI is behind the
+admin login from `BIFROST_ADMIN_USERNAME` / `BIFROST_ADMIN_PASSWORD`), and the tunnel
+itself does not authenticate users.
 The local R2 subnet/trust preflight remains required even when the connector is off;
 its private network protects the nginx trust boundary and is allocated locally.
 
@@ -93,6 +95,7 @@ For now fill in **only these** in `.env` (the rest comes in steps 5–6):
 | `POSTGRES_PASSWORD` | choose a password (the password of the database role `edu_ai_ingest`) |
 | `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_SEARCH_PASSWORD`, `POSTGRES_LANGFLOW_PASSWORD`, `POSTGRES_MIGRATOR_PASSWORD` | four more database role passwords, all different (`install.py` and `bootstrap.py` generate them; see `docs/plans/b06-c2-role-contract.md`) |
 | `PGADMIN_DEFAULT_EMAIL` / `_PASSWORD` | pgAdmin login |
+| `BIFROST_ADMIN_USERNAME` / `_PASSWORD` | Bifrost UI login (default user `admin@edu-ai.eu`); bootstrap generates the password and `BIFROST_SETUP_TOKEN` |
 | `LANGFLOW_SUPERUSER` / `_PASSWORD` | Langflow admin account — created automatically on first start |
 | `LANGFLOW_SECRET_KEY` | **must be a Fernet key**, see below |
 | `OPENAI_API_KEY` | your OpenAI key |
@@ -309,7 +312,8 @@ Nothing else needs configuring:
 | pgAdmin | http://localhost:8443/pgadmin/ |
 | Web chat | http://localhost/chat/ |
 
-**Automated smoke test** — checks container health, every service's `/health`, all 6
+**Automated smoke test** — checks container health, every service's `/health`, that
+Bifrost leaves inference open to the internal callers and has its admin login, all 6
 flow aliases, the database schema, and a dry-run upload. No OpenAI call, so it costs
 nothing and is safe to run from cron:
 
