@@ -251,7 +251,7 @@ services:
       # Not `:?`: an older .env without them must still let `docker compose ps/logs/down` work.
       # Bootstrap and the wizard add them; without a password Bifrost refuses to start.
       BIFROST_SETUP_TOKEN: ${BIFROST_SETUP_TOKEN:-}
-      BIFROST_ADMIN_USERNAME: ${BIFROST_ADMIN_USERNAME:-admin}
+      BIFROST_ADMIN_USERNAME: ${BIFROST_ADMIN_USERNAME:-admin@edu-ai.eu}
       BIFROST_ADMIN_PASSWORD: ${BIFROST_ADMIN_PASSWORD:-}
     volumes:
       - ./bifrost_data:/app/data     # config.json (from bifrost/), config.db (provider keys), logs.db

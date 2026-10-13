@@ -916,7 +916,7 @@ def step_summary(base_url: str | None, no_input: bool = False) -> None:
           "   (LANGFLOW_SUPERUSER_PASSWORD)")
     print(f"  {'pgAdmin login':16s} {env.get('PGADMIN_DEFAULT_EMAIL', '?')}"
           "   (PGADMIN_DEFAULT_PASSWORD)")
-    print(f"  {'Bifrost login':16s} {env.get('BIFROST_ADMIN_USERNAME', 'admin')}"
+    print(f"  {'Bifrost login':16s} {env.get('BIFROST_ADMIN_USERNAME', '?')}"
           "   (BIFROST_ADMIN_PASSWORD; UI on 127.0.0.1:8099 over an SSH tunnel)")
     if _created_secrets:
         print(f"  {'Created now':16s} {', '.join(_created_secrets)}")

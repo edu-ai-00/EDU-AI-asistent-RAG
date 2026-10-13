@@ -121,7 +121,7 @@ git rev-parse HEAD
 The LLM provider is configured separately in Bifrost; a key in the client `.env`
 does not configure the provider by itself. The Bifrost admin login exists from the
 first start: `bifrost/config.json` creates it from `BIFROST_ADMIN_USERNAME`
-(default `admin`) and `BIFROST_ADMIN_PASSWORD` (generated) in `~/edu-ai/config/.env`.
+(default `admin@edu-ai.eu`, the same as pgAdmin) and `BIFROST_ADMIN_PASSWORD` (generated) in `~/edu-ai/config/.env`.
 Open the UI over an SSH tunnel to `127.0.0.1:8099` and log in; add the provider
 and its key there. To change the password, edit `BIFROST_ADMIN_PASSWORD` in the
 `.env` and run `docker compose restart bifrost` (the `.env` value applies at every
