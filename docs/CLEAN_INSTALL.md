@@ -127,7 +127,10 @@ and its key there. To change the password, edit `BIFROST_ADMIN_PASSWORD` in the
 `.env` and run `docker compose restart bifrost` (the `.env` value applies at every
 start; without a password Bifrost does not start). In the UI's Security Settings
 keep **"Enforce Virtual Keys on Inference" off**: with it on, Langflow, search and
-the API get `401 virtual key is required`. The smoke test fails in that state
+the API get `401 virtual key is required`. The red warning below it is expected:
+inference is open on purpose and reachable only from the internal network, the
+loopback port and an Access-protected tunnel. "Allow Direct API Keys" stays off
+(`bifrost/config.json` sets both). The smoke test fails in that state
 (`bifrost: inference requires a credential`) and when the admin login is missing;
 an installation that wants inference auth on is outside this design and does not
 pass the smoke. Inference stays unauthenticated for the internal callers by design.

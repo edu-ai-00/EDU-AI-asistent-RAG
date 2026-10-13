@@ -1,7 +1,8 @@
 {
   "$schema": "https://www.getbifrost.ai/schema",
   "client": {
-    "enforce_auth_on_inference": false
+    "enforce_auth_on_inference": false,
+    "allow_direct_keys": false
   },
   "setup_token": "env.BIFROST_SETUP_TOKEN",
   "governance": {
