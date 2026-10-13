@@ -84,6 +84,11 @@ def skip(message: str) -> None:
     print(f"  [skip] {message}")
 
 
+def note(message: str) -> None:
+    """Not a check result: something an operator should know that does not stop the stack."""
+    print(f"  [note] {message}")
+
+
 def run(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     if _layout is not None and args[:2] == ["docker", "compose"]:
         args = _layout.compose_prefix() + args[2:]
@@ -201,6 +206,29 @@ def check_health_endpoints(langflow_base: str | None) -> None:
             ok(f"{service}: {payload.get('status', 'ok')}")
 
     check_bifrost_inference_open()
+
+
+JINA_SQL = ("SELECT count(*) FROM edu_ai.settings WHERE is_active AND ("
+            "jsonb_path_exists(config, 'strict $.**.rerank_prefilter.backend ? (@ == \"jina\")') OR "
+            "jsonb_path_exists(config, 'strict $.**.rerank_mode ? (@ == \"jina\")'))")
+
+
+def check_jina_prefilter(env: dict[str, str]) -> None:
+    """Active settings that use Jina need JINA_API_KEY in the search container; without it the prefilter is
+    skipped (fail-open). Not a failure: the answers still come, only without that step."""
+    rows = run(["docker", "compose", "exec", "-T", "postgres", "psql", "-U", MAINTENANCE_USER,
+                "-d", env.get("POSTGRES_DB", "edu_ai"), "-tAc", JINA_SQL])
+    if rows.returncode != 0 or not rows.stdout.strip().isdigit():
+        note("jina: could not read the active settings")
+        return
+    if int(rows.stdout.strip()) == 0:
+        return
+    key = run(["docker", "compose", "exec", "-T", "edu_ai_search", "sh", "-c", 'test -n "$JINA_API_KEY"'])
+    if key.returncode == 0:
+        ok("jina: the active settings use the Jina prefilter and JINA_API_KEY is set in search")
+    else:
+        note("jina: the active settings use the Jina prefilter, but JINA_API_KEY is empty in search — "
+             "the prefilter is skipped (fail-open); set the key in the .env or clear rerank_prefilter.backend")
 
 
 def check_bifrost_inference_open() -> None:
@@ -747,6 +775,7 @@ def main() -> int:
 
     check_containers()
     check_health_endpoints(langflow_base)
+    check_jina_prefilter(env)
     check_flows(langflow_base, env.get("LANGFLOW_API_KEY", ""))
     check_database(env)
     check_db_roles(env)

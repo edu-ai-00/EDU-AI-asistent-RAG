@@ -87,7 +87,7 @@ Origin: **gen** = generated once by the installer, **supplied** = by the adminis
 | `CHAT_ENTITY_PICKER`, `CHAT_COOKIE_SECURE` | school choice (test only); Secure cookie | optional; picker missing from `EX` | const `false` | web_chat | `DC:444-448`, `EX:103` |
 | `QA_PORTAL_ALLOWED_ORIGINS` | allow-list for the Origin check in the QA portal. Empty = the Origin check is **skipped** (`QS:34-35`) | required for safe portal operation; **missing from `EX`** | supplied (the address seen by the browser) | qa_admin | `DC:487`, R-4 |
 | `CORS_ORIGINS` | empty = closed | optional | const empty | api, search | `EX:159`, `DC:112,409` |
-| `JINA_API_KEY` | `jina` reranker | optional; missing from `EX` | supplied | search | `DC:382` |
+| `JINA_API_KEY` | `jina` reranker and prefilter | optional; in `EX` empty (without it the prefilter is skipped) | supplied | search | `DC:382` |
 | `LANGGRAPH_MODULE` | has no reader in Compose | residual | const | — | `EX:164`, `A4A:237` |
 
 ## 4. Secret values

@@ -58,6 +58,32 @@ installation. The [QA audit](integrations/offline-qa-rules.md) describes the
 transferred rules and the gaps for mobile offline operation. The FTS index alone
 does not document parity.
 
+## Moving the application data to a new installation
+
+Rehearsed on a lab VM on 2026-10-13 (production data into a clean installation of
+this branch); a production cutover remains a separate, explicitly approved step.
+It applies when both databases have the same `edu_ai` schema; compare
+`pg_dump --schema-only` of both first. If they differ, stop: a migration is a
+separate decision. Only the `edu_ai` database moves; Langflow's own database is
+not transferred (the flows come from the repository) and Bifrost's provider key
+is entered again in its UI. The new installation keeps its own roles, grants and
+secrets.
+
+1. On the source host, a data-only dump (read-only there):
+   `docker exec edu_ai_postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d edu_ai --data-only -n edu_ai -Fc' > edu_ai_data.dump`.
+   The warning about a foreign-key cycle on `legal_entity` is expected.
+2. On the target, stop the services that write: `… stop edu_ai_api edu_ai_search edu_ai edu_ai_web_chat edu_ai_qa_admin`.
+3. In ONE transaction, as the database superuser of the target container: `TRUNCATE`
+   every table of schema `edu_ai` (`RESTART IDENTITY CASCADE`), then load the SQL that
+   `pg_restore --data-only --disable-triggers` produces from the dump. A failure leaves
+   the target unchanged.
+4. Compare the row counts of every table with the source.
+5. `python3 scripts/setup.py install` brings the services back and verifies them
+   (bootstrap, smoke, roles).
+
+The dump holds real personal data (including logged questions): keep it off Git and
+shared storage, and delete every copy when the transfer is verified.
+
 ## Backup, restore and source change
 
 A backup must include both databases, the roles, the external config including

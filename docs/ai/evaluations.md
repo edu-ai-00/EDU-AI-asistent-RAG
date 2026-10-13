@@ -110,6 +110,22 @@ failure cases — those are deterministic and belong in
 `tests/test_domain_scope_api.py`; the scoped set keeps one of each only so that
 the harness is shown to surface them.
 
+**On an installed server** port 8090 is not published (only the development
+override publishes it), so `eval_rag.py` defaults to an address that is not there.
+Copy the script and an ignored case file into the search container and run it there,
+where `127.0.0.1:8090` is the service itself; the snapshot then stays in the
+container, not in the checkout (a dirty checkout stops the wizard):
+
+```bash
+docker cp tests/eval_rag.py edu_ai_search:/tmp/eval_rag.py
+docker cp <local-cases>.jsonl edu_ai_search:/tmp/cases.jsonl
+docker exec -w /tmp edu_ai_search python eval_rag.py --questions cases.jsonl --repeat 3
+```
+
+The cases must name entity codes that are active in that database; a retired code
+returns `400 unknown or inactive legal entity` for every case, before any paid call.
+The cost of a run can be read from Bifrost (`/api/logs/stats`, `total_cost`).
+
 ### Legacy flat question sets
 
 `eval_search.py` and `run_all_evals.sh` are retained historical tools. They do not

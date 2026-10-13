@@ -379,7 +379,7 @@ candidates reach the judge; an LLM judge then grades them.
 | `rerank_timeout_s` | `15` | Timeout; on expiry the pre-rerank order stands. |
 | `rerank_reasoning_effort` | `low` | Reasoning effort for the judge. |
 | `rerank_log_passages` | `false` | Log full passages — debugging only, verbose. |
-| `rerank_prefilter.backend` | `jina` | Prefilter backend; empty disables the prefilter. |
+| `rerank_prefilter.backend` | `jina` | Prefilter backend; empty disables the prefilter. `jina` needs `JINA_API_KEY` in the search environment; without it the prefilter is skipped (fail-open, a warning in the search log, a `[note]` in the smoke). |
 | `rerank_prefilter.model` | `jina-reranker-v3` | Hosted model used. |
 | `rerank_prefilter.top_n` | `20` | How many candidates it hands to the judge. |
 | `rerank_prefilter.max_in` | `40` | Hard cap on what is sent — cost and latency control. |

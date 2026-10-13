@@ -143,6 +143,11 @@ start, so a switch turned on by hand stays on until it is turned off by hand. Th
 (`bifrost: inference requires a credential`) and when the admin login is missing;
 an installation that wants inference auth on is outside this design and does not
 pass the smoke. Inference stays unauthenticated for the internal callers by design.
+The seeded settings also use the Jina reranker as a prefilter; it is called by
+search directly, not through Bifrost, and needs `JINA_API_KEY` in the `.env` (empty
+by default). Without it the prefilter is skipped and the answers come without that
+step; the smoke prints a `[note]`. After setting it, recreate the search container
+(`… up -d edu_ai_search`).
 `BIFROST_SETUP_TOKEN` is only a fallback for `/api` if the dashboard login is ever
 switched off. Expose the administration UI only to an authorised administrator. Healthy containers and a smoke do not document a paid ingestion or
 the RAG quality.
