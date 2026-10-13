@@ -51,7 +51,7 @@ class PlaceBifrostConfig(unittest.TestCase):
         argv = run.call_args.args[0]
         self.assertEqual(argv[:3], ["docker", "run", "--rm"])
         script = argv[-1]
-        self.assertTrue(script.startswith("if cmp -s /src/config.json /mnt/config.json; then echo SAME;"))
+        self.assertIn("; if cmp -s /src/config.json /mnt/config.json; then echo SAME;", script)
         for part in ("chown 1000:1000", "chmod 0640", "mv /mnt/.config.json.edu_ai /mnt/config.json"):
             self.assertIn(part, script)
         self.assertEqual(report.call_args.args[0], "ok")
@@ -64,6 +64,12 @@ class PlaceBifrostConfig(unittest.TestCase):
     def test_a_failed_copy_fails(self):
         run, report, fail = self.place("linux", done(1))
         fail.assert_called_once()
+
+    def test_a_directory_in_place_of_the_file_is_refused(self):
+        run, report, fail = self.place("linux", done(3, "ISDIR\n"))
+        fail.assert_called_once()
+        self.assertIn("is a directory", fail.call_args.args[0])
+        self.assertTrue(run.call_args.args[0][-1].startswith("if [ -d /mnt/config.json ]; then echo ISDIR; exit 3; fi; "))
 
     def test_elsewhere_the_file_is_written_directly(self):
         run, report, fail = self.place("darwin")
@@ -86,11 +92,14 @@ class BifrostConfigNewer(unittest.TestCase):
     STARTED = "2026-10-12T19:46:20.612644336Z"          # Docker's own format: nanoseconds
     EPOCH = int(datetime(2026, 10, 12, 19, 46, 20, tzinfo=timezone.utc).timestamp())
 
-    def newer(self, mtime, *, ps="abc123\n", ps_rc=0, inspect_rc=0, stat_rc=0):
+    def newer(self, mtime, *, ps="abc123\n", ps_rc=0, inspect_rc=0, stat_rc=0, warned=False):
         answers = {"inspect": done(inspect_rc, self.STARTED + "\n"), "exec": done(stat_rc, f"{mtime}\n")}
         with mock.patch.object(bootstrap, "compose", return_value=done(ps_rc, ps)), \
-                mock.patch.object(bootstrap, "run", side_effect=lambda argv, **kw: answers[argv[1]]):
-            return bootstrap._bifrost_config_newer()
+                mock.patch.object(bootstrap, "run", side_effect=lambda argv, **kw: answers[argv[1]]), \
+                mock.patch.object(bootstrap, "report") as report:
+            result = bootstrap._bifrost_config_newer()
+        self.assertEqual(any(c.args[0] == "warn" for c in report.call_args_list), warned)
+        return result
 
     def test_a_file_changed_after_the_start_needs_a_restart(self):
         self.assertTrue(self.newer(self.EPOCH + 60))
@@ -98,16 +107,18 @@ class BifrostConfigNewer(unittest.TestCase):
     def test_a_file_older_than_the_start_does_not(self):
         self.assertFalse(self.newer(self.EPOCH - 60))
 
-    def test_unknown_states_do_not_restart(self):
-        self.assertFalse(self.newer(self.EPOCH + 60, ps=""))
-        self.assertFalse(self.newer(self.EPOCH + 60, ps_rc=1))
-        self.assertFalse(self.newer(self.EPOCH + 60, inspect_rc=1))
-        self.assertFalse(self.newer(self.EPOCH + 60, stat_rc=1))
-        self.assertFalse(self.newer("not-a-number"))
+    def test_unknown_states_do_not_restart_but_warn(self):
+        self.assertFalse(self.newer(self.EPOCH + 60, ps="", warned=True))
+        self.assertFalse(self.newer(self.EPOCH + 60, ps_rc=1, warned=True))
+        self.assertFalse(self.newer(self.EPOCH + 60, inspect_rc=1, warned=True))
+        self.assertFalse(self.newer(self.EPOCH + 60, stat_rc=1, warned=True))
+        self.assertFalse(self.newer("not-a-number", warned=True))
 
     def test_no_docker_at_all_does_not_raise(self):
-        with mock.patch.object(bootstrap, "compose", side_effect=FileNotFoundError()):
+        with mock.patch.object(bootstrap, "compose", side_effect=FileNotFoundError()), \
+                mock.patch.object(bootstrap, "report") as report:
             self.assertFalse(bootstrap._bifrost_config_newer())
+        self.assertEqual(report.call_args.args[0], "warn")
 
 
 class StepUpRestart(unittest.TestCase):

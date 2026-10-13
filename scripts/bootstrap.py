@@ -508,12 +508,16 @@ def _place_bifrost_config() -> None:
     # Compared inside the container too: an operator who cannot read the directory must not rewrite it every run.
     result = run(["docker", "run", "--rm", "-v", f"{target.parent}:/mnt", "-v", f"{source.parent}:/src:ro",
                   "alpine:3", "sh", "-c",
+                  f"if [ -d /mnt/config.json ]; then echo ISDIR; exit 3; fi; "
                   f"if cmp -s /src/config.json /mnt/config.json; then echo SAME; else cp /src/config.json {tmp} && "
                   f"chown {uid}:{gid} {tmp} && chmod 0640 {tmp} && mv {tmp} /mnt/config.json && echo COPIED; fi"])
     if result.returncode == 0 and (result.stdout or "").strip().endswith("SAME"):
         report("skip", "bifrost_data/config.json (already the checkout's)")
     elif result.returncode == 0:
         report("ok", "placed bifrost_data/config.json")
+    elif "ISDIR" in (result.stdout or ""):
+        fail("bifrost_data/config.json is a directory, not a file; nothing was placed",
+             "remove that directory by hand after checking it, then re-run")
     else:
         fail(f"could not place bifrost_data/config.json: {(result.stderr or result.stdout).strip()[:200]}",
              "without it Bifrost v2 answers 401 to every caller; copy bifrost/config.json there by hand (owner 1000:1000)")
@@ -523,25 +527,30 @@ def _bifrost_config_newer() -> bool:
     """True when bifrost_data/config.json changed after the running Bifrost started; it reads the file only at start.
 
     Stateless on purpose: a run that stopped between the copy and the restart is caught by the next one, and a fresh
-    container (created after the copy) is not restarted for nothing. Unknown (no container, no answer) is False:
-    the smoke test still checks the effect that matters, whether inference is open.
+    container (created after the copy) is not restarted for nothing. Unknown (no container, no answer) is False
+    with a warning; the smoke test still checks the effect that matters most, whether inference is open.
     """
+    def unknown(why: str) -> bool:
+        report("warn", f"could not tell whether bifrost must reload config.json ({why}); "
+                       "after a change of bifrost/config.json run `docker compose restart bifrost`")
+        return False
+
     try:
         ids = compose("ps", "-q", "bifrost")
         cid = (ids.stdout or "").split()
         if ids.returncode != 0 or not cid:
-            return False
+            return unknown("no bifrost container")
         started = run(["docker", "inspect", "-f", "{{.State.StartedAt}}", cid[0]])
         mtime = run(["docker", "exec", cid[0], "stat", "-c", "%Y", "/app/data/config.json"])
-    except (OSError, subprocess.SubprocessError):
-        return False
+    except (OSError, subprocess.SubprocessError) as exc:
+        return unknown(type(exc).__name__)
     if started.returncode != 0 or mtime.returncode != 0:
-        return False
+        return unknown("docker inspect or stat failed")
     stamp = re.sub(r"(\.\d{6})\d+", r"\1", (started.stdout or "").strip()).replace("Z", "+00:00")
     try:
         return int((mtime.stdout or "").strip()) > datetime.fromisoformat(stamp).timestamp()
     except ValueError:
-        return False
+        return unknown("unreadable start time or mtime")
 
 
 def _restart_bifrost() -> bool:

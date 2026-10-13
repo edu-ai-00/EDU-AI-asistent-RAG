@@ -156,7 +156,7 @@ The tunnel is prepared but off: `cloudflared` runs only under the Compose profil
    ```
 
    ```bash
-   python3 scripts/smoke.py --config-dir "$HOME/edu-ai/config" --state-dir "$HOME/edu-ai/state" --project edu_ai
+   python3 "$HOME/edu-ai/src/scripts/smoke.py" --source-root "$HOME/edu-ai/src" --config-dir "$HOME/edu-ai/config" --state-dir "$HOME/edu-ai/state" --project edu_ai
    ```
 
    With the profile active the smoke also checks that `cloudflared` runs. Whether
