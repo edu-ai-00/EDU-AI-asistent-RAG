@@ -38,7 +38,9 @@ admin login (`BIFROST_ADMIN_USERNAME` / `BIFROST_ADMIN_PASSWORD` in the config
 `.env`); bootstrap places `bifrost/config.json` (the login from those variables,
 inference without auth for the internal callers) into `bifrost_data` and restarts
 Bifrost when it changes. Change the password in the `.env` and restart Bifrost; keep
-"Enforce Virtual Keys on Inference" off (see [CLEAN_INSTALL.md](CLEAN_INSTALL.md)). An in-place upgrade of an installation
+"Enforce Virtual Keys on Inference" and "Allow Direct API Keys" off (see
+[CLEAN_INSTALL.md](CLEAN_INSTALL.md)). A switch saved in the UI is kept over
+`config.json`; reinstalling or restarting does not reset it. An in-place upgrade of an installation
 running Bifrost v1.x is not supported (the v2 database migration is one-way): install
 cleanly and enter the provider key again. Restrict administration access;
 do not put keys into Git or into public reports. A paid verification needs its own

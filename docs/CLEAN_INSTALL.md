@@ -130,7 +130,9 @@ keep **"Enforce Virtual Keys on Inference" off**: with it on, Langflow, search a
 the API get `401 virtual key is required`. The red warning below it is expected:
 inference is open on purpose and reachable only from the internal network, the
 loopback port and an Access-protected tunnel. "Allow Direct API Keys" stays off
-(`bifrost/config.json` sets both). The smoke test fails in that state
+(`bifrost/config.json` sets both on a new installation). A setting saved in the UI
+takes precedence: Bifrost does not overwrite it from `config.json` at the next
+start, so a switch turned on by hand stays on until it is turned off by hand. The smoke test fails in that state
 (`bifrost: inference requires a credential`) and when the admin login is missing;
 an installation that wants inference auth on is outside this design and does not
 pass the smoke. Inference stays unauthenticated for the internal callers by design.
