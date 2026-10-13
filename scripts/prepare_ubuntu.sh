@@ -3,7 +3,20 @@
 # Docker repository: https://docs.docker.com/engine/install/ubuntu/
 set -euo pipefail
 
+# Docker's apt repository files; variables so the offline tests can point them elsewhere.
+DOCKER_SOURCES=/etc/apt/sources.list.d/docker.sources
+DOCKER_LIST=/etc/apt/sources.list.d/docker.list
+DOCKER_KEY=/etc/apt/keyrings/docker.asc
+
 fail() { printf 'REFUSED: %s\n' "$*" >&2; exit 2; }
+docker_sources_text() {
+    printf '%s\n' 'Types: deb' 'URIs: https://download.docker.com/linux/ubuntu' \
+        "Suites: $1" 'Components: stable' 'Architectures: amd64' "Signed-By: $DOCKER_KEY"
+}
+apt_update() {
+    "${SUDO[@]}" apt-get update || fail 'apt-get update failed. "Release file ... is not valid yet" means the host clock is wrong' \
+        '(typical right after restoring a VM snapshot): correct the time, then run this script again.'
+}
 installed() { [[ $(dpkg-query -W -f='${Status}' "$1" 2>/dev/null || true) == 'install ok installed' ]]; }
 read_platform() {
     [[ -r /etc/os-release ]] || fail 'Cannot read /etc/os-release.'
@@ -20,7 +33,7 @@ prepare_sudo() {
 }
 
 main() {
-    local mode=check target_user='' target_uid arg package codename tmp docker_present=0
+    local mode=check target_user='' target_uid arg package codename tmp docker_present=0 leftover=0
     while (($#)); do
         arg=$1; shift
         case "$arg" in
@@ -51,10 +64,18 @@ main() {
         installed docker-ce && installed docker-ce-cli && installed containerd.io || fail 'Existing Docker is not a complete Docker CE apt installation.'
         docker_present=1
     else
-        # Preserve any pre-existing repository configuration for manual review.
-        for arg in /etc/apt/sources.list.d/docker.sources /etc/apt/sources.list.d/docker.list /etc/apt/keyrings/docker.asc; do
-            [[ ! -e $arg && ! -L $arg ]] || fail "Existing Docker repository file: $arg."
-        done
+        # Foreign repository configuration stays for manual review. Accepted only: what this script itself writes,
+        # left by a run that stopped after writing it (apt failed), so that run can be repeated.
+        [[ ! -e $DOCKER_LIST && ! -L $DOCKER_LIST ]] || fail "Existing Docker repository file: $DOCKER_LIST."
+        if [[ -e $DOCKER_SOURCES || -L $DOCKER_SOURCES ]]; then
+            [[ -f $DOCKER_SOURCES && ! -L $DOCKER_SOURCES && $(<"$DOCKER_SOURCES") == "$(docker_sources_text "$codename")" ]] \
+                || fail "Existing Docker repository file: $DOCKER_SOURCES."
+            leftover=1
+        fi
+        if [[ -e $DOCKER_KEY || -L $DOCKER_KEY ]]; then
+            [[ -f $DOCKER_KEY && ! -L $DOCKER_KEY ]] || fail "Existing Docker repository file: $DOCKER_KEY."
+            leftover=1
+        fi
     fi
     printf 'HOST: Ubuntu %s, x86_64\n' "$VERSION_ID"
     printf '%s\n' 'Host packages: ca-certificates curl git python3 iproute2 openssl.'
@@ -62,6 +83,7 @@ main() {
         printf '%s\n' 'Docker CE already installed: its version will be kept; missing Compose/Buildx plugins will be installed.'
     else
         printf '%s\n' 'Docker packages: docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin (official stable apt repository).'
+        ((!leftover)) || printf '%s\n' 'Docker repository files of an earlier interrupted run are reused (the key only if it equals the downloaded one).'
     fi
     [[ $mode == apply ]] || { printf '%s\n' 'CHECK ONLY: nothing changed. Run with --apply to install.'; return 0; }
 
@@ -84,7 +106,7 @@ main() {
         installed "$package" || base_packages+=("$package")
     done
     if ((${#base_packages[@]})); then
-        "${SUDO[@]}" apt-get update
+        apt_update
         "${SUDO[@]}" apt-get install -y --no-install-recommends "${base_packages[@]}"
     fi
     if ((!docker_present)); then
@@ -93,12 +115,13 @@ main() {
         trap 'rm -f -- "$prepare_tmp/docker.asc" "$prepare_tmp/docker.sources"; rmdir -- "$prepare_tmp"' EXIT
         curl --fail --silent --show-error --location --proto '=https' \
             https://download.docker.com/linux/ubuntu/gpg -o "$tmp/docker.asc"
-        printf '%s\n' 'Types: deb' 'URIs: https://download.docker.com/linux/ubuntu' \
-            "Suites: $codename" 'Components: stable' 'Architectures: amd64' \
-            'Signed-By: /etc/apt/keyrings/docker.asc' > "$tmp/docker.sources"
-        "${SUDO[@]}" install -d -m 0755 /etc/apt/keyrings
-        "${SUDO[@]}" install -m 0644 "$tmp/docker.asc" /etc/apt/keyrings/docker.asc
-        "${SUDO[@]}" install -m 0644 "$tmp/docker.sources" /etc/apt/sources.list.d/docker.sources
+        if [[ -e $DOCKER_KEY ]]; then
+            cmp -s "$tmp/docker.asc" "$DOCKER_KEY" || fail "Existing $DOCKER_KEY differs from Docker's current key; review it by hand."
+        fi
+        docker_sources_text "$codename" > "$tmp/docker.sources"
+        "${SUDO[@]}" install -d -m 0755 "${DOCKER_KEY%/*}"
+        "${SUDO[@]}" install -m 0644 "$tmp/docker.asc" "$DOCKER_KEY"
+        "${SUDO[@]}" install -m 0644 "$tmp/docker.sources" "$DOCKER_SOURCES"
         docker_packages=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
     else
         for package in docker-buildx-plugin docker-compose-plugin; do
@@ -112,7 +135,7 @@ main() {
         done
     fi
     if ((${#docker_packages[@]})); then
-        "${SUDO[@]}" apt-get update
+        apt_update
         "${SUDO[@]}" apt-get install -y --no-install-recommends "${docker_packages[@]}"
     fi
     "${SUDO[@]}" systemctl enable --now docker

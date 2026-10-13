@@ -10,11 +10,33 @@ ROOT = Path(__file__).resolve().parents[1]
 BASH = (str(Path('C:/Program Files/Git/bin/bash.exe')) if os.name == 'nt' else shutil.which('bash'))
 
 
+class _Lazy:
+    """Files whose content depends on the temporary apt directory run_mock creates."""
+    def __init__(self, build):
+        self.build = build
+
+
 @unittest.skipUnless(BASH and Path(BASH).exists(), 'Bash is required')
 class PrepareUbuntu(unittest.TestCase):
-    def run_mock(self, arguments='--apply --docker-user lab', *, conflict='', containers='0', apt_fails=False, sudo_fails=False, fresh=False, extra=''):
+    def run_mock(self, arguments='--apply --docker-user lab', *, conflict='', containers='0', apt_fails=False, sudo_fails=False, fresh=False, extra='',
+                 files=None):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / 'calls'
+            # The repository files live under the temporary directory, never in the real /etc/apt.
+            apt = Path(directory) / 'apt'
+            (apt / 'sources.list.d').mkdir(parents=True)
+            (apt / 'keyrings').mkdir()
+            if isinstance(files, _Lazy):
+                files = files.build(apt)
+            for name, content in (files or {}).items():
+                target = apt / name
+                if content is None:
+                    target.mkdir()
+                else:
+                    target.write_bytes(content.encode())
+            paths = (f"DOCKER_SOURCES={(apt / 'sources.list.d/docker.sources').as_posix()}; "
+                     f"DOCKER_LIST={(apt / 'sources.list.d/docker.list').as_posix()}; "
+                     f"DOCKER_KEY={(apt / 'keyrings/docker.asc').as_posix()}")
             env = dict(os.environ, PREP_LOG=log.as_posix(), PREP_CONFLICT=conflict,
                        PREP_CONTAINERS=containers, PREP_APT_FAIL='1' if apt_fails else '0',
                        PREP_SUDO_FAIL='1' if sudo_fails else '0', PREP_FRESH='1' if fresh else '0')
@@ -59,6 +81,7 @@ usermod() { printf 'usermod %s\n' "$*" >> "$PREP_LOG"; }
 curl() { printf 'curl %s\n' "$*" >> "$PREP_LOG"; printf mock-key > "${!#}"; }
 install() { printf 'install %s\n' "$*" >> "$PREP_LOG"; }
 '''
+            code += paths
             result = subprocess.run([BASH, '--noprofile', '--norc', '-s'], input=code + '\n' + extra + '\nmain ' + arguments + '\n',
                                     cwd=ROOT, env=env, text=True, capture_output=True, timeout=20)
             return result, log.read_text() if log.exists() else ''
@@ -97,7 +120,8 @@ install() { printf 'install %s\n' "$*" >> "$PREP_LOG"; }
         result, calls = self.run_mock(fresh=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('https://download.docker.com/linux/ubuntu/gpg', calls)
-        self.assertIn('/etc/apt/sources.list.d/docker.sources', calls)
+        self.assertIn('sources.list.d/docker.sources', calls)
+        self.assertIn('keyrings/docker.asc', calls)
         self.assertIn('apt install -y --no-install-recommends docker-ce docker-ce-cli containerd.io', calls)
 
     def test_existing_stack_stops_before_apt(self):
@@ -116,6 +140,45 @@ install() { printf 'install %s\n' "$*" >> "$PREP_LOG"; }
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn('systemctl ', calls)
         self.assertNotIn('usermod ', calls)
+
+    OWN_SOURCES = ('Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: resolute\nComponents: stable\n'
+                   'Architectures: amd64\nSigned-By: {key}\n')
+
+    def test_an_interrupted_runs_own_files_are_reused(self):
+        result, calls = self.run_with_own_leftovers()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('earlier interrupted run are reused', result.stdout)
+        self.assertIn('apt install -y --no-install-recommends docker-ce docker-ce-cli containerd.io', calls)
+
+    def test_a_key_that_differs_from_the_downloaded_one_is_refused_before_apt(self):
+        result, calls = self.run_with_own_leftovers(key='someone-elses-key')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('differs from Docker', result.stderr)
+        self.assertNotIn('install -m 0644', calls)
+        self.assertNotIn('docker-ce', calls)
+
+    def test_foreign_repository_files_are_still_refused_without_any_call(self):
+        for files in ({'sources.list.d/docker.sources': 'Types: deb\nURIs: https://mirror.example/docker\n'},
+                      {'sources.list.d/docker.list': 'deb https://download.docker.com/linux/ubuntu resolute stable\n'},
+                      {'keyrings/docker.asc': None}):
+            with self.subTest(files=list(files)):
+                result, calls = self.run_mock('--check', fresh=True, files=files)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn('Existing Docker repository file', result.stderr)
+                self.assertEqual(calls, '')
+
+    def test_a_failed_apt_update_names_the_clock(self):
+        result, calls = self.run_mock(fresh=True, apt_fails=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('host clock is wrong', result.stderr)
+        self.assertNotIn('systemctl ', calls)
+
+    def run_with_own_leftovers(self, key='mock-key'):
+        # Write the script's own docker.sources for the temporary key path, plus a key file.
+        def files_for(apt):
+            return {'sources.list.d/docker.sources': self.OWN_SOURCES.format(key=(apt / 'keyrings/docker.asc').as_posix()),
+                    'keyrings/docker.asc': key}
+        return self.run_mock(fresh=True, files=_Lazy(files_for))
 
     def test_other_platform_is_refused(self):
         result, calls = self.run_mock(extra='read_platform() { ID=debian; VERSION_ID=12; VERSION_CODENAME=bookworm; }')

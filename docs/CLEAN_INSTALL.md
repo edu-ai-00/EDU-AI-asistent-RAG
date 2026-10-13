@@ -40,7 +40,10 @@ blocks one at a time; on an error, resolve its cause first.
 
    The script adds Python, Docker Engine, Compose, Buildx and other tools. After
    being added to the `docker` group, log out and log in over SSH again; Docker
-   must work without `sudo`.
+   must work without `sudo`. If it stops at `apt-get` (for example "Release file
+   ... is not valid yet": a wrong clock, typical right after restoring a VM
+   snapshot), fix the cause and run it again; it reuses the Docker repository
+   files it wrote itself and refuses any other.
 3. **Run the wizard.** After logging in again:
 
    ```bash
