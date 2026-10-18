@@ -23,7 +23,7 @@ The table describes declarations in the local source tree, not versions found li
 | Area | Declaration and gap | Source checked |
 |---|---|---|
 | Langflow | base `1.10.1`, local image `edu_ai:1.1.0`; base tag without a digest; the added packages partly have loose versions, constraints are produced from `pip freeze` of the base image during the build | [Dockerfile](../../Dockerfile), [requirements-langflow.txt](../../requirements-langflow.txt), [Compose](../../docker-compose.yml) |
-| PostgreSQL and extensions | base `pgvector:0.7.4-pg16` with a digest, `PG_SEARCH_VERSION=0.25.1`; the `.deb` is tied to PostgreSQL 16, downloaded without a checksum verification in the Dockerfile | [Dockerfile.postgres](../../Dockerfile.postgres) |
+| PostgreSQL and extensions | base `pgvector:0.8.7-pg18` (PostgreSQL 18.6) with a digest, `PG_SEARCH_VERSION=0.26.2`; the `.deb` follows the image's `PG_MAJOR` and is checked against the SHA-256 of the release asset; a new major version needs a dump and a clean database (bootstrap refuses old data) | [Dockerfile.postgres](../../Dockerfile.postgres) |
 | Proxy and tunnel | `nginx:1.30.5-alpine` and `cloudflared:2026.8.1`; tags alone do not guarantee immutable content | [Compose](../../docker-compose.yml) |
 | Bifrost and pgAdmin | `bifrost:v2.2.6`, `pgadmin4:9.18.0`; persistent state and compatibility must be verified separately | [Compose](../../docker-compose.yml) |
 | Ingest API | Python base `3.11.16` with a digest and exact Python dependencies; apt system packages are resolved at build time | [API Dockerfile](../../api/Dockerfile), [API requirements](../../api/requirements.txt) |

@@ -57,7 +57,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from create_api_key import (  # noqa: E402
     EXIT_RETRY_LATER, KeyUnverifiable, describe_error, display_url, ensure_api_key,
 )
+import db_roles  # noqa: E402
 import eduai_layout  # noqa: E402
+import smoke  # noqa: E402
 from envfile import create_private, is_placeholder, read_env, set_env, write_atomic  # noqa: E402
 from http_safe import open_url  # noqa: E402
 
@@ -276,10 +278,56 @@ def step_preflight() -> None:
             report("ok", "ports 80/8443/8444 are free")
 
     _check_pg_search()
+    _check_pg_major()
 
 
 # The extension file the ParadeDB .deb installs; Dockerfile.postgres puts it there.
-PG_SEARCH_CONTROL = "/usr/share/postgresql/16/extension/pg_search.control"
+# PG_MAJOR is set by the postgres base image; single quotes keep it for the container's shell.
+PG_SEARCH_CONTROL = "/usr/share/postgresql/$PG_MAJOR/extension/pg_search.control"
+PG_DATA_TARGET = "/var/lib/postgresql/data"
+
+
+def _dockerfile_pg_major() -> str | None:
+    """The PostgreSQL major version of this checkout's Dockerfile.postgres base image (…-pgNN@…)."""
+    return eduai_layout.postgres_major(ROOT)
+
+
+def _check_pg_major() -> None:
+    """Refuse when the data volume holds another PostgreSQL major version than the image.
+
+    A major version cannot start on old data files: postgres restarts in a loop and `up --wait`
+    only gives up after many minutes. The data must be moved (dump, clean installation, load).
+    """
+    want = _dockerfile_pg_major()
+    result = compose("config", "--format", "json")
+    try:
+        config = json.loads(result.stdout) if result.returncode == 0 else None
+        mounts = config["services"]["postgres"]["volumes"]
+        source = next(m["source"] for m in mounts if m.get("target") == PG_DATA_TARGET)
+        volume = (config.get("volumes") or {}).get(source, {}).get("name", source)
+    except (TypeError, ValueError, KeyError, StopIteration):
+        report("warn", "could not resolve the postgres data volume — skipped the major version check")
+        return
+    if want is None:
+        report("warn", "could not read the PostgreSQL major version of Dockerfile.postgres — skipped the check")
+        return
+    if run(["docker", "volume", "inspect", volume]).returncode != 0:
+        report("ok", f"no data volume yet; it will be initialised for PostgreSQL {want}")
+        return
+    probe = run(["docker", "run", "--rm", "--network", "none", "-v", f"{volume}:/data:ro",
+                 "alpine:3", "sh", "-c", "cat /data/PG_VERSION 2>/dev/null || true"])
+    have = probe.stdout.strip() if probe.returncode == 0 else ""
+    if probe.returncode != 0:
+        report("warn", f"could not read {volume} — skipped the major version check")
+    elif not have:
+        report("ok", f"{volume} is empty; it will be initialised for PostgreSQL {want}")
+    elif have == want:
+        report("ok", f"{volume} holds PostgreSQL {have}, as the image")
+    else:
+        fail(f"{volume} holds PostgreSQL {have} data, this checkout's image is PostgreSQL {want}; "
+             "postgres would not start on it. Nothing was changed.",
+             "move the data: dump it with the current installation, then install cleanly and load it "
+             "(docs/OPERATIONS_LINUX.md, 'A new PostgreSQL major version')")
 
 
 def _check_pg_search() -> None:
@@ -308,7 +356,7 @@ def _check_pg_search() -> None:
         return
 
     probe = run(["docker", "run", "--rm", "--entrypoint", "sh", image,
-                 "-c", f"test -f {PG_SEARCH_CONTROL}"])
+                 "-c", f'test -f "{PG_SEARCH_CONTROL}"'])
     if probe.returncode == 0:
         report("ok", f"{image} has pg_search")
     else:
@@ -981,6 +1029,112 @@ def step_smoke(base_url: str) -> None:
 
 
 # ───────────────────────────────────────────────────────────────
+#  8b. Database extensions
+# ───────────────────────────────────────────────────────────────
+
+# A new postgres image brings newer extension binaries; the catalog keeps the old
+# version until ALTER EXTENSION UPDATE. That is one-way, so it runs only after a
+# passing smoke test: until then the previous image (<image>-prev) still fits the data.
+_EXT_SQL = ("SELECT e.extname, e.extversion, a.default_version FROM pg_extension e "
+            "JOIN pg_available_extensions a ON a.name = e.extname "
+            "WHERE e.extname IN ('vector', 'pg_search') ORDER BY 1;\n")
+_EXT_LOGS = "docker logs --tail 50 edu_ai_postgres"
+
+
+def _ext_version(text: str) -> tuple[int, ...] | None:
+    return tuple(int(p) for p in text.split(".")) if re.fullmatch(r"\d+(\.\d+)*", text) else None
+
+
+_EXT_TIMED_OUT = 124
+
+
+def _ext_psql(sql: str) -> subprocess.CompletedProcess:
+    """psql in the postgres container as its superuser (POSTGRES_USER is read inside the container)."""
+    try:
+        return run(["docker", "compose", "exec", "-T", "postgres", "sh", "-c",
+                    'psql -X -q -A -t -F " " -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'],
+                   input=sql, timeout=300)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess([], _EXT_TIMED_OUT, "", "")
+
+
+def _search_probe_passes() -> bool:
+    """The smoke test's BM25 + vector probe, as the search role, after the update."""
+    try:
+        database = read_env(ENV_PATH).get("POSTGRES_DB") or "edu_ai"
+    except (OSError, ValueError):
+        database = "edu_ai"
+    try:
+        result = run(["docker", "compose", "exec", "-T", "postgres", *smoke.search_index_probe_args(database)],
+                     timeout=120)
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0
+
+
+def _ext_rows() -> list[tuple[str, str, str]] | None:
+    result = _ext_psql(_EXT_SQL)
+    if result.returncode != 0:
+        return None
+    return [tuple(line.split()) for line in result.stdout.splitlines() if len(line.split()) == 3]
+
+
+def step_extensions(smoke_passed: bool) -> None:
+    phase("8b. database extensions")
+    if not smoke_passed:
+        report("skip", "extension update needs a passing smoke test in this run (the update is one-way)")
+        return
+    rows = _ext_rows()
+    if rows is None:
+        fail("could not read the extension versions", "check that the postgres service is running")
+        return
+    pending = []
+    for name, have, available in rows:
+        h, a = _ext_version(have), _ext_version(available)
+        if h is None or a is None:
+            report("warn", f"{name}: cannot compare {have} with {available}; left as it is")
+        elif h < a:
+            pending.append((name, have, available))
+        elif h > a:
+            report("warn", f"{name} {have} in the database is newer than {available} in the image "
+                           "(an older image?); left as it is")
+    if not pending:
+        report("ok", "extensions match the image: " + ", ".join(f"{n} {v}" for n, v, _ in rows))
+        return
+    try:
+        privileges = db_roles.extension_privileges(db_roles.load_matrix())
+    except (OSError, ValueError, KeyError, db_roles.ContractError) as exc:
+        fail(f"extension update skipped: the role contract matrix cannot be read ({exc})")
+        return
+    # The functions an update adds start with EXECUTE for PUBLIC: the contract's privileges go in the same transaction.
+    # lock_timeout as in the role contract: the application is connected, never wait behind it.
+    sql = ("BEGIN;\nSET LOCAL lock_timeout = '5s';\n"
+           + "".join(f'ALTER EXTENSION "{n}" UPDATE;\n' for n, _, _ in pending)
+           + "\n".join(privileges) + "\nCOMMIT;\n")
+    rc = _ext_psql(sql).returncode
+    if rc == _EXT_TIMED_OUT:
+        fail("extension update timed out; its outcome is unknown",
+             "run the installation again: this step re-reads the versions")
+        return
+    if rc != 0:
+        fail("extension update failed; nothing was changed (one transaction)",
+             f"the error is in the postgres log: {_EXT_LOGS}")
+        return
+    after = {n: v for n, v, _ in (_ext_rows() or [])}
+    for name, have, available in pending:
+        if after.get(name) == available:
+            report("ok", f"{name} {have} -> {available} (a return to the previous image now needs a backup restore)")
+        else:
+            fail(f"{name} is {after.get(name, 'unknown')} after the update, expected {available}",
+                 f"the error is in the postgres log: {_EXT_LOGS}")
+    if _search_probe_passes():
+        report("ok", f"BM25 and vector search work for {smoke.SEARCH_USER} after the update")
+    else:
+        fail(f"BM25/vector search as {smoke.SEARCH_USER} fails after the update",
+             f"the error is in the postgres log: {_EXT_LOGS}")
+
+
+# ───────────────────────────────────────────────────────────────
 #  9. Summary
 # ───────────────────────────────────────────────────────────────
 
@@ -1155,6 +1309,7 @@ def main() -> int:
 
     if not args.skip_smoke:
         step_smoke(base_url)
+    step_extensions(smoke_passed=not args.skip_smoke and not _failed)
 
     step_summary(base_url, no_input=args.no_input)
     return 1 if _failed else 0

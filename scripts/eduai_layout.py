@@ -242,3 +242,16 @@ def _inside(child: pathlib.Path, parent: pathlib.Path) -> bool:
         return c != p and os.path.commonpath([c, p]) == p
     except ValueError:                      # other drive
         return False
+
+
+_PG_BASE = re.compile(r"^FROM\s+\S+?:[^@\s]*-pg(\d+)(?:-[a-z]+)?(?:@|\s|$)", re.M)
+
+
+def postgres_major(source_root) -> str | None:
+    """The PostgreSQL major version this checkout's Dockerfile.postgres builds (base tag …-pgNN)."""
+    try:
+        text = (pathlib.Path(source_root) / "Dockerfile.postgres").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _PG_BASE.search(text)
+    return m.group(1) if m else None

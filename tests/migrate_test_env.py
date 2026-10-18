@@ -14,6 +14,7 @@ must have the expected labels; fixtures made without the owner label are refused
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import secrets
@@ -24,7 +25,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-IMAGE = "b03e_postgres:cs"
+# Tagged by the Dockerfile content, so a base-image bump builds a fresh image
+# instead of reusing a stale one that no longer matches the baseline manifest.
+_DOCKERFILE = (ROOT / "Dockerfile.postgres").read_bytes().replace(b"\r\n", b"\n")
+IMAGE = "b03e_postgres:cs-" + hashlib.sha256(_DOCKERFILE).hexdigest()[:12]
 NETWORK = "b03e_net"
 LABEL = "edu_ai.purpose=b03e-migrate-test"
 PURPOSE_KEY, PURPOSE = LABEL.split("=", 1)
@@ -32,6 +36,7 @@ OWNER_KEY = "edu_ai.test-owner"
 USER, DB = "edu_ai_admin", "edu_ai"
 TEMPLATE = "edu_ai_tpl"
 DATA_TARGET = "/var/lib/postgresql/data"
+IMAGE_VOLUME = "/var/lib/postgresql"
 PASSWORD_ENV = ("POSTGRES_PASSWORD", "POSTGRES_INGEST_PASSWORD", "POSTGRES_SEARCH_PASSWORD",
                 "POSTGRES_LANGFLOW_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD")
 
@@ -145,6 +150,10 @@ def down(name: str) -> None:
     config, networks, host = value.get("Config"), value.get("NetworkSettings"), value.get("HostConfig")
     mounts = value.get("Mounts")
     cid = value.get("Id")
+    # PostgreSQL 18 images declare VOLUME /var/lib/postgresql: an empty anonymous volume beside ours.
+    if isinstance(mounts, list):
+        mounts = [m for m in mounts if not (isinstance(m, dict) and m.get("Destination") == IMAGE_VOLUME
+                                            and re.fullmatch(r"[0-9a-f]{64}", str(m.get("Name"))))]
     if (value.get("Name") != f"/{name}" or not isinstance(cid, str) or not re.fullmatch(r"[0-9a-f]{64}", cid)
             or not isinstance(config, dict) or not owns(config.get("Labels"), name)
             or not isinstance(networks, dict) or not isinstance(networks.get("Networks"), dict)
@@ -159,7 +168,7 @@ def down(name: str) -> None:
     users = docker("ps", "-a", "--filter", f"volume={volume}", "--format", "{{.Names}}", quiet=True)
     if set(users.stdout.splitlines()) != {name}:
         sys.exit(f"refusing: {volume} has unexpected users")
-    docker("rm", "-f", cid, quiet=True)
+    docker("rm", "-f", "-v", cid, quiet=True)          # -v: the anonymous image volume only, never a named one
     docker("volume", "rm", volume, quiet=True)
     print(f"removed {name} and {volume}")
 

@@ -71,7 +71,7 @@
     "cluster_databases": ["edu_ai", "langflow", "postgres", "template0", "template1"],
     "edu_ai": {
       "schemas": ["edu_ai", "paradedb", "pdb", "public"],
-      "extensions": {"pg_search": "0.25.1", "pg_trgm": "1.6", "plpgsql": "1.0", "unaccent": "1.1", "vector": "0.7.4"},
+      "extensions": {"pg_search": "0.26.2", "pg_trgm": "1.6", "plpgsql": "1.0", "unaccent": "1.1", "vector": "0.8.7"},
       "sequences": ["answer_exclusion_rule_id_seq", "chunk_exclusion_rule_id_seq", "code_list_id_seq", "edu_ai_document_chunks_id_seq", "edu_ai_document_elements_id_seq",
                     "edu_ai_document_tables_id_seq", "grade_term_id_seq", "ingestion_log_id_seq", "prompt_registry_id_seq", "qa_blocklist_id_seq", "qa_feedback_id_seq",
                     "qa_synonym_id_seq", "qa_variants_variant_id_seq", "question_answer_log_id_seq", "subject_term_id_seq", "system_message_id_seq",

@@ -335,6 +335,24 @@ def _resume_mounts(spec: dict, actual: list, model: dict, layout: L.Layout, volu
     return True
 
 
+def _postgres_major_change(host: Host, layout: L.Layout, model: dict) -> tuple[str, str, str] | None:
+    """(volume, data major, image major) when the postgres data volume holds another major version.
+
+    Checked before the mount comparison, which a new major version's Compose model may also fail, so the
+    operator gets the reason that matters. Anything unreadable is no finding here; the later checks stand.
+    """
+    want = L.postgres_major(layout.source_root)
+    mounts = (model.get("services", {}).get("postgres") or {}).get("volumes") or []
+    source = next((m.get("source") for m in mounts if m.get("target") == "/var/lib/postgresql/data"), None)
+    if not want or not source:
+        return None
+    volume = (model.get("volumes", {}).get(source) or {}).get("name") or f"{layout.project}_{source}"
+    probe = host.run(["docker", "run", "--rm", "--network", "none", "-v", f"{volume}:/data:ro", "alpine:3",
+                      "sh", "-c", "cat /data/PG_VERSION 2>/dev/null || true"], timeout=120)
+    have = probe.out.strip() if probe.rc == 0 else ""
+    return (volume, have, want) if have and have != want else None
+
+
 def _prove_resume(host: Host, st: State, layout: L.Layout, ids: list[str]) -> bool:
     """A project label alone never authorises restarting another checkout's containers."""
     if not ids or any(not re.fullmatch(r"[0-9a-f]{12,64}", cid) for cid in ids):
@@ -349,6 +367,12 @@ def _prove_resume(host: Host, st: State, layout: L.Layout, ids: list[str]) -> bo
     try:
         model = json.loads(render.out)
         HP.parse_model(model, layout.project)
+        changed = _postgres_major_change(host, layout, model)
+        if changed:
+            volume, have, want = changed
+            st.refuse("POSTGRES_MAJOR_CHANGED", f"{volume} holds PostgreSQL {have} data, this checkout builds PostgreSQL {want}; "
+                                                "nothing is changed: follow docs/OPERATIONS_LINUX.md, 'A new PostgreSQL major version'")
+            return False
         containers = [json.loads(line) for line in scan.out.splitlines() if line.strip()]
         if len(containers) != len(ids) or {c["id"][:12] for c in containers} != {cid[:12] for cid in ids}:
             raise ValueError("container set")

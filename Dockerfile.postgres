@@ -1,6 +1,10 @@
 # Pinned by index digest (amd64 + arm64): the migration fingerprints in
 # postgres/baseline/B216.json are bound to this image. Change it deliberately.
-FROM pgvector/pgvector:0.7.4-pg16@sha256:7bbb2558b9b73d23c4a7795d7a016cbb531ef5fb1e231115fa1aeac5129caf10
+FROM pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+
+# PostgreSQL 18 images moved PGDATA to /var/lib/postgresql/18/docker; Compose mounts
+# the data volume at the old path, so keep it there (a new path is a new layout).
+ENV PGDATA=/var/lib/postgresql/data
 
 # Czech locale for correct collation / sorting.
 RUN apt-get update \
@@ -14,14 +18,22 @@ ENV LC_CTYPE=cs_CZ.UTF-8
 
 # ParadeDB pg_search — BM25 full-text ranking for Postgres. The .deb is per-arch;
 # TARGETARCH (arm64 on the Mac dev box, amd64 on the server) is provided by
-# BuildKit and picks the matching package automatically. pg_search needs
-# shared_preload_libraries='pg_search' (set in docker-compose) and, once running,
-# `CREATE EXTENSION pg_search CASCADE;` (in init_clean / run once on an existing DB).
-ARG PG_SEARCH_VERSION=0.25.1
+# BuildKit and picks the matching package and its SHA-256 (the GitHub release
+# asset digest). pg_search needs shared_preload_libraries='pg_search' (set in
+# docker-compose) and `CREATE EXTENSION pg_search CASCADE;` (in init_clean).
+ARG PG_SEARCH_VERSION=0.26.2
+ARG PG_SEARCH_SHA256_amd64=4b42a3fc436964917a22e8b8caec99c11615151660ee61ead20fdc379e527346
+ARG PG_SEARCH_SHA256_arm64=7060e4d725278d9ffc46e7ea59db5f86c48c9d02bd7ec8f8c55644d5adcfb362
 ARG TARGETARCH
-RUN curl -fsSL \
-      "https://github.com/paradedb/paradedb/releases/download/v${PG_SEARCH_VERSION}/postgresql-16-pg-search_${PG_SEARCH_VERSION}-1PARADEDB-bookworm_${TARGETARCH}.deb" \
+RUN case "${TARGETARCH}" in \
+      amd64) sum="${PG_SEARCH_SHA256_amd64}" ;; \
+      arm64) sum="${PG_SEARCH_SHA256_arm64}" ;; \
+      *) echo "unsupported TARGETARCH '${TARGETARCH}' (needs BuildKit)" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL \
+      "https://github.com/paradedb/paradedb/releases/download/v${PG_SEARCH_VERSION}/postgresql-${PG_MAJOR}-pg-search_${PG_SEARCH_VERSION}-1PARADEDB-bookworm_${TARGETARCH}.deb" \
       -o /tmp/pg_search.deb \
+ && echo "${sum}  /tmp/pg_search.deb" | sha256sum -c - \
  && apt-get install -y --no-install-recommends /tmp/pg_search.deb \
  && rm -f /tmp/pg_search.deb \
  && rm -rf /var/lib/apt/lists/*

@@ -35,8 +35,9 @@ SELECT line FROM (
    WHERE n.nspname = 'edu_ai' AND c.relname = 'schema_migration'
      AND a.attnum > 0 AND NOT a.attisdropped
   UNION ALL
+  -- contype 'n': PostgreSQL 18 also catalogs NOT NULL as constraints; the column lines carry it
   SELECT 2, 0, 'constraint ' || co.conname || ' ' || pg_get_constraintdef(co.oid)
-    FROM pg_constraint co WHERE co.conrelid = to_regclass('edu_ai.schema_migration')
+    FROM pg_constraint co WHERE co.conrelid = to_regclass('edu_ai.schema_migration') AND co.contype <> 'n'
   UNION ALL
   SELECT 3, 0, pg_get_indexdef(i.indexrelid)
     FROM pg_index i WHERE i.indrelid = to_regclass('edu_ai.schema_migration')
@@ -50,7 +51,7 @@ SELECT line FROM (
 ) x ORDER BY k, o, line;
 """
 
-# Captured from pg_catalog on PostgreSQL 16 after running DDL; the runner tests keep it honest.
+# Captured from pg_catalog (PostgreSQL 16 and 18) after running DDL; the runner tests keep it honest.
 EXPECTED_V1: list[str] = [
     "column migration_id text NOT NULL",
     "column kind text NOT NULL",

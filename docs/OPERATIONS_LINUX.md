@@ -63,8 +63,9 @@ does not document parity.
 Rehearsed on a lab VM on 2026-10-13 (production data into a clean installation of
 this branch); a production cutover remains a separate, explicitly approved step.
 It applies when both databases have the same `edu_ai` schema; compare
-`pg_dump --schema-only` of both first. If they differ, stop: a migration is a
-separate decision. Only the `edu_ai` database moves; Langflow's own database is
+`pg_dump --schema-only --no-owner --no-privileges -n edu_ai` of both first (the new
+installation's objects belong to the role contract's `edu_ai_owner`). If they differ,
+stop: a migration is a separate decision. Only the `edu_ai` database moves; Langflow's own database is
 not transferred (the flows come from the repository) and Bifrost's provider key
 is entered again in its UI. The new installation keeps its own roles, grants and
 secrets.
@@ -111,6 +112,51 @@ updates without a source change still need `--build`. Not covered by this:
 database migrations, flows that already exist in Langflow (only missing ones are
 imported) and a Compose change of a service's mounts, which the wizard refuses
 (`RESUME_STACK_OTHER_LAYOUT`).
+
+A change of `Dockerfile.postgres` within one PostgreSQL major version (e.g. 16.3 → 16.15,
+pgvector 0.7.4 → 0.8.7, pg_search 0.25.1 → 0.25.11) rebuilds the postgres image and recreates
+the container on the same data volume; a minor version needs no dump. The extensions
+keep their old catalog version until `ALTER EXTENSION … UPDATE`; bootstrap runs it for
+`vector` and `pg_search` (step 8b) only after a passing smoke test, and only when the
+image has a newer version. The same transaction sets the role contract's privileges
+on the extension schemas again: the functions an update adds would otherwise be
+executable by PUBLIC, and the roles check would report it. It is one-way: from then
+on, a return to the previous image (`<image>-prev`) needs a backup restore. With
+`--skip-smoke` or a failed run it is skipped; run the installation again rather than
+a bare `ALTER EXTENSION` by hand. Until step 8b has run, `db_roles.py reapply` and
+`adopt` refuse with "baseline mismatch: extensions" (they expect the versions in
+`postgres/role_contract/matrix.json`), so finish the installation before a reapply.
+The smoke test and step 8b run a BM25 and vector query as `edu_ai_search`. Search
+works before and after (lab, 2026-10-18).
+
+### A new PostgreSQL major version
+
+The wizard (`POSTGRES_MAJOR_CHANGED`) and bootstrap's preflight refuse when the
+postgres data volume holds another major version than `Dockerfile.postgres` (e.g. 16
+data, an 18 image): postgres cannot start on it, and nothing is changed. The data
+moves through a dump and a clean database:
+
+1. With the previous commit still checked out and running, make a full backup (see
+   below) and the data-only dump of step 1 in
+   [Moving the application data](#moving-the-application-data-to-a-new-installation).
+2. Stop the stack with `… stop` (not `down`: the wizard continues an installation
+   only while its containers exist), then remove only the postgres container and the
+   data volume the refusal names: `docker rm edu_ai_postgres` and
+   `docker volume rm <project>_postgres_data`. The other containers and volumes
+   (Bifrost, pgAdmin, uploads) stay.
+3. Check out the new commit and run `python3 scripts/setup.py install`: a clean
+   database on the new version, with the roles and the flows from the repository.
+   Langflow's own database is not carried over, so the API key in the `.env` belongs
+   to the old one: bootstrap stops at "could not be verified (HTTP 403)" without
+   changing anything. Replace it with
+   `python3 scripts/create_api_key.py --url <the Langflow URL bootstrap printed> --force --no-input`
+   and run the installation again.
+4. Load the data with steps 2–5 of the same section. When comparing the schemas,
+   `pg_dump` 18 adds `SET transaction_timeout = 0;`; that line is not a difference.
+
+PostgreSQL 18 images declare `VOLUME /var/lib/postgresql`. The data stay in the named
+volume at `/var/lib/postgresql/data` (`PGDATA` in `Dockerfile.postgres`); the
+container also gets an empty anonymous volume, which is not the data.
 
 A release records the exact commit, images, tests and limitations. An old PASS for
 a different commit does not replace a new clean run. See [RELEASING.md](RELEASING.md).

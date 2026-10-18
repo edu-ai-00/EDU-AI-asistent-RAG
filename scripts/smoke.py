@@ -50,6 +50,23 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 # The maintenance superuser of the role contract; smoke reads through it on the container's local socket.
 MAINTENANCE_USER = "edu_ai_admin"
+# What a postgres image update changes: the BM25 operator and score and the vector distance,
+# run as the search role (its own search_path and grants). An empty table still plans both.
+SEARCH_USER = "edu_ai_search"
+SEARCH_INDEX_PROBE = (
+    "SELECT count(*) FROM (SELECT id, paradedb.score(id) FROM edu_ai.document_chunks"
+    " WHERE bm25_text @@@ 'test' ORDER BY 2 DESC LIMIT 3) b",
+    "SELECT count(*) FROM (SELECT id FROM edu_ai.document_chunks ORDER BY embedding <=>"
+    " (SELECT embedding FROM edu_ai.document_chunks LIMIT 1) LIMIT 3) v",
+)
+
+
+def search_index_probe_args(database: str) -> list[str]:
+    """psql arguments (inside the postgres container) that run SEARCH_INDEX_PROBE as SEARCH_USER."""
+    args = ["psql", "-X", "-q", "-tA", "-v", "ON_ERROR_STOP=1", "-U", SEARCH_USER, "-d", database]
+    for sql in SEARCH_INDEX_PROBE:
+        args += ["-c", sql]
+    return args
 _layout: "eduai_layout.Layout | None" = None   # set by main() only when a layout flag or variable was given
 
 EXPECTED_ALIASES = {
@@ -337,6 +354,13 @@ def check_database(env: dict[str, str]) -> None:
         ok(f"document_chunks queryable ({result.stdout.strip().splitlines()[-1]} rows)")
     else:
         bad("document_chunks is not queryable")
+
+    result = run(["docker", "compose", "exec", "-T", "postgres", *search_index_probe_args(database)])
+    if result.returncode == 0:
+        ok(f"BM25 and vector search work for {SEARCH_USER}")
+    else:
+        errors = [line for line in (result.stderr or "").splitlines() if "ERROR" in line]
+        bad(f"BM25/vector search as {SEARCH_USER} failed: {(errors[-1] if errors else 'no error text')[:200]}")
 
 
 def check_db_roles(env: dict[str, str]) -> None:

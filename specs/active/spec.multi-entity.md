@@ -122,7 +122,7 @@ for the global rows.
 This is the only group where the NULL trap applies: a plain unique index does not
 consider two NULLs equal, so `UNIQUE (legal_entity_code, label_key, lang) WHERE
 is_active` would happily allow **two global rows** for one key and `LIMIT 1`
-would return an arbitrary one. Postgres here is 16.3, so:
+would return an arbitrary one. Postgres here is 18 (`NULLS NOT DISTINCT` needs 15+), so:
 
 ```sql
 CREATE UNIQUE INDEX ui_label_active ON edu_ai.ui_label

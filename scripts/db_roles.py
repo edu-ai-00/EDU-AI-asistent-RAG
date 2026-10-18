@@ -225,11 +225,31 @@ def ownership_loop(schema: str, owner: str, with_functions: bool, types: bool) -
     return "DO $own$ DECLARE r record; BEGIN " + rel + fn + ty + done + "END $own$;"
 
 
+OTHERS = "edu_ai_search, edu_ai_ingest, edu_ai_migrator, edu_ai_langflow"
+
+
+def extension_privileges(m: dict) -> list[str]:
+    """Privileges on the tables and routines of the extension schemas (paradedb, pdb).
+
+    Part of the edu_ai contract, and run again after ALTER EXTENSION ... UPDATE: the
+    functions an update adds start with EXECUTE for PUBLIC, like any new function.
+    """
+    d = m["edu_ai_db"]
+    runtime = ", ".join(d["S_all_tables_for"])
+    return ["REVOKE ALL ON ALL TABLES IN SCHEMA paradedb, pdb FROM PUBLIC;",
+            "REVOKE ALL ON ALL ROUTINES IN SCHEMA paradedb, pdb FROM PUBLIC;",
+            f"REVOKE ALL ON ALL TABLES IN SCHEMA paradedb, pdb FROM {OTHERS};",
+            f"REVOKE ALL ON ALL ROUTINES IN SCHEMA paradedb, pdb FROM {OTHERS};",
+            "-- extension objects used at runtime: read/execute only",
+            f"GRANT SELECT ON ALL TABLES IN SCHEMA paradedb, pdb TO {runtime};",
+            f"GRANT EXECUTE ON ALL ROUTINES IN SCHEMA paradedb, pdb TO {runtime}, {d['object_owner']};"]
+
+
 def gen_edu_ai(m: dict) -> str:
     d = m["edu_ai_db"]
     tables = sorted(d["table_dml"])
     runtime = ", ".join(d["S_all_tables_for"])
-    others = "edu_ai_search, edu_ai_ingest, edu_ai_migrator, edu_ai_langflow"
+    others = OTHERS
     out = ["-- GENERATED from postgres/role_contract/matrix.json; do not edit by hand.",
            "-- In database edu_ai, as a superuser. Variable src = the role that owns the objects now (edu_ai_admin on a clean install, the old bootstrap role on adoption).",
            *PRELUDE, "\\if :{?src}", "\\else", "\\set src edu_ai_admin", "\\endif"]
@@ -241,18 +261,17 @@ def gen_edu_ai(m: dict) -> str:
     out.append("-- PUBLIC: nothing; the application roles start from nothing too, so a re-run converges and no grant option survives")
     out.append("REVOKE ALL ON SCHEMA edu_ai, public, paradedb, pdb FROM PUBLIC;")
     out.append(f"REVOKE ALL ON SCHEMA edu_ai, public, paradedb, pdb FROM {others};")
-    out.append("REVOKE ALL ON ALL TABLES IN SCHEMA edu_ai, paradedb, pdb FROM PUBLIC;")
+    out.append("REVOKE ALL ON ALL TABLES IN SCHEMA edu_ai FROM PUBLIC;")
     out.append("REVOKE ALL ON ALL SEQUENCES IN SCHEMA edu_ai FROM PUBLIC;")
-    out.append("REVOKE ALL ON ALL ROUTINES IN SCHEMA edu_ai, paradedb, pdb FROM PUBLIC;")
-    out.append(f"REVOKE ALL ON ALL TABLES IN SCHEMA edu_ai, paradedb, pdb FROM {others};")
+    out.append("REVOKE ALL ON ALL ROUTINES IN SCHEMA edu_ai FROM PUBLIC;")
+    out.append(f"REVOKE ALL ON ALL TABLES IN SCHEMA edu_ai FROM {others};")
     out.append(f"REVOKE ALL ON ALL SEQUENCES IN SCHEMA edu_ai FROM {others};")
-    out.append(f"REVOKE ALL ON ALL ROUTINES IN SCHEMA edu_ai, paradedb, pdb FROM {others};")
+    out.append(f"REVOKE ALL ON ALL ROUTINES IN SCHEMA edu_ai FROM {others};")
+    out += extension_privileges(m)
     out.append("-- schema USAGE")
     for schema, roles in d["schema_usage"].items():
         out.append(f"GRANT USAGE ON SCHEMA {schema} TO {', '.join(roles)};")
-    out.append("-- extension objects used at runtime: read/execute only")
-    out.append(f"GRANT SELECT ON ALL TABLES IN SCHEMA paradedb, pdb TO {runtime};")
-    out.append(f"GRANT EXECUTE ON ALL ROUTINES IN SCHEMA edu_ai, paradedb, pdb TO {runtime}, {d['object_owner']};")
+    out.append(f"GRANT EXECUTE ON ALL ROUTINES IN SCHEMA edu_ai TO {runtime}, {d['object_owner']};")
     out.append("-- tables: SELECT for the runtime roles, DML only per the explicit matrix")
     out.append(f"GRANT SELECT ON ALL TABLES IN SCHEMA edu_ai TO {runtime};")
     letter = {"I": "INSERT", "U": "UPDATE", "D": "DELETE"}

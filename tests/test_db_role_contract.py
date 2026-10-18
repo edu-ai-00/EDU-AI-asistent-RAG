@@ -42,6 +42,12 @@ class GeneratorTests(unittest.TestCase):
             on_disk = (ROOT / "postgres" / "init_clean" / name).read_bytes().decode("utf-8").replace("\r\n", "\n")
             self.assertEqual(on_disk, text, f"{name} was edited by hand or the matrix changed: run db_roles.py gen-sql")
 
+    def test_extension_privileges_are_the_contracts_own(self):
+        # bootstrap re-runs these after ALTER EXTENSION UPDATE; they must be the clean install's statements
+        edu_ai = db_roles.gen_edu_ai(M).splitlines()
+        for line in db_roles.extension_privileges(M):
+            self.assertIn(line, edu_ai)
+
     def test_matrix_forbids_what_the_contract_forbids(self):
         for role in ("edu_ai_search", "edu_ai_ingest", "edu_ai_langflow", "edu_ai_migrator", "edu_ai_owner"):
             a = M["roles"][role]

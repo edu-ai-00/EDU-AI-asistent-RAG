@@ -322,7 +322,9 @@ services:
     container_name: edu_ai_postgres
     # pg_search spawns a background worker → its library must be preloaded at
     # server start (a plain CREATE EXTENSION is not enough without this).
-    command: ["postgres", "-c", "shared_preload_libraries=pg_search"]
+    # planner_warnings: pg_search 0.26 warns on every search that joins document_metadata
+    # ("JoinScan not used"); the results do not depend on it.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_search", "-c", "paradedb.planner_warnings=off"]
     expose:
       - "5432"                       # internal only
     environment:
@@ -338,6 +340,9 @@ services:
       POSTGRES_LANGFLOW_PASSWORD: ${POSTGRES_LANGFLOW_PASSWORD}
       POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD}
     volumes:
+      # The PostgreSQL 18 image declares VOLUME /var/lib/postgresql; named here, it is
+      # labelled and in the model instead of anonymous. It stays empty: PGDATA is below.
+      - postgres_root:/var/lib/postgresql
       - postgres_data:/var/lib/postgresql/data
       # Schema bootstrap: runs ONLY on first start with an empty data volume.
       # init_clean is the consolidated baseline (schema + config in 3 files);
@@ -575,6 +580,7 @@ configs:
 #  Volumes
 # ══════════════════════════════════════════════════════════════
 volumes:
+  postgres_root:        # the postgres image's declared VOLUME; empty (see the postgres service)
   postgres_data:
   pgadmin_data:
   reranker_models:      # HF model cache for the in-process cross-encoder reranker

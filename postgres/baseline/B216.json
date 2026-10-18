@@ -24,7 +24,7 @@
   ],
   "fingerprint": {
     "algorithm": "edu-ai-fp-v1",
-    "config": "b94e98c43fbc53ee809de41769ed47f0770f7ceae58d3fe2f50d9b01efd232f0",
+    "config": "521126f761beeaffe47d0d8409b2f2fc5b721c7c3b384463e43a48d842520a0f",
     "config_dump_args": [
       "--data-only",
       "--column-inserts",
@@ -54,7 +54,7 @@
       "created_at",
       "updated_at"
     ],
-    "schema": "57d648886a239019cba20bc9b8e837ab0f5bcdb5f0dda0286ce94abc67619a14",
+    "schema": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
     "schema_dump_args": [
       "--schema-only",
       "--schema=edu_ai",
@@ -69,19 +69,19 @@
   "id": "B216",
   "kind": "baseline",
   "postgres": {
-    "base_image": "pgvector/pgvector:0.7.4-pg16@sha256:7bbb2558b9b73d23c4a7795d7a016cbb531ef5fb1e231115fa1aeac5129caf10",
+    "base_image": "pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
     "extensions": {
-      "pg_search": "0.25.1",
+      "pg_search": "0.26.2",
       "pg_trgm": "1.6",
       "plpgsql": "1.0",
       "unaccent": "1.1",
-      "vector": "0.7.4"
+      "vector": "0.8.7"
     },
-    "pg_dump_version": "16.3",
-    "server_version": "16.3"
+    "pg_dump_version": "18.6",
+    "server_version": "18.6"
   },
   "source": {
-    "base_commit": "7d9484ac10973b35eeeb25cb9f3b8b78dac9fc58",
+    "base_commit": "697d9651d5c7e4118db78eae4a1120c19188fc11",
     "note": "Commit the inputs were generated from, i.e. the parent of the commit that adds this manifest (a manifest cannot name its own commit). Informational: identity is carried by the file hashes below."
   }
 }
