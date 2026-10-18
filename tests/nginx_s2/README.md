@@ -29,7 +29,7 @@ The evidence above ran on the production image (1.27.5). `docker-compose.yml` ma
 same checks against it, set both variables (the ID is the one `docker image inspect <tag> --format '{{.Id}}'` prints):
 
 ```bash
-EDU_AI_LAB_NGINX_IMAGE=nginx:1.30.5-alpine EDU_AI_LAB_NGINX_ID=sha256:<id> python tests/nginx_s2/run_s2.py static --baseline <SHA>
+EDU_AI_LAB_NGINX_IMAGE=nginx:1.30.6-alpine EDU_AI_LAB_NGINX_ID=sha256:<id> python tests/nginx_s2/run_s2.py static --baseline <SHA>
 ```
 
 The `static` check "image is the production nginx image" then compares against that ID. `--baseline` and the

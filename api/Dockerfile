@@ -2,7 +2,7 @@
 # Base image
 # ---------------------------------------------------------
 # Pinned by digest: the tag alone is rebuilt upstream (Debian point releases).
-FROM python:3.11.16-slim@sha256:e41613d42d4891e4930f79523f93f81bbc7632584ec65e36ab055f41a800b41e
+FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
 # ---------------------------------------------------------
 # Environment settings

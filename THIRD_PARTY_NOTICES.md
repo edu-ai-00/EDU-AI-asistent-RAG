@@ -22,13 +22,13 @@ inventory is not a blanket conclusion about redistribution obligations.
 | pgvector (extension; base image `pgvector/pgvector:0.8.7-pg18`) | 0.8.7 | PostgreSQL License | Andrew Kane |
 | pg_search (installed by Dockerfile.postgres) | 0.26.2 | [AGPL-3.0](https://github.com/paradedb/paradedb/blob/v0.26.2/LICENSE) | ParadeDB contributors |
 | Bifrost gateway | image v2.2.6 | [Apache-2.0](https://github.com/maximhq/bifrost/blob/8b4fce4f1709d66f9208d02f50552da522535f9e/LICENSE), upstream transports/v2.2.6 source | Maxim AI / Bifrost contributors |
-| cloudflared (optional Compose profile) | unpinned image tag latest | [Apache-2.0](https://github.com/cloudflare/cloudflared/blob/master/LICENSE), upstream checked 2026-10-12 | Cloudflare contributors |
+| cloudflared (optional Compose profile) | image 2026.10.1 | [Apache-2.0](https://github.com/cloudflare/cloudflared/blob/master/LICENSE), upstream checked 2026-10-12 | Cloudflare contributors |
 | pg_trgm, unaccent (extensions) | bundled with 18.6 | PostgreSQL License | PostgreSQL Global Development Group |
 | pgAdmin 4 (image `dpage/pgadmin4`) | 9.18.0 | PostgreSQL License | pgAdmin Development Team (Dave Page et al.) |
-| nginx | 1.30.5 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
-| CPython runtime / base images | 3.11 / 3.12 slim | PSF-2.0 | Python Software Foundation |
-| Node.js (frontend build stage only) | 24.18 alpine | MIT | OpenJS Foundation |
-| Debian (image OS layer) | 12 | various | Debian contributors |
+| nginx | 1.30.6 | BSD-2-Clause | Igor Sysoev; F5/NGINX team |
+| CPython runtime / base images | 3.12.15 slim | PSF-2.0 | Python Software Foundation |
+| Node.js (frontend build stage only) | 26.12 alpine | MIT | OpenJS Foundation |
+| Debian (image OS layer) | 12 bookworm (PostgreSQL image), 13 trixie (Python images) | various | Debian contributors |
 
 ## `edu_ai — Langflow (ingestion engine)`
 
@@ -56,7 +56,7 @@ Base image `langflowai/langflow:1.10.1` (MIT). Packages WE add on top (`requirem
 
 ## `edu_ai_search (retrieval microservice)`
 
-Base image `python:3.12-slim` (PSF-2.0). The table below is the **historical installed-image inventory from 2026-07-30**, not the current runtime inventory — the direct dependencies declared in `search/requirements.txt` are in
+Base image `python:3.12.15-slim` (PSF-2.0). The table below is the **historical installed-image inventory from 2026-07-30**, not the current runtime inventory — the direct dependencies declared in `search/requirements.txt` are in
 **bold**, the rest are transitive. Licences and authors were read from the installed
 package metadata (`License-Expression`, then trove classifiers, then the bundled
 licence file); rows the metadata left empty were filled in by hand from the projects'
@@ -175,7 +175,7 @@ own repositories.
 
 ## `edu_ai_api (ingestion gateway)`
 
-Base image `python:3.11-slim` (PSF-2.0). Installed by `api/Dockerfile`:
+Base image `python:3.12.15-slim` (PSF-2.0). Installed by `api/Dockerfile`:
 
 | Package | Version | Licence | Author / maintainer |
 |---|---|---|---|
@@ -189,7 +189,7 @@ Base image `python:3.11-slim` (PSF-2.0). Installed by `api/Dockerfile`:
 
 ## `edu_ai_web_chat (chat UI backend)`
 
-Base image `python:3.12-slim` (PSF-2.0). Declared in `web_chat/requirements.txt`:
+Base image `python:3.12.15-slim` (PSF-2.0). Declared in `web_chat/requirements.txt`:
 
 | Package | Version | Licence | Author / maintainer |
 |---|---|---|---|

@@ -54,7 +54,7 @@ PICKER_VAR, ENTITY_VAR = "CHAT_ENTITY_PICKER", "CHAT_LEGAL_ENTITY"
 LANGFLOW_URL_PIN = "LANGFLOW_URL=http://127.0.0.1:8444"
 _ITEM = re.compile(r"^([A-Z][A-Z0-9_]*): (REFUSED|UNVERIFIED)(?: (.*))?$")      # a host_preflight line
 _OFFLINE = re.compile(r"^(REFUSED|UNVERIFIED) ([A-Z][A-Z0-9_]*)(?:: (.*))?$")    # an install.py line
-_YES = ("ano", "yes")
+_YES = ("yes",)
 
 
 class Proc(NamedTuple):
@@ -652,12 +652,12 @@ class Wizard:
                 self.say("REFUSED NOT_INTERACTIVE: run in a terminal, or pass --no-input to run without questions")
                 st.refuse("NOT_INTERACTIVE")
                 return st, config, state_dir, project
-            answer = self.host.ask("Použít tento plán a pokračovat? [A/n] ").strip().lower()
-            if answer in ("", "a", "ano", "y", "yes"):
+            answer = self.host.ask("Use this plan and continue? [Y/n] ").strip().lower()
+            if answer in ("", "y", "yes"):
                 return st, config, state_dir, project
-            config = self.host.ask(f"Adresář konfigurace [{config}]: ").strip() or config
-            state_dir = self.host.ask(f"Adresář dat [{state_dir}]: ").strip() or state_dir
-            project = self.host.ask(f"Název projektu Compose [{project}]: ").strip() or project
+            config = self.host.ask(f"Configuration directory [{config}]: ").strip() or config
+            state_dir = self.host.ask(f"Data directory [{state_dir}]: ").strip() or state_dir
+            project = self.host.ask(f"Compose project name [{project}]: ").strip() or project
             st = inspect(self.host, self.root, config, state_dir, project)
         self.say("REFUSED PLAN_NOT_CONFIRMED: nothing was created")
         st.refuse("PLAN_NOT_CONFIRMED")
@@ -671,7 +671,7 @@ class Wizard:
         self.say("NETWORK_POOLS: the addresses of the automatically created Docker networks are not proven free of your LAN or VPN ranges.")
         self.say(f"  {detail}")
         self.say("  Accept only on an isolated VM. Network isolation and firewall are not tested by this tool.")
-        return self.host.ask("Přijímáte toto omezení? Napište 'ano': ").strip().lower() in _YES
+        return self.host.ask("Do you accept this limitation? Type 'yes': ").strip().lower() in _YES
 
     # the run -----------------------------------------------------------------
     def install(self) -> int:
@@ -808,12 +808,12 @@ class Wizard:
         if ip:
             self.say(f"CHAT_URL_LAN: http://{ip}{suffix}/chat/ (only where your network allows it)")
         if chat == "CHAT_AWAITS_SCHOOL_SELECTION":
-            self.say("Otevřete chat a vyberte školu. Do výběru je odesílání vypnuté; výběr patří tomuto prohlížeči.")
-            self.say("Výběr školy je rozsah dotazu, nikoli oprávnění; oprávnění a perimetr zajišťuje backend.")
+            self.say("Open the chat and choose a school. Sending stays off until then; the choice belongs to this browser.")
+            self.say("The school choice is the scope of a question, not a permission; permissions and the perimeter are the backend's.")
         elif chat == "CHAT_READY":
-            self.say("Chat používá pevnou školu z konfigurace; tato instalace ji nezměnila.")
+            self.say("The chat uses the fixed school from the configuration; this installation did not change it.")
         else:
-            self.say("Chat nemá školu: zapněte výběr nebo nastavte pevnou školu; viz docs/CLEAN_INSTALL.md.")
+            self.say("The chat has no school: turn the choice on or set a fixed school; see docs/CLEAN_INSTALL.md.")
         self.say("PROVIDER: the LLM provider is a separate input (Bifrost UI on 127.0.0.1:8099 over an SSH tunnel, "
                  "login BIFROST_ADMIN_USERNAME / BIFROST_ADMIN_PASSWORD from the config .env); "
                  "this run made no paid call and does not claim answers work")

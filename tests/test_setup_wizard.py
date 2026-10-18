@@ -324,7 +324,7 @@ class OrderAndStopTests(WizardCase):
         self.assertIn("CHAT_AWAITS_SCHOOL_SELECTION", text)
         self.assertIn("http://localhost/chat/", text)
         self.assertIn("http://192.168.50.7/chat/", text)
-        self.assertIn("vyberte školu", text)
+        self.assertIn("choose a school", text)
         self.assertIn(SHA, text)
 
     @needs_links
@@ -983,11 +983,22 @@ class NetworkPoolsTests(WizardCase):
 
     @needs_links
     def test_interactive_yes_records_the_acceptance_and_continues(self):
-        host = FakeHost(self.home, self.root, tty=True, answers=["", "ano"])
+        host = FakeHost(self.home, self.root, tty=True, answers=["", "yes"])
         self.assertEqual(self.run_cli("install", host=host), 0, host.text)
         self.assertIn("NETWORK_POOLS_ACCEPTED", host.text)
         self.assertIn("bootstrap", host.keys)
         self.assertEqual(len(host.asked), 2)  # plan, then the network-pools question
+
+    @needs_links
+    def test_interactive_ano_or_y_does_not_accept_the_pools_finding(self):
+        # the question is English now; only the word `yes` accepts (`ano` and `y` do not)
+        for answer in ("ano", "y"):
+            with self.subTest(answer=answer):
+                self.reset()
+                host = FakeHost(self.home, self.root, tty=True, answers=["", answer])
+                self.assertNotEqual(self.run_cli("install", host=host), 0, host.text)
+                self.assertNotIn("NETWORK_POOLS_ACCEPTED", host.text)
+                self.assertFalse(self.started(host))
 
     @needs_links
     def test_only_the_pools_finding_may_be_accepted_not_a_mixed_refusal(self):
@@ -1002,7 +1013,7 @@ class NetworkPoolsTests(WizardCase):
             for code, level in (("MODEL", W.HP.UNVERIFIED), ("PORTS", W.HP.REFUSED)):
                 with self.subTest(step=step, code=code):
                     self.reset()
-                    host = FakeHost(self.home, self.root, tty=True, answers=["", "ano"])
+                    host = FakeHost(self.home, self.root, tty=True, answers=["", "yes"])
                     report = pools_preflight((code, level))
                     host.replies[step] = report
                     self.assertEqual(self.run_cli("install", host=host), report.rc, host.text)

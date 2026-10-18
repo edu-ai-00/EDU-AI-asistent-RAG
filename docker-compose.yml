@@ -23,7 +23,7 @@ services:
   # Nginx reverse proxy  (single entry point)
   # ─────────────────────────────────────────────
   nginx:
-    image: nginx:1.30.5-alpine
+    image: nginx:1.30.6-alpine
     container_name: edu_ai_nginx
     ports:
       - "80:80"         # Public API (plain HTTP — TLS terminates in front of nginx)
@@ -277,7 +277,7 @@ services:
   cloudflared:
     # Optional: enable explicitly with COMPOSE_PROFILES=cloudflare in .env.
     profiles: [cloudflare]
-    image: cloudflare/cloudflared:2026.8.1   # pinned for the same reason bifrost is
+    image: cloudflare/cloudflared:2026.10.1   # pinned for the same reason bifrost is
     container_name: cloudflared
     command: tunnel --no-autoupdate run
     environment:

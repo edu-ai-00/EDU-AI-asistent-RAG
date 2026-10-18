@@ -96,7 +96,7 @@ class Fingerprint(unittest.TestCase):
 
 class RefreshImages(unittest.TestCase):
     MODEL = {"services": {"svc": {"image": "edu_svc:1.0", "build": {"context": "/x", "dockerfile": "Dockerfile"}},
-                          "nginx": {"image": "nginx:1.30.5-alpine"}}}
+                          "nginx": {"image": "nginx:1.30.6-alpine"}}}
 
     def setUp(self):
         patcher = mock.patch.object(bootstrap, "_built_this_run", set())

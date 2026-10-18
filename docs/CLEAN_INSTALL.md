@@ -54,7 +54,7 @@ blocks one at a time; on an error, resolve its cause first.
    Confirm the plan with Enter. The wizard prepares the configuration
    `~/edu-ai/config`, the state `~/edu-ai/state`, the project `edu_ai`, the
    bootstrap with smoke and the roles check. `NETWORK_POOLS` may be accepted with
-   the word `ano` only as the single unverified finding on an isolated VM. Any
+   the word `yes` only as the single unverified finding on an isolated VM. Any
    other problem stops the installation. Optional read-only overview:
    `python3 scripts/setup.py plan`.
 4. **Open the chat and verify the result.** Require `BACKEND_READY: yes`, roles
@@ -74,7 +74,7 @@ The default Compose publishes ports 80, 8443 and 8444. Restrict access at the
 network perimeter before starting. The wizard does not check the firewall or the
 isolation and does not enable Cloudflare. `NETWORK_POOLS` remains unverified: the
 automatic Docker networks are not measured against the LAN/VPN. On an isolated VM,
-only this single finding may be accepted by answering `ano`. Any other rejection
+only this single finding may be accepted by answering `yes`. Any other rejection
 or unverified finding must stop the installation.
 
 Non-interactive equivalent for an operator who explicitly accepts this limitation:

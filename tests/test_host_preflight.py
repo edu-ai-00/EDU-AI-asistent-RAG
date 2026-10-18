@@ -204,7 +204,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(m.networks["edu_ai_tunnel"], "tunnel")
         self.assertEqual(set(m.volumes), {"edu_ai_postgres_data", "edu_ai_pgadmin_data", "edu_ai_reranker_models", "edu_ai_qa_admin_state"})
         self.assertTrue(m.images["edu_ai_postgres:cs"])
-        self.assertFalse(m.images["nginx:1.30.5-alpine"])
+        self.assertFalse(m.images["nginx:1.30.6-alpine"])
         self.assertEqual(m.tunnel_subnet, SUBNET)
 
     def test_a_model_of_another_project_or_a_wrong_shape_is_refused(self):
@@ -555,13 +555,13 @@ class CheckTests(Tree):
         self.assertEqual(self.check().exit_code(), 0)
 
     def test_a_public_image_already_on_the_host_is_a_note_unless_the_operator_is_strict(self):
-        self.world.images = [{"Repository": "nginx", "Tag": "1.30.5-alpine"}, {"Repository": "maximhq/bifrost", "Tag": "v2.2.6"}]
+        self.world.images = [{"Repository": "nginx", "Tag": "1.30.6-alpine"}, {"Repository": "maximhq/bifrost", "Tag": "v2.2.6"}]
         r = self.check()
         self.assertEqual(r.exit_code(), 0)
         self.expect(r, "IMAGES_PRESENT_PULLED", NOTE)
         strict = self.check(opts=H.Options(refuse_pulled_images=True, accept_unmeasured_pools=True))
         self.expect(strict, "EXISTING_IMAGES", REFUSED)
-        self.world.images = [{"Repository": "docker.io/library/nginx", "Tag": "1.30.5-alpine"}]
+        self.world.images = [{"Repository": "docker.io/library/nginx", "Tag": "1.30.6-alpine"}]
         self.expect(self.check(opts=H.Options(refuse_pulled_images=True, accept_unmeasured_pools=True)), "EXISTING_IMAGES", REFUSED)
 
     def test_garbage_listings_are_unverified(self):

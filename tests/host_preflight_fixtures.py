@@ -30,11 +30,11 @@ SUBNET = "10.77.3.0/29"
 GIB = 1024 ** 3
 
 SERVICES = {   # service: (container_name, image, built here, [(published, host_ip)])
-    "nginx": ("edu_ai_nginx", "nginx:1.30.5-alpine", False, [("80", ""), ("8443", ""), ("8444", "")]),
+    "nginx": ("edu_ai_nginx", "nginx:1.30.6-alpine", False, [("80", ""), ("8443", ""), ("8444", "")]),
     "edu_ai_api": ("edu_ai_api", "edu_ai_api:1.0", True, []),
     "edu_ai": ("edu_ai", "edu_ai:1.1.0", True, []),
     "bifrost": ("bifrost", "maximhq/bifrost:v2.2.6", False, [("8099", "127.0.0.1")]),
-    "cloudflared": ("cloudflared", "cloudflare/cloudflared:2026.8.1", False, []),
+    "cloudflared": ("cloudflared", "cloudflare/cloudflared:2026.10.1", False, []),
     "postgres": ("edu_ai_postgres", "edu_ai_postgres:cs", True, []),
     "pgadmin": ("edu_ai_pgadmin", "dpage/pgadmin4:9.18.0", False, []),
     "edu_ai_search": ("edu_ai_search", "edu_ai_search:1.0", True, []),
