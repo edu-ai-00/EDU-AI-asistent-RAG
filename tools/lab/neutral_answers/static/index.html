@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neutrální odpovědi</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f1f3f6; --line: #e2e5ea;
+  --text: #1c2330; --muted: #5f6b7a; --faint: #8a95a3;
+  --accent: #3b5bdb; --accent-soft: #e7ecff;
+  --ok: #2b8a3e; --ok-soft: #e3f4e6; --bad: #c92a2a; --bad-soft: #fde8e8;
+  --warn: #b45309; --warn-soft: #fff1db; --auto: #1c64b4; --auto-soft: #e3effd;
+  --ins: #d3f5dc; --ins-text: #135c25; --del: #fbdcdc; --del-text: #8f1d1d;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --panel: #1a1f27; --panel-2: #212732; --line: #2d3442;
+    --text: #e6e9ef; --muted: #a3adbb; --faint: #7b8696;
+    --accent: #8ea4ff; --accent-soft: #263055;
+    --ok: #69db7c; --ok-soft: #1d3324; --bad: #ff8787; --bad-soft: #3a2024;
+    --warn: #ffc078; --warn-soft: #3a2c17; --auto: #74b5ff; --auto-soft: #1b2c44;
+    --ins: #1f3d29; --ins-text: #b2f2bb; --del: #432126; --del-text: #ffc9c9;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--panel); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 0 20px; }
+.top { display: flex; align-items: center; gap: 12px 16px; padding-top: 16px; padding-bottom: 16px; flex-wrap: wrap; }
+.top h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.top .src { color: var(--muted); font-size: 13px; }
+.top .spacer { flex: 1; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.btn.ok:hover, .btn.ok.on { background: var(--ok-soft); }
+.btn.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.btn.bad:hover, .btn.bad.on { background: var(--bad-soft); }
+.btn.sm { padding: 3px 9px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 18px 0 6px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; box-shadow: var(--shadow); cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.stat.on { outline: 2px solid var(--accent); outline-offset: -1px; }
+.stat .n { font-size: 26px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .l { font-size: 13px; color: var(--muted); }
+.stat .bar { height: 4px; border-radius: 4px; background: var(--panel-2); margin-top: 8px; overflow: hidden; }
+.stat .bar i { display: block; height: 100%; background: var(--accent); }
+.stat.s-ok .bar i { background: var(--ok); } .stat.s-bad .bar i { background: var(--bad); }
+.stat.s-warn .bar i { background: var(--warn); }
+
+.tools { display: flex; gap: 10px; align-items: center; padding: 12px 0; flex-wrap: wrap; }
+.tools input[type=search], .tools select { font: inherit; font-size: 14px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); }
+.tools input[type=search] { min-width: 260px; flex: 1; max-width: 420px; }
+.tools .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+details.legend { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 14px; margin-bottom: 14px; }
+details.legend summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px 18px; padding: 10px 0 4px; }
+.legend-grid div { font-size: 13px; color: var(--muted); }
+.legend-grid b { color: var(--text); font-weight: 600; }
+
+.table { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; margin-bottom: 40px; }
+.row { display: grid; grid-template-columns: 52px minmax(200px, 1.05fr) minmax(220px, 1.1fr) minmax(240px, 1.3fr) 170px 150px;
+  border-top: 1px solid var(--line); }
+.row > div { padding: 12px 12px; min-width: 0; }
+.row.head { border-top: 0; background: var(--panel-2); font-size: 12px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); font-weight: 600; position: sticky; top: 0; z-index: 2; }
+.row.head > div { padding: 9px 12px; }
+.row.st-approved { box-shadow: inset 3px 0 0 var(--ok); }
+.row.st-rejected { box-shadow: inset 3px 0 0 var(--bad); }
+.id { color: var(--faint); font-variant-numeric: tabular-nums; font-size: 13px; }
+.q-main { font-weight: 600; }
+.q-alts { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.q-alts li { padding-left: 14px; position: relative; }
+.q-alts li::before { content: "↳"; position: absolute; left: 0; color: var(--faint); }
+.linkish { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+.orig { color: var(--muted); }
+.final { white-space: pre-wrap; overflow-wrap: anywhere; }
+.orig { white-space: pre-wrap; overflow-wrap: anywhere; }
+ins { background: var(--ins); color: var(--ins-text); text-decoration: none; border-radius: 3px; padding: 0 1px; }
+del { background: var(--del); color: var(--del-text); border-radius: 3px; padding: 0 1px; }
+.same { color: var(--faint); font-size: 13px; font-style: italic; margin-top: 4px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin: 0 4px 4px 0;
+  border: 1px solid transparent; cursor: help; }
+.tag.auto { background: var(--auto-soft); color: var(--auto); }
+.tag.check { background: var(--warn-soft); color: var(--warn); }
+.tag.flag { background: var(--bad-soft); color: var(--bad); }
+.tag.mach { background: var(--panel-2); color: var(--muted); }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.pill.pending { background: var(--panel-2); color: var(--muted); }
+.pill.approved { background: var(--ok-soft); color: var(--ok); }
+.pill.rejected { background: var(--bad-soft); color: var(--bad); }
+.pill.stale { background: var(--warn-soft); color: var(--warn); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.edited { font-size: 12px; color: var(--accent); margin-top: 4px; }
+textarea { width: 100%; min-height: 110px; font: inherit; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--accent); background: var(--panel); color: var(--text); resize: vertical; }
+.flags { margin-top: 8px; display: grid; gap: 4px; }
+.flags div { font-size: 13px; color: var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 4px 8px; }
+
+.machine { grid-column: 1 / -1; background: var(--panel-2); border-top: 1px dashed var(--line); padding: 12px 16px 16px 64px !important; }
+.machine h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.mtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mtable th, .mtable td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.mtable th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.tok { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin: 1px 2px 1px 0; }
+.tok.drop { color: var(--faint); text-decoration: line-through; border-style: dashed; }
+.warn { color: var(--warn); }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.on { opacity: .95; }
+
+@media (max-width: 1100px) {
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .row.head { display: none; }
+  .row { grid-template-columns: 1fr; }
+  .row > div { padding: 8px 14px; }
+  .row > div[data-label]::before { content: attr(data-label); display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--faint); margin-bottom: 2px; }
+  .machine { padding: 12px 14px !important; }
+  .mtable { display: block; overflow-x: auto; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 16px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tools input[type=search] { min-width: 0; width: 100%; max-width: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div>
+      <h1>Neutrální odpovědi</h1>
+      <div class="src" id="src">Načítám…</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="bulk" title="Schválí čekající položky, které mají jen automatické změny a žádné upozornění">Schválit všechny automatické</button>
+    <a class="btn" href="/export/review.csv">⇩ Přehled (CSV)</a>
+    <a class="btn primary" href="/export/pack.csv" title="Schválené odpovědi ve formátu QA sady (kategorie a oblasti doplňte před nahráním)">⇩ QA sada (CSV)</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="stats" id="stats"></section>
+  <section class="tools">
+    <input type="search" id="q" placeholder="Hledat v otázkách a odpovědích…" aria-label="Hledat">
+    <select id="rule" aria-label="Pravidlo"><option value="">Všechna pravidla</option></select>
+    <label style="font-size:14px;color:var(--muted);display:flex;gap:6px;align-items:center">
+      <input type="checkbox" id="allMachine"> rozbalit strojový pohled</label>
+    <span class="count" id="count"></span>
+  </section>
+  <details class="legend"><summary>Co jednotlivá pravidla dělají</summary>
+    <div class="legend-grid" id="legend"></div>
+    <div class="legend-grid">
+      <div><span class="tag auto">auto</span> mechanická oprava, bezpečná jako návrh</div>
+      <div><span class="tag check">zkontrolovat</span> návrh, u kterého je potřeba ověřit shodu a smysl</div>
+      <div><span class="tag flag">upozornění</span> problém, který pravidla vidí, ale neopraví</div>
+    </div>
+  </details>
+  <section class="table" id="table" aria-live="polite"></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { data: null, filter: "all", q: "", rule: "", open: new Set(), editing: null, allMachine: false };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1600); }
+
+// word-level diff (LCS over words + whitespace runs)
+function diff(a, b) {
+  const A = a.split(/(\s+)/).filter((x) => x !== ""), B = b.split(/(\s+)/).filter((x) => x !== "");
+  const n = A.length, m = B.length, L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  const push = (t, s) => { const last = out[out.length - 1]; if (last && last.t === t) last.s += s; else out.push({ t, s }); };
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { push("eq", A[i]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) push("del", A[i++]); else push("ins", B[j++]);
+  }
+  while (i < n) push("del", A[i++]); while (j < m) push("ins", B[j++]);
+  return out;
+}
+const renderDiff = (a, b) => diff(a, b).map((p) => p.t === "eq" ? esc(p.s) : `<${p.t}>${esc(p.s)}</${p.t}>`).join("");
+
+function finalOf(it) {
+  const d = it.decision;
+  if (d.status === "rejected") return it.answer;
+  return (!d.stale && d.final) || it.proposed;
+}
+const hasCheck = (it) => it.changes.some((c) => c.kind === "check") || it.flags.length > 0;
+const changed = (it) => it.proposed !== it.answer || it.flags.length > 0;
+const machWarn = (it) => it.machine ? [...(it.machine.questions || []), it.machine.proposed].filter(Boolean).reduce((n, x) => n + (x.warnings || []).length, 0) : 0;
+
+const FILTERS = [
+  ["all", "Všechny položky", () => true, ""],
+  ["changed", "Navržená změna", changed, ""],
+  ["check", "Ke kontrole", hasCheck, "s-warn"],
+  ["pending", "Čeká na rozhodnutí", (it) => it.decision.status === "pending" && changed(it), ""],
+  ["approved", "Schváleno", (it) => it.decision.status === "approved", "s-ok"],
+  ["rejected", "Zamítnuto", (it) => it.decision.status === "rejected", "s-bad"],
+];
+
+function renderStats() {
+  const items = S.data.items, total = items.length || 1;
+  $("#stats").innerHTML = FILTERS.map(([k, label, fn, cls]) => {
+    const n = items.filter(fn).length;
+    return `<button class="stat ${cls} ${S.filter === k ? "on" : ""}" data-f="${k}">
+      <div class="n">${n}</div><div class="l">${label}</div>
+      <div class="bar"><i style="width:${Math.round((n / total) * 100)}%"></i></div></button>`;
+  }).join("");
+}
+
+function tags(it) {
+  const R = S.data.rules, seen = new Map();
+  for (const c of it.changes) {
+    const key = c.rule + "|" + c.kind, e = seen.get(key) || { rule: c.rule, kind: c.kind, notes: [] };
+    const what = c.before || c.after ? `„${c.before}“ → „${c.after}“` : "";
+    e.notes.push([what, c.note].filter(Boolean).join(" — ")); seen.set(key, e);
+  }
+  let html = [...seen.values()].map((e) => `<span class="tag ${e.kind}" title="${esc(e.notes.join("\n"))}">${esc(R[e.rule]?.title || e.rule)}${e.notes.length > 1 ? " ×" + e.notes.length : ""}</span>`).join("");
+  html += it.flags.map((f) => `<span class="tag flag" title="${esc(f.note)}">⚠ ${esc(R[f.rule]?.title || f.rule)}</span>`).join("");
+  const mw = machWarn(it);
+  if (mw) html += `<span class="tag mach" title="Varování strojového pohledu — rozbalte ho">⚙ strojově ${mw}</span>`;
+  return html || `<span class="same">bez nálezu</span>`;
+}
+
+function tokRow(forms, key) {
+  if (!forms) return "";
+  return (forms[key] || []).map((t) => `<span class="tok">${esc(t)}</span>`).join("") +
+    (key === "norm" ? (forms.dropped || []).map((t) => `<span class="tok drop" title="stop-slovo, ve vyhledávání se nepoužije">${esc(t)}</span>`).join("") : "");
+}
+
+function machineHtml(it) {
+  const m = it.machine;
+  if (!m) return `<div class="machine row-extra"><span class="warn">Strojový pohled není k dispozici — server běží bez knihovny eduai_normalize (spusťte ho přes run.sh).</span></div>`;
+  const rows = [...m.questions.map((q, i) => ({ who: i === 0 ? "Otázka" : `Alternativa ${i}`, text: q.text, f: q })),
+    { who: "Odpověď (navržená)", text: it.proposed, f: m.proposed }];
+  return `<div class="machine"><h4>Strojový pohled — co si z textu vezme vyhledávání</h4>
+    <table class="mtable"><thead><tr><th>Text</th><th>Původní slova (norm)</th><th>Lemma</th><th>Kmen (stem)</th><th>Varování</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td><b>${esc(r.who)}</b><br>${esc(r.text)}</td><td>${tokRow(r.f, "norm")}</td><td>${tokRow(r.f, "lemma")}</td><td>${tokRow(r.f, "stem")}</td>
+      <td>${(r.f?.warnings || []).map((w) => `<div class="warn">⚠ ${esc(w.note)}</div>`).join("") || '<span class="same">—</span>'}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+function rowHtml(it) {
+  const d = it.decision, fin = finalOf(it), editing = S.editing === it.id;
+  const pill = d.stale ? `<span class="pill stale" title="Zdrojová odpověď se od rozhodnutí změnila">změněno ve zdroji</span>`
+    : `<span class="pill ${d.status}">${{ pending: "čeká", approved: "schváleno", rejected: "zamítnuto" }[d.status]}</span>`;
+  const alts = it.alternatives.length ? `<ul class="q-alts">${it.alternatives.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : "";
+  const finalCell = editing
+    ? `<textarea id="ed-${it.id}">${esc(fin)}</textarea>
+       <div class="actions"><button class="btn sm primary" data-act="save" data-id="${it.id}">Uložit a schválit</button>
+       <button class="btn sm" data-act="cancel" data-id="${it.id}">Zrušit</button></div>`
+    : (fin === it.answer ? `<div class="final">${esc(fin)}</div><div class="same">${d.status === "rejected" ? "zůstává původní znění" : "beze změny"}</div>`
+      : `<div class="final">${renderDiff(it.answer, fin)}</div>${d.final && !d.stale ? '<div class="edited">✎ upraveno ručně</div>' : ""}`)
+      + (it.flags.length ? `<div class="flags">${it.flags.map((f) => `<div>⚠ ${esc(f.note)}</div>`).join("")}</div>` : "");
+  const open = S.allMachine || S.open.has(it.id);
+  return `<div class="row st-${d.stale ? "pending" : d.status}" id="r-${it.id}">
+    <div class="id" data-label="#">${esc(it.id)}</div>
+    <div data-label="Otázky, které k odpovědi vedou"><div class="q-main">${esc(it.canonical_q)}</div>${alts}
+      <button class="linkish" data-act="mach" data-id="${it.id}">${open ? "▾" : "▸"} strojový pohled</button></div>
+    <div data-label="Původní odpověď"><div class="orig">${esc(it.answer)}</div></div>
+    <div data-label="Navržená odpověď">${finalCell}</div>
+    <div data-label="Pravidla">${tags(it)}</div>
+    <div data-label="Stav">${pill}
+      <div class="actions">
+        <button class="btn sm ok ${d.status === "approved" && !d.stale ? "on" : ""}" data-act="approve" data-id="${it.id}" title="Schválit navržené znění">✓</button>
+        <button class="btn sm bad ${d.status === "rejected" && !d.stale ? "on" : ""}" data-act="reject" data-id="${it.id}" title="Zamítnout — zůstane původní znění">✕</button>
+        <button class="btn sm" data-act="edit" data-id="${it.id}" title="Upravit text ručně">✎</button>
+        ${d.status !== "pending" || d.final ? `<button class="btn sm" data-act="reset" data-id="${it.id}" title="Vrátit do stavu čeká">↺</button>` : ""}
+      </div></div>
+    ${open ? machineHtml(it) : ""}
+  </div>`;
+}
+
+function visible() {
+  const fn = FILTERS.find((f) => f[0] === S.filter)[2], q = S.q.toLowerCase();
+  return S.data.items.filter((it) => fn(it)
+    && (!S.rule || it.changes.some((c) => c.rule === S.rule) || it.flags.some((f) => f.rule === S.rule))
+    && (!q || [it.canonical_q, it.answer, it.proposed, ...it.alternatives].join(" ").toLowerCase().includes(q)));
+}
+
+function render() {
+  renderStats();
+  const rows = visible();
+  $("#count").textContent = `Zobrazeno ${rows.length} z ${S.data.items.length}`;
+  $("#table").innerHTML = `<div class="row head"><div>#</div><div>Otázky, které k odpovědi vedou</div><div>Původní odpověď</div><div>Navržená odpověď</div><div>Pravidla</div><div>Stav</div></div>`
+    + (rows.length ? rows.map(rowHtml).join("") : `<div class="empty">Žádná položka neodpovídá filtru.</div>`);
+}
+
+async function decide(id, status, final) {
+  const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id, status, final: final ?? null }) });
+  if (!res.ok) { toast("Uložení selhalo"); return; }
+  const it = S.data.items.find((x) => x.id === id); it.decision = await res.json();
+  S.editing = null; render();
+  toast({ approved: "Schváleno", rejected: "Zamítnuto", pending: "Vráceno" }[status]);
+}
+
+document.addEventListener("click", async (e) => {
+  const st = e.target.closest(".stat"); if (st) { S.filter = st.dataset.f; render(); return; }
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const id = b.dataset.id, it = S.data.items.find((x) => x.id === id), d = it.decision;
+  switch (b.dataset.act) {
+    case "approve": return decide(id, "approved", d.stale ? null : d.final);
+    case "reject": return decide(id, "rejected", null);
+    case "reset": return decide(id, "pending", null);
+    case "edit": S.editing = id; render(); document.getElementById("ed-" + id)?.focus(); return;
+    case "cancel": S.editing = null; render(); return;
+    case "save": {
+      const txt = document.getElementById("ed-" + id).value.trim();
+      return decide(id, "approved", txt && txt !== it.proposed ? txt : null);
+    }
+    case "mach": S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); return;
+  }
+});
+
+$("#bulk").addEventListener("click", async () => {
+  const todo = S.data.items.filter((it) => it.decision.status === "pending" && it.proposed !== it.answer && !hasCheck(it));
+  if (!todo.length) { toast("Žádná čekající položka jen s automatickými změnami"); return; }
+  if (!confirm(`Schválit ${todo.length} položek, které mají jen automatické změny a žádné upozornění?`)) return;
+  for (const it of todo) {
+    const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: it.id, status: "approved", final: null }) });
+    if (res.ok) it.decision = await res.json();
+  }
+  render(); toast(`Schváleno ${todo.length}`);
+});
+$("#q").addEventListener("input", (e) => { S.q = e.target.value; render(); });
+$("#rule").addEventListener("change", (e) => { S.rule = e.target.value; render(); });
+$("#allMachine").addEventListener("change", (e) => { S.allMachine = e.target.checked; render(); });
+
+(async () => {
+  const res = await fetch("/api/items"); S.data = await res.json();
+  const m = S.data.meta;
+  $("#src").textContent = `${m.source} · ${m.count} odpovědí · neutrální podmět „${m.subject}“ · strojový pohled ${m.machine ? "zapnutý" : "nedostupný"}`;
+  $("#legend").innerHTML = Object.values(S.data.rules).map((r) => `<div><b>${esc(r.title)}</b> — ${esc(r.description)}</div>`).join("");
+  $("#rule").innerHTML += Object.entries(S.data.rules).map(([k, r]) => `<option value="${k}">${esc(r.title)}</option>`).join("");
+  render();
+})();
+</script>
+</body>
+</html>
