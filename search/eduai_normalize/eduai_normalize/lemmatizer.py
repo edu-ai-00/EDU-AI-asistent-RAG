@@ -21,18 +21,53 @@ from .normalize import (tokenize, fold, surface_cfg, stopwords_of, drop,
 logger = logging.getLogger(__name__)
 
 
+# Negation as a word PREFIX, per language. Czech negates a verb or adjective by
+# "ne-" and simplemma 2.0.0 drops it: "nesmím" and "smím" both became `smět`, so
+# a question asked in the negative matched — exactly, as qa_exact — the curated
+# answer to the positive one (measured 2026-10-21 with tools/lab/variants: 39 of
+# 39 flipped JPZ questions). English/German/Spanish negate with a separate word,
+# which the lemmatizer does not touch. The implementation of a language lives
+# in code like its stemmer; route.py's guard reads the same table.
+NEGATION_PREFIX: dict[str, tuple[str, ...]] = {"cs": ("ne",), "de": (), "en": (), "es": ()}
+
+# Negated forms the prefix test cannot recognise: "není" minus "ne" is the
+# pronoun "ní", not a form of "být". Lowercase surface → negated lemma.
+_NEGATION_EXCEPTIONS: dict[str, dict[str, str]] = {"cs": {"není": "nebýt"}}
+
+
+@lru_cache(maxsize=100_000)
+def _base_lemma(wl: str, lang: str) -> str:
+    from simplemma import lemmatize
+    try:
+        return lemmatize(wl, lang=lang)
+    except Exception:
+        return wl
+
+
 @lru_cache(maxsize=100_000)
 def lemma_word(word: str, lang: str = "") -> str:
     """Memoized simplemma lemma (diacritics-intact result; caller folds).
 
     simplemma is multilingual — `lang` selects the dictionary (cs + en dicts
-    ship in both images)."""
-    from simplemma import lemmatize
+    ship in both images).
+
+    A negation the library dropped is put back: when the word carries the
+    language's negation prefix, its lemma does not, and the word WITHOUT the
+    prefix reduces to that same lemma, the prefix is negation and stays —
+    "nesmím" → nesmět, "nejde" → nejít. The second test is what keeps words
+    that merely start with the letters out: "nejlepší" (superlative; "jlepší"
+    is no word), "neděle" and "nemocný" (the library keeps them whole)."""
     wl = word.lower()
-    try:
-        return lemmatize(wl, lang=lang)
-    except Exception:
-        return wl
+    lemma = _base_lemma(wl, lang)
+    exc = _NEGATION_EXCEPTIONS.get(lang, {}).get(wl)
+    if exc:
+        return exc
+    for p in NEGATION_PREFIX.get(lang, ()):
+        if (len(wl) > len(p) + 1 and wl.startswith(p)
+                and not lemma.lower().startswith(p)
+                and fold(_base_lemma(wl[len(p):], lang)) == fold(lemma)):
+            return p + lemma
+    return lemma
 
 
 def lemma_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> list[str]:

@@ -224,6 +224,66 @@
         "jso",
         "prijimack"
       ]
+    },
+    {
+      "input": "Co nesmím mít, když to nejde?",
+      "norm": [
+        "co",
+        "nesmim",
+        "mit",
+        "nejde"
+      ],
+      "lemma": [
+        "co",
+        "nesmet",
+        "mit",
+        "nejit"
+      ],
+      "stem": [
+        "co",
+        "nes",
+        "mit",
+        "nejd"
+      ]
+    },
+    {
+      "input": "Není to nejlepší neděle",
+      "norm": [
+        "neni",
+        "nejlepsi",
+        "nedele"
+      ],
+      "lemma": [
+        "nebyt",
+        "nejlepsi",
+        "nedele"
+      ],
+      "stem": [
+        "nen",
+        "nejleps",
+        "nedel"
+      ]
+    },
+    {
+      "input": "nemocný žák nedostal nedostatečnou",
+      "norm": [
+        "nemocny",
+        "zak",
+        "nedostal",
+        "nedostatecnou"
+      ],
+      "lemma": [
+        "nemocny",
+        "zak",
+        "nedostat",
+        "nedostatecny"
+      ],
+      "stem": [
+        "nemocn",
+        "zak",
+        "nedostal",
+        "nedostatecn"
+      ]
     }
   ]
 }

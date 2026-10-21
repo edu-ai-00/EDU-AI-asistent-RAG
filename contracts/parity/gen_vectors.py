@@ -51,6 +51,12 @@ LANGS = {
             # Without a case like this the vectors could not see a change to
             # per-column stoplist derivation at all (found 2026-09-04).
             "Kdy jsou přijímačky?",
+            # negation kept in the lemma (eduai_normalize 3.1.0): nesmět/nejít,
+            # the exception "není", and words that only START with the letters
+            # (superlative nej-, neděle, nemocný) left alone
+            "Co nesmím mít, když to nejde?",
+            "Není to nejlepší neděle",
+            "nemocný žák nedostal nedostatečnou",
         ],
     },
     "en": {

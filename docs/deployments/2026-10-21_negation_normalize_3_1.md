@@ -1,0 +1,54 @@
+# Deployment: negation in the lemma (eduai_normalize 3.1.0), synonym groups 217
+
+> **Prepared 21 Oct 2026, not deployed.** Verified on the lab installation only
+> (no QA packs, no documents in its database).
+
+## What changes
+
+- `eduai_normalize` **3.1.0**: a Czech lemma keeps its negation. simplemma 2.0.0
+  reduced "nesmím" and "smím" to the same `smět`; now `nesmět`. Rule in
+  [`lemmatizer.py`](../../search/eduai_normalize/eduai_normalize/lemmatizer.py),
+  cases in the [parity vectors](../../contracts/parity/cs-normalization-vectors.json).
+- `qa_lexical` and `qa_vector` give **no curated answer across opposite
+  polarity** ("nepřijde" vs "přijde"); `qa_lexical` offers the entry as a
+  suggestion instead (`negation_conflict` in
+  [`qa_common.py`](../../search/app/nodes/qa_common.py)).
+- [Migration 217](../../postgres/init/217_synonyms_meeting_groups.sql): ten
+  single-word synonym groups (syn/dcera/dítě/žák/uchazeč, stravování, PPP,
+  matematika, čeština, učitel, grades 1, 2, 4, 5).
+
+Measured with [`tools/lab/variants`](../../tools/lab/variants/README.md) on the
+JPZ set (110 questions, 640 variants): flipped-negation questions answered with
+the original curated answer 39/39 → 0/39 (all 39 offered as a suggestion);
+synonym variants answered 79 % → 100 %; diacritics-less and typo variants
+unchanged.
+
+## Order
+
+1. Build **both** images; one side on 3.0.0 reduces differently.
+
+   ```bash
+   docker compose build edu_ai_search edu_ai
+   docker compose up -d edu_ai_search edu_ai
+   docker exec -i edu_ai_search python -c "import eduai_normalize as e;print(e.__version__)"
+   docker exec -i edu_ai /app/.venv/bin/python -c "import eduai_normalize as e;print(e.__version__)"
+   ```
+
+   Both must report `3.1.0`.
+2. Apply migration 217.
+3. **Re-ingest every QA pack and every document.** Stored `lemma_text` was
+   built with 3.0.0: a stored "nesmí" still reads `smet` and no longer meets a
+   3.1.0 query "nesmím" (`nesmet`) on the lemma form. The norm and stem forms
+   are unchanged, so matching degrades instead of failing, but the fix only
+   works after the re-ingest.
+4. Parity: `contracts/parity/check_vectors.py` (command in
+   [AGENTS.md](../../AGENTS.md)) must pass.
+
+The stored reduced forms of `qa_stopword`, `qa_blocklist` and `qa_synonym` were
+recomputed with 3.1.0 on 21 Oct 2026: no row differs, nothing to update.
+
+## Not covered
+
+The standalone word "ne" (an index stop-word), "nikdy", "žádný", "bez", and
+text without diacritics ("nesmim" is unknown to the dictionary). `qa_vector`
+and the generated answer were not measured (no OpenAI key on the lab).

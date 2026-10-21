@@ -41,7 +41,7 @@ from ..state import SearchState
 from ..db import get_cursor
 from .. import config
 from ..messages import system_message
-from ..text_norm import fold, tokenize, lemma_tokens
+from ..text_norm import fold, tokenize, lemma_tokens, NEGATION_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,12 @@ _PHRASE_SLACK = 3
 # Negation prefixes, per language. Belongs in the číselník like context_leading
 # does, and is kept in code on purpose: _load_blocklist already SKIPS the guard
 # when its DB read fails, so making negation handling depend on a second read
-# would mean a DB hiccup silently inverts what the guard matches.
-_NEGATION_PREFIX = {"cs": ("ne",), "de": (), "en": (), "es": ()}
+# would mean a DB hiccup silently inverts what the guard matches. The table is
+# the normalizer's own (eduai_normalize 3.1.0 keeps the negation in the lemma
+# with it), so the guard and the reducer cannot disagree on what a prefix is.
+# Since 3.1.0 _negation_lost fires only where the lemmatizer could not restore
+# the prefix; it stays as the guard's safety net.
+_NEGATION_PREFIX = NEGATION_PREFIX
 
 
 def _negation_lost(surface: str, lemma: str, lang: str) -> bool:

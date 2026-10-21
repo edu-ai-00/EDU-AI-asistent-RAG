@@ -29,7 +29,7 @@ from .qa_common import (
     concept_idf_weights, weighted_coverage,
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
-    content_tokens, form_text_concat,
+    content_tokens, form_text_concat, negation_conflict,
 )
 
 logger = logging.getLogger(__name__)
@@ -598,8 +598,15 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                                                 "of": _before, "max_df_share": _adm_max_df}
 
             # ── A ──
+            # OPPOSITE POLARITY withholds the answer, never the suggestion:
+            # "Co když pozvánka nepřijde?" must not get the curated answer to
+            # "…přijde?" however well its other words cover (negation_conflict).
+            _neg = negation_conflict(state.get("query_lemma_tokens"), top["tokens"], lang)
+            if _neg:
+                _detail["negation_conflict"] = _neg
+                logger.info("qa_lexical: negation conflict on %s — no curated answer", _neg)
             if (top_cov >= t_answer and margin >= m_margin
-                    and _rare_hit is not False):
+                    and _rare_hit is not False and not _neg):
                 _q, answer_md, _tags, _refs = fetch_answer(cur, top_id)
                 _rel_items = _qa_items(_related, suggest_top_n)
                 # Nothing cleared the bar → what a curator filed alongside this

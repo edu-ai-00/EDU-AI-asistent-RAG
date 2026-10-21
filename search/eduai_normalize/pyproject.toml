@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eduai_normalize"
-version = "3.0.0"
+version = "3.1.0"
 description = "Shared CS+EN normalization / lemma / stem for edu_ai — query↔index parity by construction (used by the search service and the Langflow ChunkLemmatizer ingestion component)."
 requires-python = ">=3.11"
 # langdetect is the PRIMARY language detector (seed pinned in normalize.py).
