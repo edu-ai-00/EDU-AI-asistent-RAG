@@ -24,6 +24,7 @@ from .normalize import (  # noqa: F401
     normalize_tokens, detect_lang, langdetect_scores, fold, tokenize,
     strip_diacritics, surface_cfg, stopwords_of, stem_min_len, drop,
     require_lang, engine_for, engine_name,
+    DIACRITICS_RESTORE, diacritic_candidates, warm_diacritics,
 )
 from .stemmer import stem_tokens, cz_stem_light, stem_word  # noqa: F401
 from .lemmatizer import lemma_tokens, lemma_word, NEGATION_PREFIX  # noqa: F401
@@ -48,7 +49,12 @@ from .lemmatizer import lemma_tokens, lemma_word, NEGATION_PREFIX  # noqa: F401
 #   SURFACE form before reducing (normalize.content_words) — "jsou" no longer
 #   leaks as the stem `jso`, "během" no longer collides with "běh". Stem and
 #   lemma tokens change, so an index built before must be re-ingested.
-__version__ = "3.2.0"
+# 3.3.0 (2026-10-21): a Czech word typed without diacritics that the
+#   dictionary does not know is lemmatized through its forms with them
+#   ("zacina" → začínat; its spellings with diacritics are generated and looked
+#   up in the dictionary), and the dictionary vote of detect_lang counts it.
+#   Lemmas of such words change, on the index side too (re-ingest).
+__version__ = "3.3.0"
 
 
 def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dict[str, list[str]]:
@@ -74,4 +80,5 @@ __all__ = [
     "cz_stem_light", "stem_word", "lemma_word", "NEGATION_PREFIX",
     "surface_cfg", "stopwords_of", "stem_min_len", "drop",
     "require_lang", "engine_for", "engine_name",
+    "DIACRITICS_RESTORE", "diacritic_candidates", "warm_diacritics",
 ]

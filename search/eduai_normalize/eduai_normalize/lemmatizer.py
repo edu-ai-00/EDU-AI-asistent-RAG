@@ -16,7 +16,8 @@ import logging
 from functools import lru_cache
 
 from .normalize import (tokenize, fold, surface_cfg, stopwords_of, drop,
-                        normalize_tokens, require_lang, content_words)
+                        normalize_tokens, require_lang, content_words,
+                        diacritic_candidates)
 
 logger = logging.getLogger(__name__)
 
@@ -44,20 +45,15 @@ def _base_lemma(wl: str, lang: str) -> str:
         return wl
 
 
-@lru_cache(maxsize=100_000)
-def lemma_word(word: str, lang: str = "") -> str:
-    """Memoized simplemma lemma (diacritics-intact result; caller folds).
+def _lemma_known(wl: str, lang: str) -> str:
+    """simplemma's lemma with the negation the library dropped put back.
 
-    simplemma is multilingual — `lang` selects the dictionary (cs + en dicts
-    ship in both images).
-
-    A negation the library dropped is put back: when the word carries the
-    language's negation prefix, its lemma does not, and the word WITHOUT the
-    prefix reduces to that same lemma, the prefix is negation and stays —
-    "nesmím" → nesmět, "nejde" → nejít. The second test is what keeps words
-    that merely start with the letters out: "nejlepší" (superlative; "jlepší"
-    is no word), "neděle" and "nemocný" (the library keeps them whole)."""
-    wl = word.lower()
+    When the word carries the language's negation prefix, its lemma does not,
+    and the word WITHOUT the prefix reduces to that same lemma, the prefix is
+    negation and stays — "nesmím" → nesmět, "nejde" → nejít. The second test is
+    what keeps words that merely start with the letters out: "nejlepší"
+    (superlative; "jlepší" is no word), "neděle" and "nemocný" (the library
+    keeps them whole)."""
     lemma = _base_lemma(wl, lang)
     exc = _NEGATION_EXCEPTIONS.get(lang, {}).get(wl)
     if exc:
@@ -68,6 +64,27 @@ def lemma_word(word: str, lang: str = "") -> str:
                 and fold(_base_lemma(wl[len(p):], lang)) == fold(lemma)):
             return p + lemma
     return lemma
+
+
+@lru_cache(maxsize=100_000)
+def lemma_word(word: str, lang: str = "") -> str:
+    """Memoized simplemma lemma (diacritics-intact result; caller folds).
+
+    simplemma is multilingual — `lang` selects the dictionary (cs + en dicts
+    ship in both images). Negation is kept (_lemma_known).
+
+    A word typed WITHOUT diacritics that the dictionary does not know as typed
+    is lemmatized through its forms with diacritics, when they all agree on the
+    lemma: "zacina" → začínat (was `zacina`), "nesmim" → nesmět. Disagreeing
+    forms stay as they were ("muze": muže / může), and so does a spelling that
+    is a word of its own ("byt") — text with diacritics never reaches this."""
+    wl = word.lower()
+    cands = diacritic_candidates(wl, lang)
+    if cands:
+        lemmas = {_lemma_known(c, lang) for c in cands}
+        if len(lemmas) == 1:
+            return lemmas.pop()
+    return _lemma_known(wl, lang)
 
 
 def lemma_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> list[str]:

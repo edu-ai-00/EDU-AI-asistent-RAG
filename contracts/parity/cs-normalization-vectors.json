@@ -319,6 +319,57 @@
         "dcer",
         "tet"
       ]
+    },
+    {
+      "input": "kdy zacina skola, nesmim mit mobil",
+      "norm": [
+        "kdy",
+        "zacina",
+        "skola",
+        "nesmim",
+        "mit",
+        "mobil"
+      ],
+      "lemma": [
+        "kdy",
+        "zacinat",
+        "skola",
+        "nesmet",
+        "mit",
+        "mobil"
+      ],
+      "stem": [
+        "kdy",
+        "zacin",
+        "skol",
+        "nesmim",
+        "mit",
+        "mobil"
+      ]
+    },
+    {
+      "input": "muze rada skoly zmenit zapis",
+      "norm": [
+        "muze",
+        "rada",
+        "skoly",
+        "zmenit",
+        "zapis"
+      ],
+      "lemma": [
+        "muze",
+        "rada",
+        "skola",
+        "zmenit",
+        "zapis"
+      ],
+      "stem": [
+        "muh",
+        "rad",
+        "skol",
+        "zmenit",
+        "zapis"
+      ]
     }
   ]
 }

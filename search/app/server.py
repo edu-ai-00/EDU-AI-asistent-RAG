@@ -44,6 +44,21 @@ api = FastAPI(
     version="2.0.0",
 )
 
+
+@api.on_event("startup")
+def _warm_normalizer() -> None:
+    """Load the dictionary that diacritics restoration looks words up in before
+    the first query, instead of charging it to whoever asks first. A failure
+    only means it is loaded on first use; the service starts either way."""
+    import time as _time
+    from .text_norm import warm_diacritics
+    t0 = _time.monotonic()
+    try:
+        warm_diacritics()
+        logger.info("normalizer: dictionaries ready in %.1f s", _time.monotonic() - t0)
+    except Exception as e:
+        logger.warning("normalizer: dictionaries not preloaded (%s) — loaded on first use", e)
+
 # Versioned surface, 2026-08-13. Everything except /health lives under /v1, the
 # same shape edu_ai_api already uses (/api/health + /api/v1/ingest) — the two
 # services disagreed only because they were written months apart.
