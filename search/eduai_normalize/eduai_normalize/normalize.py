@@ -311,6 +311,27 @@ def drop(tokens, drop_sw: bool, stops: set) -> list[str]:
     return [t for t in tokens if t]
 
 
+def content_words(text: str, cfg, lang: str) -> list[str]:
+    """The words of `text` whose SURFACE form is not a stop-word, unreduced.
+
+    The lemma and stem branches judge a stop-word here, BEFORE reduction, and
+    then drop() their reduced tokens as before. Judged only after reduction, a
+    stop-word whose stem or lemma is not itself on the list went through: 44 of
+    the 155 Czech index stop-words (jsou → `jso`, budou → `bud`, mezi → `meh`,
+    18 % of the JPZ phrasings), some colliding with content words — "během" →
+    `beh` as "běh", "této" → lemma `teta`. Matching the list's reduced forms
+    instead (migration 211's term_stem) would drop "běh" with "během"; the
+    surface form tells them apart. drop() after reduction stays, so nothing
+    that was dropped before is kept now.
+    """
+    lc, strip, drop_sw = surface_cfg(cfg)
+    words = tokenize(text)
+    if not drop_sw:
+        return words
+    stops = stopwords_of(cfg, lang)
+    return [w for w in words if fold(w, lc, strip) not in stops]
+
+
 def normalize_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> list[str]:
     """Surface form: tokenize → fold → drop stopwords. Language affects only
     the stoplist (folding is language-neutral) — but it is still required, so a

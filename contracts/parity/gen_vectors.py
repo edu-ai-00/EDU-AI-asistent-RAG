@@ -57,6 +57,11 @@ LANGS = {
             "Co nesmím mít, když to nejde?",
             "Není to nejlepší neděle",
             "nemocný žák nedostal nedostatečnou",
+            # stop-words judged by their surface form BEFORE reduction (3.2.0):
+            # "během" must go while "běh" (same stem `beh`) stays; "této" must
+            # not survive as the lemma `teta`; "moje" not as the stem `moj`
+            "Během přestávky je běh na 100 m",
+            "Moje dcera je u této tety",
         ],
     },
     "en": {

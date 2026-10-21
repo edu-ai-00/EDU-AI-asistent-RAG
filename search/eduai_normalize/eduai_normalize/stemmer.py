@@ -15,7 +15,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from .normalize import (tokenize, fold, surface_cfg, stopwords_of, stem_min_len,
-                        drop, require_lang, engine_name)
+                        drop, require_lang, engine_name, content_words)
 
 
 def _palatalise(w: str) -> str:
@@ -151,5 +151,6 @@ def stem_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> 
     stops = stopwords_of(cfg, lang)
     ml = stem_min_len(cfg, lang)
     engine = engine_name(cfg, "stemmer", lang)
-    return drop([fold(stem_word(w, ml, lang, engine), lc, strip) for w in tokenize(text)],
+    return drop([fold(stem_word(w, ml, lang, engine), lc, strip)
+                 for w in content_words(text, cfg, lang)],
                 drop_sw, stops)

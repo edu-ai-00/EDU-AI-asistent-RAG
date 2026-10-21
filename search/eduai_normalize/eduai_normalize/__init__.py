@@ -44,7 +44,11 @@ from .lemmatizer import lemma_tokens, lemma_word, NEGATION_PREFIX  # noqa: F401
 # 3.1.0 (2026-10-21): lemma_word keeps a Czech negation ("nesmím" → nesmět,
 #   was smět). The lemma of every negated word changes, so an index built with
 #   3.0.0 must be re-ingested (QA packs and documents) to match 3.1.0 queries.
-__version__ = "3.1.0"
+# 3.2.0 (2026-10-21): the lemma and stem branches judge a stop-word by its
+#   SURFACE form before reducing (normalize.content_words) — "jsou" no longer
+#   leaks as the stem `jso`, "během" no longer collides with "běh". Stem and
+#   lemma tokens change, so an index built before must be re-ingested.
+__version__ = "3.2.0"
 
 
 def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dict[str, list[str]]:

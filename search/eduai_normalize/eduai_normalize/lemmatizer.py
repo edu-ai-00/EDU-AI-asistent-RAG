@@ -16,7 +16,7 @@ import logging
 from functools import lru_cache
 
 from .normalize import (tokenize, fold, surface_cfg, stopwords_of, drop,
-                        normalize_tokens, require_lang)
+                        normalize_tokens, require_lang, content_words)
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def lemma_tokens(text: str, cfg: dict | None = None, lang: str | None = None) ->
     lc, strip, drop_sw = surface_cfg(cfg)
     stops = stopwords_of(cfg, lang)
     try:
-        out = [fold(lemma_word(w, lang), lc, strip) for w in tokenize(text)]
+        out = [fold(lemma_word(w, lang), lc, strip) for w in content_words(text, cfg, lang)]
     except Exception as e:
         logger.warning("lemma_tokens fell back to norm tokens: %s", e)
         return normalize_tokens(text, cfg, lang)

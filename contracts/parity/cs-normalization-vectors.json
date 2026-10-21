@@ -221,7 +221,6 @@
       ],
       "stem": [
         "kdy",
-        "jso",
         "prijimack"
       ]
     },
@@ -283,6 +282,42 @@
         "zak",
         "nedostal",
         "nedostatecn"
+      ]
+    },
+    {
+      "input": "Během přestávky je běh na 100 m",
+      "norm": [
+        "prestavky",
+        "beh",
+        "100",
+        "m"
+      ],
+      "lemma": [
+        "prestavka",
+        "beh",
+        "100",
+        "m"
+      ],
+      "stem": [
+        "prestavk",
+        "beh",
+        "100",
+        "m"
+      ]
+    },
+    {
+      "input": "Moje dcera je u této tety",
+      "norm": [
+        "dcera",
+        "tety"
+      ],
+      "lemma": [
+        "dcera",
+        "teta"
+      ],
+      "stem": [
+        "dcer",
+        "tet"
       ]
     }
   ]
