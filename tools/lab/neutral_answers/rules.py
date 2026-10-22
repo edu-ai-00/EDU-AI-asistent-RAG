@@ -31,7 +31,8 @@ RULES = {
     "tykani":       ("Tykání → vykání", "Zdvořilé vykání sedí na žáka, rodiče i učitele."),
     "ano_ne":       ("Ano/Ne na začátku", "Odpověď má dávat smysl na jakoukoli formulaci otázky."),
     "role":         ("Slovo pro roli", "syn, dcera, dítě … → neutrální podmět (výchozí „uchazeč“)."),
-    "odkaz":        ("Chybí odkaz", "U „kde najdu…“ nebo odkazu na web má odpověď uvést adresu."),
+    "odkaz":        ("Chybí odkaz", "U „kde najdu…“ nebo odkazu na web musí mít odpověď zdroj s adresou "
+                                     "konkrétní stránky. Chat zdroje zobrazuje pod odpovědí, do textu se adresa nepíše."),
     "chybi_info":   ("Chybějící informace", "Místo „nevím“ říct, že informace chybí, a kde se doptat."),
 }
 
@@ -297,26 +298,36 @@ def _pick_url(answer: str, sources: str) -> str | None:
     return urls[0]
 
 
+def _is_home_page(url: str) -> bool:
+    """https://prijimacky.cermat.cz/ — a whole site, not the page that answers."""
+    rest = re.sub(r"^https?://[^/]+", "", url)
+    return rest.strip("/") == "" or rest.startswith(("/?", "/#"))
+
+
 def _link(r: _Run, questions, sources: str):
+    """A "where do I find…" answer needs a SOURCE with the exact page.
+
+    The address is NOT written into the answer: the chat shows an entry's
+    sources under the answer (web_chat "Zdroje"), so a "Více informací: <url>"
+    in the text only repeated it — and the sources of the JPZ set mostly name
+    a site's home page, which is not where the information is. A curator
+    rejected all 8 such additions (2026-10-22). The rule therefore only flags:
+    no source with an address, or only home pages for a where-to-find question.
+    """
     if _URL.search(r.text):
         return
     asks_where = any(_WHERE_Q.search(q or "") for q in questions)
     points_to_web = bool(_WEB_A.search(r.text))
     if not (asks_where or points_to_web):
         return
-    url = _pick_url(r.text, sources)
-    if not url:
-        r.flag("odkaz", "Otázka se ptá „kde“ nebo odpověď odkazuje na web, ale chybí "
-                        "adresa i ve zdrojích. U přijímaček a maturity použijte CERMAT, "
-                        "jinak stránky školy.")
-        return
-    addition = f" Více informací: {url}"
-    r.changes.append(Change("odkaz", CHECK, "", addition.strip(),
-                            "Doplněn odkaz ze zdrojů — ověřte, že vede na správnou stránku."))
-    body = r.text.rstrip()
-    if body and not re.search(r"[.!?…]$", body):
-        body += "."
-    r.text = body + addition
+    urls = [u.rstrip(".,;)") for u in _URL.findall(sources or "")]
+    if not urls:
+        r.flag("odkaz", "Otázka se ptá „kde“ nebo odpověď odkazuje na web, ale ve zdrojích chybí "
+                        "adresa. U přijímaček a maturity použijte CERMAT, jinak stránky školy, "
+                        "a to konkrétní stránku, ne úvodní.")
+    elif all(_is_home_page(u) for u in urls):
+        r.flag("odkaz", "Zdroj vede jen na úvodní stránku webu (" + ", ".join(urls) + "). "
+                        "Doplňte adresu stránky, kde informace opravdu je.")
 
 
 _NON_ANSWER = re.compile(r"^\s*(odpověď není|nevím|zatím nevím|nezodpovídám|"

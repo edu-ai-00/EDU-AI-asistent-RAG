@@ -103,12 +103,23 @@ class RulesTest(unittest.TestCase):
         self.assertIn("https://prijimacky.cermat.cz/", r["proposed"])
         self.assertIn("smajlik", _rules_of(r))
 
-    def test_link_added_for_where_to_find(self):
+    def test_link_is_never_written_into_the_answer(self):
+        """The chat shows the sources; a "Více informací: <url>" only repeated them."""
         src = "Cermat | https://prijimacky.cermat.cz/\nSystém DiPSy | https://dipsy.gov.cz/prihlaska/"
         r = neutralize("Přihlášku podáte v systému DiPSy", ["Kde najdu přihlášku?"], src)
-        # the source the answer itself names wins over the first one
-        self.assertEqual(r["proposed"],
-                         "Přihlášku podáte v systému DiPSy. Více informací: https://dipsy.gov.cz/prihlaska/")
+        self.assertNotIn("http", r["proposed"])
+        self.assertNotIn("odkaz", _rules_of(r))
+        self.assertFalse(any(f["rule"] == "odkaz" for f in r["flags"]))   # a real page
+
+    def test_home_page_only_is_flagged(self):
+        r = neutralize("Cvičné testy jsou k dispozici online.", ["Kde najdu cvičné testy JPZ?"],
+                       "Cermat | https://prijimacky.cermat.cz/")
+        self.assertNotIn("http", r["proposed"])
+        self.assertTrue(any(f["rule"] == "odkaz" and "úvodní" in f["note"] for f in r["flags"]))
+
+    def test_no_source_address_is_flagged(self):
+        r = neutralize("Najdete je na webu.", ["Kde najdu výsledky?"], "")
+        self.assertTrue(any(f["rule"] == "odkaz" for f in r["flags"]))
 
     def test_no_link_for_a_place_question(self):
         r = neutralize("JPZ se koná na jedné ze škol z přihlášky.", ["Kde uchazeč píše JPZ?"],

@@ -16,7 +16,7 @@ Nástroj ke každé odpovědi **navrhne neutrální znění podle pevných pravi
 |---|---|
 | Načtení Excelu ve formátu QA sady (`canonical_q`, `answer`, `sources`, `Alternativa 1…n`) | hotovo |
 | Načtení „volného“ listu (otázka ve sloupci A, odpověď ve sloupci G) | hotovo, ale sloupce jsou pevné (viz 7.) |
-| Pravidla: typografie, smajlíky, „by jste“, 1. osoba, tykání → vykání, „Ano/Ne“ na začátku, slova pro roli → „uchazeč“ se shodou slovesa, chybějící odkaz, „nevím“ → rada, kde se doptat | hotovo |
+| Pravidla: typografie, smajlíky, „by jste“, 1. osoba, tykání → vykání, „Ano/Ne“ na začátku, slova pro roli → „uchazeč“ se shodou slovesa, chybějící odkaz (jen upozornění: zdroj bez adresy nebo jen s úvodní stránkou; adresa se do textu nepíše, chat zdroje zobrazuje sám), „nevím“ → rada, kde se doptat | hotovo |
 | Tabulka: otázky a alternativy, původní a navržená odpověď s vyznačenými rozdíly, štítky pravidel, stav | hotovo |
 | Schválit / zamítnout / ručně upravit / vrátit, hromadné schválení automatických změn | hotovo |
 | Strojový pohled: norm / lemma / kmen, vyřazená stop-slova, varování (zápor, diakritika, neznámá slova) | hotovo |
