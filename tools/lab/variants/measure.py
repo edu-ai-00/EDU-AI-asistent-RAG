@@ -17,7 +17,7 @@ normalization config — the same library and stoplist the Langflow QA ingest
 uses (normalize_tokens / lemma_tokens / stem_tokens).
 
   python measure.py --input faq.xlsx --out /out [--entity CODE] [--limit N]
-                    [--with-sql postgres/init/217_….sql]   # a migration, rolled back too
+                    [--with-sql postgres/migrations/217_….sql]   # a migration, rolled back too
 """
 
 from __future__ import annotations

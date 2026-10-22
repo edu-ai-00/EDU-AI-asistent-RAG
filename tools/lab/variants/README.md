@@ -27,7 +27,7 @@ OpenAI key and documents. The rules are data in [`generators.py`](generators.py)
 tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx
 tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx --limit 5 --debug
 # the effect of a new migration, without applying it
-tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx --with-sql postgres/init/217_synonyms_meeting_groups.sql
+tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx --with-sql postgres/migrations/217_synonyms_meeting_groups.sql
 ```
 
 `--with-sql FILE` (repeatable) runs the SQL inside the measuring transaction
