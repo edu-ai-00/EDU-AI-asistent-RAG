@@ -152,7 +152,7 @@ textarea { width: 100%; min-height: 110px; font: inherit; padding: 8px 10px; bor
     <div class="spacer"></div>
     <button class="btn" id="bulk" title="Schválí čekající položky, které mají jen automatické změny a žádné upozornění">Schválit všechny automatické</button>
     <a class="btn" href="/export/review.csv">⇩ Přehled (CSV)</a>
-    <a class="btn primary" href="/export/pack.csv" title="Schválené odpovědi ve formátu QA sady (kategorie a oblasti doplňte před nahráním)">⇩ QA sada (CSV)</a>
+    <a class="btn primary" id="packbtn" href="/export/pack.csv">⇩ QA sada (CSV)</a>
   </div>
 </header>
 
@@ -221,6 +221,12 @@ const FILTERS = [
 
 function renderStats() {
   const items = S.data.items, total = items.length || 1;
+  // the pack holds EVERY answer; only an approved one carries the new wording
+  const wait = items.filter((it) => it.proposed !== it.answer && it.decision.status === "pending").length;
+  const pb = $("#packbtn");
+  pb.textContent = wait ? `⇩ QA sada (CSV) · ${wait} čeká` : "⇩ QA sada (CSV)";
+  pb.title = "Celá sada ve formátu QA sady pro nahrání do aplikace. Nové znění mají jen schválené odpovědi, ostatní zůstávají v původním znění."
+    + (wait ? ` ${wait} navržených změn ještě nikdo neprošel, ty půjdou v původním znění.` : "");
   $("#stats").innerHTML = FILTERS.map(([k, label, fn, cls]) => {
     const n = items.filter(fn).length;
     return `<button class="stat ${cls} ${S.filter === k ? "on" : ""}" data-f="${k}">

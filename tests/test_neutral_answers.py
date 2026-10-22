@@ -162,6 +162,69 @@ class XlsxReaderTest(unittest.TestCase):
         self.assertEqual([(i["canonical_q"], i["answer"]) for i in items], [("Otázka?", "Ano, můžeš.")])
 
 
+class PackCsvTest(unittest.TestCase):
+    """A QA pack CSV read as the application reads it, and handed back unchanged."""
+
+    HEADER9 = ["entry_key", "canonical_q", "answer_md", "cat", "variants", "sources",
+               "is_active", "domains", "category_code"]
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.state = os.path.join(self.tmp.name, "decisions.json")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, rows, delimiter=",", bom=True):
+        p = os.path.join(self.tmp.name, "pack.csv")
+        with open(p, "w", encoding="utf-8-sig" if bom else "utf-8", newline="") as fh:
+            csv.writer(fh, delimiter=delimiter, lineterminator="\r\n").writerows(rows)
+        return p
+
+    def _app(self, path):
+        return server.App(argparse.Namespace(input=path, sheet=None, state=self.state,
+                                             subject="uchazeč"))
+
+    def test_comma_and_semicolon(self):
+        row = ["k1", "Kdy je JPZ?", "JPZ je v dubnu.", "Termíny", "termín jpz\nkdy jsou přijímačky",
+               "Cermat | https://prijimacky.cermat.cz/", "TRUE", '["ADMISSIONS"]', "TERMS"]
+        for delim in (",", ";"):
+            items = xlsx_read.load_items(self._write([self.HEADER9, row], delim))
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["alternatives"], ["termín jpz", "kdy jsou přijímačky"])
+            self.assertEqual(items[0]["pack"]["domains"], '["ADMISSIONS"]')
+            self.assertEqual(items[0]["pack"]["category_code"], "TERMS")
+
+    def test_aliases_and_no_bom(self):
+        items = xlsx_read.load_items(self._write([["question", "answer"], ["Otázka?", "Odpověď."]],
+                                                 bom=False))
+        self.assertEqual((items[0]["canonical_q"], items[0]["answer"]), ("Otázka?", "Odpověď."))
+        self.assertIsNone(items[0]["pack"]["category_code"])     # column absent
+
+    def test_not_a_qa_header(self):
+        with self.assertRaises(ValueError):
+            xlsx_read.load_items(self._write([["foo", "bar"], ["1", "2"]]))
+
+    def test_round_trip_keeps_the_pack_columns(self):
+        rows = [self.HEADER9,
+                ["k1", "Lze odejít dřív?", "Ano, můžeš odejít dřív.", "Docházka", "Můžu odejít?",
+                 "", "TRUE", '["ATTENDANCE"]', "ATT"],
+                ["k2", "Kdy je JPZ?", "JPZ je v dubnu.", "", "", "", "TRUE", "", ""]]
+        app = self._app(self._write(rows))
+        app.decide({"id": "001", "status": "approved", "final": "Odejít dřív je možné."})
+        out = list(csv.reader(io.StringIO(app.export("pack").decode("utf-8-sig"))))
+        self.assertEqual(out[0], self.HEADER9)
+        self.assertEqual(out[1], ["k1", "Lze odejít dřív?", "Odejít dřív je možné.", "Docházka",
+                                  "Můžu odejít?", "", "TRUE", '["ATTENDANCE"]', "ATT"])
+        self.assertEqual(out[2], rows[2])
+
+    def test_without_category_code_column_none_is_written(self):
+        app = self._app(self._write([self.HEADER9[:8], ["k1", "Otázka?", "Odpověď.", "", "", "", "TRUE", ""]]))
+        out = list(csv.reader(io.StringIO(app.export("pack").decode("utf-8-sig"))))
+        # an ABSENT column keeps a category; a present empty one would clear it
+        self.assertEqual(out[0], server.PACK_HEADER)
+
+
 class ReviewAppTest(unittest.TestCase):
 
     def setUp(self):
@@ -192,9 +255,35 @@ class ReviewAppTest(unittest.TestCase):
         self.assertEqual(reloaded.decision(reloaded.by_id["001"])["status"], "approved")
         rows = list(csv.reader(io.StringIO(reloaded.export("pack").decode("utf-8-sig"))))
         self.assertEqual(rows[0], server.PACK_HEADER)
-        self.assertEqual(len(rows), 2)                        # rejected is not exported
+        self.assertEqual(len(rows), 3)                        # every answer, rejected too
         self.assertEqual(rows[1][2], "Odejít dřív je možné.")
         self.assertEqual(rows[1][4], "Můžu odejít?")
+        self.assertEqual(rows[2][2], "JPZ je v dubnu.")       # rejected: the original
+
+    def test_pack_never_carries_an_unreviewed_rewrite(self):
+        app = self._app()                                     # nothing decided
+        self.assertEqual(app.awaiting_review(), 1)            # 001 has a proposal
+        rows = list(csv.DictReader(io.StringIO(app.export("pack").decode("utf-8-sig"))))
+        self.assertEqual([r["answer_md"] for r in rows],
+                         ["Ano, můžeš odejít dřív.", "JPZ je v dubnu."])
+
+    def test_pack_from_a_workbook_inherits_areas_and_derives_keys(self):
+        rows = list(csv.DictReader(io.StringIO(self._app().export("pack").decode("utf-8-sig"))))
+        # "[]" would CLEAR the areas; an empty cell inherits the upload's
+        self.assertEqual({r["domains"] for r in rows}, {""})
+        # a row-position key duplicated entries once rows moved; empty = derived
+        self.assertEqual({r["entry_key"] for r in rows}, {""})
+        self.assertEqual({r["is_active"] for r in rows}, {"TRUE"})
+
+    def test_pack_header_is_the_applications(self):
+        spec = importlib.util.spec_from_file_location(
+            "qa_csv_for_lab", os.path.join(_REPO_ROOT, "search", "app", "qa_csv.py"))
+        qa_csv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(qa_csv)
+        self.assertEqual(server.PACK_HEADER, qa_csv.HEADER)
+        raw = self._app().export("pack")
+        self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))   # BOM, for Excel
+        self.assertIn(b"\r\n", raw)
 
     def test_rejected_keeps_original_in_review_export(self):
         app = self._app()

@@ -9,7 +9,8 @@ machine view runs the real normalizer. Serves one page and a tiny JSON API:
     GET  /api/items               items + proposals + decisions
     POST /api/decision            {id, status, final?, note?}
     GET  /export/review.csv       every item: original, final, status, rules
-    GET  /export/pack.csv         approved items in the QA pack CSV layout
+    GET  /export/pack.csv         the WHOLE set in the QA pack CSV layout; only an
+                                  approved item carries the new wording
 
 Decisions live in ONE JSON file outside the repository (QA packs are private
 data, see docs/RELEASING.md). Each decision remembers the original answer it was
@@ -41,7 +42,9 @@ from xlsx_read import load_items    # noqa: E402
 
 _STATUSES = {"pending", "approved", "rejected"}
 _MAX_BODY = 64 * 1024
-# the QA pack CSV header, as search/app/qa_csv.py writes it (legacy 8 columns)
+# the QA pack CSV header, as search/app/qa_csv.py writes it (legacy 8 columns);
+# category_code is appended only when the input CSV had it (CONTRACT.md 5.1: a
+# PRESENT empty cell clears an entry's category, an ABSENT column keeps it)
 PACK_HEADER = ["entry_key", "canonical_q", "answer_md", "cat", "variants",
                "sources", "is_active", "domains"]
 
@@ -89,6 +92,8 @@ class App:
                         "questions": [{"text": q, **(machine.analyse(q) or {})} for q in questions]}
             self.items.append({**it, **prop, "answer_sha": _sha(it["answer"]), "machine": mach})
         self.by_id = {it["id"]: it for it in self.items}
+        self.has_category_code = any((it.get("pack") or {}).get("category_code") is not None
+                                     for it in self.items)
 
     def decision(self, it: dict) -> dict:
         d = self.store.get(it["id"])
@@ -99,7 +104,7 @@ class App:
 
     def payload(self) -> dict:
         return {"meta": {"source": self.source, "subject": self.subject, "count": len(self.items),
-                         "machine": machine.available()},
+                         "machine": machine.available(), "awaiting_review": self.awaiting_review()},
                 "rules": {k: {"title": t, "description": d} for k, (t, d) in RULES.items()},
                 "items": [{**it, "decision": self.decision(it)} for it in self.items]}
 
@@ -127,17 +132,38 @@ class App:
             return it["answer"]
         return (None if d["stale"] else d.get("final")) or it["proposed"]
 
+    def pack_text(self, it: dict) -> str:
+        """The answer that goes into the QA pack: the new wording only when a
+        curator approved it, the ORIGINAL otherwise (unchanged, rejected, not
+        yet reviewed). An unreviewed rewrite never reaches the application, and
+        no answer drops out of the pack — uploaded in replace mode, a missing
+        entry would be switched off."""
+        return self.final_text(it) if self.decision(it)["status"] == "approved" else it["answer"]
+
+    def awaiting_review(self) -> int:
+        """Items with a proposed change nobody has decided on yet."""
+        return sum(1 for it in self.items
+                   if it["proposed"] != it["answer"] and self.decision(it)["status"] == "pending")
+
     def export(self, kind: str) -> bytes:
         buf = io.StringIO()
         w = csv.writer(buf, lineterminator="\r\n")
         if kind == "pack":
-            w.writerow(PACK_HEADER)
+            # Same bytes as /v1/qa-export: comma, CRLF, UTF-8 BOM. From a
+            # workbook, entry_key stays EMPTY (the reader derives a stable key
+            # from the question, as for scripts/upload_qa_packs.py — a key from
+            # the row position duplicated entries once rows were reordered) and
+            # domains stays EMPTY (= inherit the upload's areas; "[]" would
+            # CLEAR them). From a pack CSV, those columns come back unchanged.
+            w.writerow(PACK_HEADER + (["category_code"] if self.has_category_code else []))
             for it in self.items:
-                if self.decision(it)["status"] != "approved":
-                    continue
-                w.writerow([f"{Path(self.source).stem}-{it['id']}", it["canonical_q"],
-                            self.final_text(it), "", "\n".join(it["alternatives"]),
-                            it["sources"], "TRUE", "[]"])
+                p = it.get("pack") or {}
+                row = [p.get("entry_key", ""), it["canonical_q"], self.pack_text(it),
+                       p.get("cat", ""), "\n".join(it["alternatives"]), it["sources"],
+                       p.get("is_active") or "TRUE", p.get("domains", "")]
+                if self.has_category_code:
+                    row.append(p.get("category_code") or "")
+                w.writerow(row)
         else:
             w.writerow(["id", "canonical_q", "puvodni", "vysledna", "stav", "rucne_upraveno",
                         "pravidla", "upozorneni", "poznamka"])
@@ -180,7 +206,9 @@ def make_handler(app: App):
                 return self._json(200, app.payload())
             if path in ("/export/review.csv", "/export/pack.csv"):
                 kind = "pack" if "pack" in path else "review"
-                name = f"{Path(app.source).stem}-{kind}.csv"
+                wait = app.awaiting_review() if kind == "pack" else 0
+                # the file name says it when rewrites are still unreviewed
+                name = f"{Path(app.source).stem}-{kind}{f'-ceka-{wait}' if wait else ''}.csv"
                 return self._send(200, app.export(kind), "text/csv; charset=utf-8",
                                   {"Content-Disposition": f'attachment; filename="{name}"'})
             self._json(404, {"error": "not found"})
@@ -202,7 +230,7 @@ def make_handler(app: App):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--input", required=True, help="QA workbook (.xlsx)")
+    p.add_argument("--input", required=True, help="QA workbook (.xlsx) or QA pack (.csv)")
     p.add_argument("--sheet", default=None, help="sheet name (default: the first)")
     p.add_argument("--state", default=str(Path.home() / "edu-ai/state/neutral_answers/decisions.json"))
     # default = the repository layout (tools/lab/neutral_answers -> repo root);

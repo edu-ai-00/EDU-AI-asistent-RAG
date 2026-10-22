@@ -17,7 +17,12 @@ differences highlighted, and lets a curator approve, reject or edit it.
 ```bash
 tools/lab/neutral_answers/run.sh ~/Downloads/faq_jpz_9-26.xlsx
 tools/lab/neutral_answers/run.sh "$HOME/Downloads/Otázky EDU.xlsx" --sheet Přijímačkymaturita
+tools/lab/neutral_answers/run.sh ~/Downloads/pack.csv        # a QA pack CSV (portal, /v1/qa-export)
 ```
+
+A `.csv` is read as the application reads a QA pack: delimiter `,` or `;`, the
+same header aliases, variants and sources one per line. Its `entry_key`, `cat`,
+`category_code`, `domains` and `is_active` are kept and written back unchanged.
 
 Open <http://127.0.0.1:8770/> (published on localhost only). `run.sh` starts
 `server.py` inside the `edu_ai_search` image, read-only and without
@@ -59,9 +64,17 @@ as *changed in source* and goes back to pending.
 
 - **Přehled (CSV)** — `/export/review.csv`: every item with original, final
   text, status, rules and warnings.
-- **QA sada (CSV)** — `/export/pack.csv`: approved items in the QA pack layout
-  of [`search/app/qa_csv.py`](../../../search/app/qa_csv.py). `cat` and
-  `domains` are left empty; fill them before an upload.
+- **QA sada (CSV)** — `/export/pack.csv`: the **whole** set in the QA pack
+  layout of [`search/app/qa_csv.py`](../../../search/app/qa_csv.py) (comma,
+  CRLF, UTF-8 BOM). Only an approved item carries the new wording; every other
+  one (unchanged, rejected, not yet reviewed) keeps its original, so no
+  unreviewed rewrite is uploaded and no entry drops out of a pack replaced on
+  upload. The button and the file name (`…-pack-ceka-N.csv`) say how many
+  proposals still wait. From a workbook, `entry_key` and `domains` are left
+  empty on purpose: the reader derives a stable key from the question, and an
+  empty `domains` inherits the upload's areas (`[]` would clear them).
+  `category_code` is written only when the input CSV had the column (an absent
+  column keeps an entry's category, an empty cell clears it).
 
 ## Tests
 

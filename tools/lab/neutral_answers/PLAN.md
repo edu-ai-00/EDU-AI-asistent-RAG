@@ -21,8 +21,9 @@ Nástroj ke každé odpovědi **navrhne neutrální znění podle pevných pravi
 | Schválit / zamítnout / ručně upravit / vrátit, hromadné schválení automatických změn | hotovo |
 | Strojový pohled: norm / lemma / kmen, vyřazená stop-slova, varování (zápor, diakritika, neznámá slova) | hotovo |
 | Ukládání rozhodnutí mimo Git, rozpoznání změny odpovědi ve zdroji | hotovo |
-| Export: přehled změn (CSV) a schválené odpovědi ve formátu QA sady (CSV) | hotovo |
-| Testy (`tests/test_neutral_answers.py`, 23 testů) | hotovo |
+| Export: přehled změn (CSV) a celá QA sada ve formátu aplikace (CSV); nové znění jen u schválených | hotovo |
+| Načtení CSV QA sady ve formátu aplikace (export z QA portálu, `/v1/qa-export`), převzetí `entry_key`, `cat`, `category_code`, `domains`, `is_active` | hotovo (22. 10.) |
+| Testy (`tests/test_neutral_answers.py`, 31 testů) | hotovo |
 
 Vyzkoušeno na `faq_jpz_9-26.xlsx` (110 odpovědí, 32 s navrženou změnou) a na listu „Přijímačkymaturita“ z `Otázky EDU.xlsx` (69 odpovědí, 52 se změnou nebo upozorněním).
 
@@ -55,7 +56,6 @@ Aplikace běží v Docker kontejneru z obrazu vyhledávání (`edu_ai_search`), 
 | **Volitelné sloupce otázky a odpovědi** | List „Mat“ má odpovědi ve sloupci **H**, „Učitelé“ otázky ve sloupci C. Dnes je nástroj nenačte. | parametry `--q-col C --a-col H`, nebo automatické rozpoznání |
 | **Řádky bez odpovědi** | viz kapitola 6; dnes se přeskakují | načíst je jako položky se stavem „chybí odpověď“ |
 | **Kategorie, oblast (domains), ročník, škola** | QA sada je bez nich neúplná. Dnes je export nechává prázdné. | sloupce `cat`, `domains`, `school_grade` v Excelu, nebo jejich výběr v aplikaci |
-| **CSV soubor** | export z QA portálu a z `/v1/qa-export` je CSV | načítat i `.csv` ve stejném rozložení jako export |
 | **Export z databáze** | po nahrání dat do systému by se mělo kontrolovat i to, co už v systému je | načtení přes `/v1/qa-export` (CSV) jedné QA sady |
 | **Živá stop-slova z databáze** | aby strojový pohled odpovídal tomu, co je v `edu_ai.qa_stopword` | volitelné připojení k databázi jen pro čtení |
 | **Vlastní tabulky pravidel** | slova pro roli, tvary sloves a šablony jsou teď přímo v kódu | přesunout je do souboru s daty (JSON/CSV), aby šly upravit bez programování |
@@ -68,16 +68,16 @@ Aplikace běží v Docker kontejneru z obrazu vyhledávání (`edu_ai_search`), 
 |---|---|---|
 | Soubor s rozhodnutími | `~/edu-ai/state/neutral_answers/<sešit>.decisions.json` | stav, ruční úprava, poznámka, otisk původní odpovědi, čas |
 | Přehled změn | tlačítko „⇩ Přehled (CSV)“ | všechny položky: původní a výsledné znění, stav, pravidla, upozornění |
-| QA sada | tlačítko „⇩ QA sada (CSV)“ | jen schválené odpovědi ve formátu `search/app/qa_csv.py` (`cat` a `domains` prázdné) |
+| QA sada | tlačítko „⇩ QA sada (CSV)“ | celá sada ve formátu `search/app/qa_csv.py`; nové znění jen u schválených, ostatní v původním. Z CSV se sloupce sady vrací beze změny; z Excelu zůstává `entry_key` prázdný (odvodí se z otázky) a `domains` prázdné (převezmou se oblasti z nahrávání) |
 
 ### 5.2 Co je potřeba doplnit
 
 | Výstup | Proč | Návrh |
 |---|---|---|
-| **QA sada připravená k nahrání** | dnes chybí kategorie a oblasti, bez nich nahrání neprojde kontrolou | doplnit podle 4.2; před exportem zkontrolovat povinná pole |
+| **Kategorie a oblasti u sady z Excelu** | čtečka aplikace je nevyžaduje (prázdné `domains` = oblasti z nahrávání, chybějící `category_code` = kategorie beze změny), ale pro hledání podle oblastí a pro QA portál se hodí | doplnit podle 4.2 |
 | **Manifest k nahrání** | `scripts/upload_qa_packs.py` čte metadata (škola, nahrávající, viditelnost, role, ročníky) z `_manifest.json` | vytvořit `_manifest.json` spolu s CSV |
 | **Seznam otázek k zodpovězení** | kapitola 6: předat chybějící odpovědi někomu dalšímu (učiteli, vedení) | export „k zodpovězení“ (CSV/Excel) |
-| **Návrhy pro strojovou část** | strojový pohled nachází chybějící synonyma, lemmata, zápory | export návrhů jako nová migrace v `postgres/init/` (od čísla 217, bez `BEGIN/COMMIT`, s vlastní kontrolou) |
+| **Návrhy pro strojovou část** | strojový pohled nachází chybějící synonyma, lemmata, zápory | export návrhů jako nová migrace v `postgres/migrations/` (od čísla 217, bez `BEGIN/COMMIT`, s vlastní kontrolou, s manifestem vydání) |
 | **Souhrnná zpráva** | pro vedoucího: kolik odpovědí, kolik změn, která pravidla, co čeká | stránka nebo PDF se statistikami |
 
 > Poznámka: kurátorované odpovědi (QA) se do systému **nedostávají migracemi**, ale nahráním QA sady.
