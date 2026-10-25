@@ -99,9 +99,9 @@ answer — same school, same lemmas, most frequent first — with every wording,
 what the search offered, how the production answered, and the curated entry
 that answered it before if that one is switched off now. With `--queue` the
 app shows them at `/queue.html` ("Dotazy z provozu"): the curator adds a
-question as an **alternative** to an offered entry, marks it **ambiguous**
-(which entries the suggestion list must hold), **missing an answer**, or
-skips it. Nothing is preselected: a well covered offer can still be wrong.
+question as an **alternative** to an answer or marks it **missing an
+answer** (the earlier "ambiguous" and "skip" choices were dropped from the page;
+the server still reads such decisions). Nothing is preselected: a well covered offer can still be wrong.
 Decisions go to `<workbook>.decisions.queue.json` next to the answer
 decisions; the queue holds users' questions and stays outside Git.
 
@@ -131,6 +131,24 @@ wording, when ticked).
 question it takes the question out of its topic, listed on its own ("Dotazy
 vyjmuté ze skupin", first in the "Chybí odpověď" view); ↺ on it returns it to
 the topic it came from.
+
+A question or a whole topic can also be assigned to ANY answer of the school's
+packs (every pack CSV in the input's folder; an answer the search offered is
+paired with it by pack and question text): type a few words in "Přiřadit
+odpověď…" and pick. A question assigned this way leaves its topic ("Dotazy
+přiřazené k odpovědi"). The last item of the list writes a NEW answer
+(question, text, pack, source); it is stored with the decisions, can be
+assigned to further questions and edited, and `/export/queue.csv` carries its
+text (`nova_odpoved`) until the pack export writes it as an entry.
+
+**Warnings (⚠, tile "Upozornění")**, computed before the export: the same
+wording added to two answers; a wording another answer already has; a wording
+closer to another answer's question than to its own (similarity of the search's
+reduction ≥ 0.6, lemmas when the normalizer is there) — the chat may answer
+with that one; a written answer without a source, with a home page only, very
+short, or with no question assigned. The review tab warns about a rewrite
+approved unchanged although it had spots to check, approved despite a flag, or
+very short.
 
 Per group the curator can move it to another topic or a new one, mark it as
 missing an answer (which also takes it out of its topic, into "Dotazy vyjmuté

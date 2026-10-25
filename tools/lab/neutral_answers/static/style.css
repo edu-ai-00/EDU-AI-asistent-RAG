@@ -41,7 +41,7 @@ header { background: var(--panel); border-bottom: 1px solid var(--line); }
 .btn.sm { padding: 3px 9px; font-size: 13px; }
 .btn:disabled { opacity: .5; cursor: default; }
 
-.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 18px 0 6px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 18px 0 6px; }
 .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 12px 14px; box-shadow: var(--shadow); cursor: pointer; text-align: left; font: inherit; color: inherit; }
 .stat.on { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -75,6 +75,12 @@ details.legend summary { cursor: pointer; color: var(--muted); font-size: 14px; 
 .row.head > div { padding: 9px 12px; }
 .row.st-approved { box-shadow: inset 3px 0 0 var(--ok); }
 .row.st-rejected { box-shadow: inset 3px 0 0 var(--bad); }
+.row.compact { cursor: pointer; }
+.row.compact .ctext { grid-column: span 2; }          /* under "Původní" + "Navržená": the approved text */
+.row.compact .cstate { grid-column: span 2; text-align: right; }
+.row.compact > div { padding: 8px 12px; }
+.row.compact:hover { background: var(--panel-2); }
+.row.compact .ctext { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .id { color: var(--faint); font-variant-numeric: tabular-nums; font-size: 13px; }
 .q-main { font-weight: 600; }
 .q-alts { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
@@ -123,6 +129,7 @@ textarea { width: 100%; min-height: 110px; font: inherit; padding: 8px 10px; bor
   .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .row.head { display: none; }
   .row { grid-template-columns: 1fr; }
+  .row.compact .ctext, .row.compact .cstate { grid-column: auto; text-align: left; }
   .row > div { padding: 8px 14px; }
   .row > div[data-label]::before { content: attr(data-label); display: block; font-size: 11px; text-transform: uppercase;
     letter-spacing: .05em; color: var(--faint); margin-bottom: 2px; }

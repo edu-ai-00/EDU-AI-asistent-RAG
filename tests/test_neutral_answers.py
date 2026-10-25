@@ -404,7 +404,8 @@ class QueueTopicsTest(unittest.TestCase):
         q.decide_topic({"topic": "Provoz|Absence", "status": "alternative", "entry": "e1"})
         rows = self._rows(self._q())
         self.assertEqual((rows["S1|c"]["status"], rows["S1|c"]["where"]), ("missing", "group"))
-        self.assertEqual((rows["S1|b"]["status"], rows["S1|b"]["topic"]), ("pending", "odloženo"))
+        # taken out of its topic = "Nezařazené", still waiting for a decision
+        self.assertEqual((rows["S1|b"]["status"], rows["S1|b"]["topic"]), ("pending", topics.UNSORTED))
         self.assertEqual(rows["S1|a"]["status"], "alternative")
 
     def test_moving_into_a_decided_topic_takes_its_decision(self):
@@ -462,7 +463,104 @@ class QueueTopicsTest(unittest.TestCase):
         q.decide_topic({"topic": "Provoz|Absence", "status": "missing", "note": "chybí lhůta"})
         rows = list(csv.reader(io.StringIO(q.export_csv().decode("utf-8-sig"))))
         self.assertEqual(rows[0][:4], ["skupina", "pocet", "dotaz", "stav"])
-        self.assertIn(["Absence", "9", "Jak omluvit absenci?", "missing", "skupinu", "", "", "", "ano", "chybí lhůta"], rows)
+        self.assertIn(["Absence", "9", "Jak omluvit absenci?", "missing", "skupinu", "", "", "", "ano", "chybí lhůta", "", ""], rows)
+
+    def test_notes_are_a_list_each_removable(self):
+        q = self._q()
+        q.decide_topic({"topic": "Provoz|Absence", "status": "missing", "notes": ["chybí lhůta", " ", "a kontakt"]})
+        d = q.topic_decision("Provoz|Absence")
+        self.assertEqual((d["notes"], d["note"]), (["chybí lhůta", "a kontakt"], "chybí lhůta | a kontakt"))
+        q.decide_topic({"topic": "Provoz|Absence", "status": "missing", "notes": ["a kontakt"]})
+        self.assertEqual(q.topic_decision("Provoz|Absence")["notes"], ["a kontakt"])
+        d = q.decide({"key": "S1|d", "status": "missing", "note": "jedna"})          # the older single note
+        self.assertEqual(d["notes"], ["jedna"])
+
+    def test_warnings_before_the_export(self):
+        with open(os.path.join(self.tmp.name, "p.csv"), "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(server.PACK_HEADER)
+            w.writerow(["omluvenky", "Odpověď e1", "Do tří dnů.", "", "", "", "TRUE", ""])
+            w.writerow(["absence", "Jak se omlouvá absence žáka?", "Písemně.", "", "jak omluvit absenci", "", "TRUE", ""])
+        q = server.App(argparse.Namespace(input=os.path.join(self.tmp.name, "p.csv"), sheet=None,
+                                          state=self.state, subject="žák", queue=self.queue,
+                                          topics=self.topics)).queue
+        # "jak omluvit absenci" goes to e1, but another answer already has that very wording
+        q.decide({"key": "S1|b", "status": "alternative", "entry": "e1"})
+        # the same wording to two answers
+        q.decide({"key": "S1|a", "status": "alternative", "entry": "e1"})
+        new = q.save_answer({"q": "Kdy je lyžák?", "answer": "V lednu.", "pack": "p"})["id"]
+        st = q.state()
+        self.assertTrue(any("už má jiná odpověď" in n for n in st["warnings"]["S1|b"]))
+        notes = st["answer_warnings"][new]
+        self.assertTrue(any("nemá zdroj" in n for n in notes))
+        self.assertTrue(any("krátká" in n for n in notes))
+        self.assertTrue(any("není přiřazený" in n for n in notes))
+        q.decide({"key": "S1|d", "status": "alternative", "entry": new})
+        q.save_answer({"id": new, "q": "Kdy je lyžák?", "answer": "Lyžařský kurz bývá v lednu, termín upřesní třídní učitel.",
+                       "pack": "p", "sources": "https://www.skola.cz/"})
+        self.assertEqual(q.state()["answer_warnings"][new], ["Zdroj je jen úvodní stránka webu, ne stránka s odpovědí."])
+
+    def test_warning_when_another_answer_matches_better(self):
+        with open(os.path.join(self.tmp.name, "p.csv"), "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(server.PACK_HEADER)
+            w.writerow(["e1", "Odpověď e1", "Text.", "", "", "", "TRUE", ""])
+            w.writerow(["lyz", "Kdy je lyžák?", "V lednu.", "", "", "", "TRUE", ""])
+            w.writerow(["jid", "Jak funguje jídelna?", "Obědy se objednávají.", "", "", "", "TRUE", ""])
+            for k, t in (("jpz", "Kdy je JPZ?"), ("pr", "Kdy jsou prázdniny?"), ("sk", "Kdy začíná škola?")):
+                w.writerow([k, t, "Text.", "", "", "", "TRUE", ""])          # "kdy" is a common word here
+        q = server.App(argparse.Namespace(input=os.path.join(self.tmp.name, "p.csv"), sheet=None,
+                                          state=self.state, subject="žák", queue=self.queue,
+                                          topics=self.topics)).queue
+        ids = {a["q"]: a["id"] for a in q.answers}
+        # "lyžák" assigned to the canteen: the search would rather answer with "Kdy je lyžák?"
+        q.decide({"key": "S1|d", "status": "alternative", "entry": ids["Jak funguje jídelna?"]})
+        notes = q.state()["warnings"].get("S1|d", [])
+        self.assertTrue(any("Kdy je lyžák?" in n for n in notes), notes)
+        # "Schválit i tak": accepted, out of the list; ↺ brings it back
+        st = q.accept_warnings({"target": "S1|d"})
+        self.assertNotIn("S1|d", st["warnings"])
+        self.assertIn("S1|d", st["warnings_ok"])
+        self.assertIn("S1|d", q.accept_warnings({"target": "S1|d", "ok": False})["warnings"])
+        q.decide({"key": "S1|d", "status": "alternative", "entry": ids["Kdy je lyžák?"]})
+        self.assertNotIn("S1|d", q.state()["warnings"])
+
+    def test_a_new_answer_written_in_the_queue(self):
+        q = self._q()
+        with self.assertRaises(ValueError):
+            q.save_answer({"q": "Kdy je lyžák?", "answer": "", "pack": "faq"})
+        st = q.save_answer({"q": "Kdy je lyžák?", "answer": "V lednu, termín upřesní třídní učitel.", "pack": "faq"})
+        aid = st["id"]
+        self.assertEqual(aid, "new:1")
+        d = q.decide({"key": "S1|d", "status": "alternative", "entry": aid})
+        self.assertEqual(d["entry_q"], "Kdy je lyžák?")
+        q.decide_topic({"topic": "Provoz|Absence", "status": "alternative", "entry": aid})
+        q.save_answer({"id": aid, "q": "Kdy je lyžařský výcvik?", "answer": "V lednu.", "pack": "faq"})
+        q2 = self._q()                                                     # persisted
+        self.assertEqual(q2.decision("S1|d")["entry_q"], "Kdy je lyžařský výcvik?")
+        self.assertEqual(q2.topic_decision("Provoz|Absence")["entry_q"], "Kdy je lyžařský výcvik?")
+        rows = {r["key"]: r for r in q2.additions()}
+        self.assertEqual((rows["S1|d"]["new_answer"], rows["S1|a"]["new_answer"]), ("V lednu.", "V lednu."))
+        self.assertEqual(q2.save_answer({"q": "Jiná", "answer": "Text", "pack": "faq"})["id"], "new:2")
+
+    def test_assign_to_any_answer_of_the_packs(self):
+        with open(os.path.join(self.tmp.name, "p.csv"), "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(server.PACK_HEADER)
+            w.writerow(["omluvenky", "Odpověď e2", "Do tří dnů.", "", "", "", "TRUE", ""])     # = offered e2 (pack "p")
+            w.writerow(["lyzak", "Kdy je lyžařský kurz?", "V lednu.", "", "kdy je lyžák", "", "TRUE", ""])
+        q = server.App(argparse.Namespace(input=os.path.join(self.tmp.name, "p.csv"), sheet=None,
+                                          state=self.state, subject="žák", queue=self.queue,
+                                          topics=self.topics)).queue
+        ids = {a["q"]: a["id"] for a in q.answers}
+        self.assertEqual(ids["Odpověď e2"], "e2")                  # paired with the offered entry
+        self.assertEqual(ids["Kdy je lyžařský kurz?"], "p:lyzak")
+        d = q.decide({"key": "S1|d", "status": "alternative", "entry": "p:lyzak"})
+        self.assertEqual((d["entry_q"], d["entry_key"], d["wording"]), ("Kdy je lyžařský kurz?", "lyzak", "lyžák"))
+        self.assertEqual(q.assign()["S1|d"], server.ASSIGNED)      # out of its topic
+        self.assertEqual(self._rows(q)["S1|d"]["entry_key"], "lyzak")
+        with self.assertRaises(ValueError):
+            q.decide({"key": "S1|d", "status": "alternative", "entry": "p:nope"})
 
     def test_without_topics_file_the_reduction_alone(self):
         q = server.App(argparse.Namespace(input=self.xlsx, sheet=None, state=self.state, subject="žák",
@@ -550,6 +648,19 @@ class ReviewAppTest(unittest.TestCase):
     def _app(self):
         return server.App(argparse.Namespace(input=self.xlsx, sheet=None, state=self.state,
                                              subject="uchazeč"))
+
+    def test_set_aside_for_a_check_keeps_the_original_in_the_pack(self):
+        app = self._app()
+        d = app.decide({"id": "001", "status": "check"})
+        self.assertEqual(d["status"], "check")
+        self.assertEqual(app.pack_text(app.by_id["001"]), "Ano, můžeš odejít dřív.")
+        self.assertEqual(app.awaiting_review(), 1)
+
+    def test_accepted_warnings_are_kept_with_the_decision(self):
+        app = self._app()
+        d = app.decide({"id": "001", "status": "approved", "warn_ok": ["Velmi krátká odpověď."]})
+        self.assertEqual(d["warn_ok"], ["Velmi krátká odpověď."])
+        self.assertEqual(app.decide({"id": "001", "status": "approved"})["warn_ok"], [])
 
     def test_approval_for_another_address_must_be_renewed(self):
         app = self._app()                                    # vykání (default)

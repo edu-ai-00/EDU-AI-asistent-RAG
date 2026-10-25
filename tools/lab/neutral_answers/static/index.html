@@ -43,7 +43,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const S = { data: null, filter: "all", q: "", rule: "", open: new Set(), editing: null, allMachine: false };
+const S = { data: null, filter: "all", q: "", rule: "", open: new Set(), editing: null, allMachine: false, expanded: new Set() };
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -71,23 +71,38 @@ function finalOf(it) {
   if (d.status === "rejected") return it.answer;
   return (!d.stale && d.final) || it.proposed;
 }
+// not decided yet: waiting, or set aside "ke kontrole" by the curator
+const undecided = (it) => it.decision.status === "pending" || it.decision.status === "check";
+// automatic checks before the export: what was approved without a look at its weak spots
+function allWarnsOf(it) {
+  const d = it.decision, out = [];
+  if (d.status === "approved" && !d.final && it.changes.some((c) => c.kind === "check"))
+    out.push("Schváleno beze změny, i když návrh měl místa ke kontrole (tvar slova, rod) — zkontrolujte text.");
+  if (d.status === "approved" && it.flags.length)
+    out.push("Schváleno, i když nástroj hlásil problém (viz výše).");
+  const fin = finalOf(it);
+  if (d.status === "approved" && fin.length < 40) out.push("Velmi krátká odpověď.");
+  return out;
+}
+// accepted by the curator ("Schválit i tak") until they change
+const warnsOf = (it) => allWarnsOf(it).filter((n) => !(it.decision.warn_ok || []).includes(n));
 const hasCheck = (it) => it.changes.some((c) => c.kind === "check") || it.flags.length > 0;
 const changed = (it) => it.proposed !== it.answer || it.flags.length > 0;
 const machWarn = (it) => it.machine ? [...(it.machine.questions || []), it.machine.proposed].filter(Boolean).reduce((n, x) => n + (x.warnings || []).length, 0) : 0;
 
 const FILTERS = [
   ["all", "Všechny položky", () => true, ""],
-  ["changed", "Navržená změna", changed, ""],
-  ["check", "Ke kontrole", hasCheck, "s-warn"],
-  ["pending", "Čeká na rozhodnutí", (it) => it.decision.status === "pending" && changed(it), ""],
+  // what still waits for a person: a decided answer leaves this view like "Čeká"
+  ["pending", "Čeká na rozhodnutí", (it) => undecided(it) && changed(it), ""],
   ["approved", "Schváleno", (it) => it.decision.status === "approved", "s-ok"],
   ["rejected", "Zamítnuto", (it) => it.decision.status === "rejected", "s-bad"],
+  ["warn", "Upozornění", (it) => warnsOf(it).length > 0, "s-warn"],
 ];
 
 function renderStats() {
   const items = S.data.items, total = items.length || 1;
   // the pack holds EVERY answer; only an approved one carries the new wording
-  const wait = items.filter((it) => it.proposed !== it.answer && it.decision.status === "pending").length;
+  const wait = items.filter((it) => it.proposed !== it.answer && undecided(it)).length;
   const pb = $("#packbtn");
   pb.textContent = wait ? `⇩ QA sada (CSV) · ${wait} čeká` : "⇩ QA sada (CSV)";
   pb.title = "Celá sada ve formátu QA sady pro nahrání do aplikace. Nové znění mají jen schválené odpovědi, ostatní zůstávají v původním znění."
@@ -132,11 +147,23 @@ function machineHtml(it) {
     </tbody></table></div>`;
 }
 
+// an approved answer is one line (question, approved text, ✓) until it is opened
+function compactHtml(it) {
+  const fin = finalOf(it), w = warnsOf(it).length;
+  return `<div class="row compact st-approved" id="r-${it.id}" data-act="expand" data-id="${it.id}" title="Kliknutím rozbalit">
+    <div class="id">${esc(it.id)}</div>
+    <div class="q-main">${esc(it.canonical_q)}</div>
+    <div class="ctext" title="Schválené znění">✓ ${esc(fin)}</div>
+    <div class="cstate">${w ? `<span class="pill stale" title="Má upozornění">⚠ ${w}</span> ` : ""}<span class="pill approved">schváleno</span>
+      <button class="linkish" data-act="expand" data-id="${it.id}">▸ rozbalit</button></div></div>`;
+}
+
 function rowHtml(it) {
   const d = it.decision, fin = finalOf(it), editing = S.editing === it.id;
+  if (d.status === "approved" && !d.stale && !editing && !S.expanded.has(it.id)) return compactHtml(it);
   const pill = d.readdressed ? `<span class="pill stale" title="Schváleno pro jiné oslovení — navržené znění je teď jiné, schvalte ho znovu">jiné oslovení</span>`
     : d.stale ? `<span class="pill stale" title="Zdrojová odpověď se od rozhodnutí změnila">změněno ve zdroji</span>`
-    : `<span class="pill ${d.status}">${{ pending: "čeká", approved: "schváleno", rejected: "zamítnuto" }[d.status]}</span>`;
+    : `<span class="pill ${d.status === "check" ? "stale" : d.status}">${{ pending: "čeká", approved: "schváleno", rejected: "zamítnuto", check: "ke kontrole" }[d.status]}</span>`;
   const alts = it.alternatives.length ? `<ul class="q-alts">${it.alternatives.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : "";
   const finalCell = editing
     ? `<textarea id="ed-${it.id}">${esc(fin)}</textarea>
@@ -144,7 +171,10 @@ function rowHtml(it) {
        <button class="btn sm" data-act="cancel" data-id="${it.id}">Zrušit</button></div>`
     : (fin === it.answer ? `<div class="final">${esc(fin)}</div><div class="same">${d.status === "rejected" ? "zůstává původní znění" : "beze změny"}</div>`
       : `<div class="final">${renderDiff(it.answer, fin)}</div>${d.final && !d.stale ? '<div class="edited">✎ upraveno ručně</div>' : ""}`)
-      + (it.flags.length ? `<div class="flags">${it.flags.map((f) => `<div>⚠ ${esc(f.note)}</div>`).join("")}</div>` : "");
+      + (it.flags.length ? `<div class="flags">${it.flags.map((f) => `<div>⚠ ${esc(f.note)}</div>`).join("")}</div>` : "")
+      + (warnsOf(it).length ? `<div class="flags">${warnsOf(it).map((n) => `<div>⚠ ${esc(n)}</div>`).join("")}
+          <div style="background:none;padding:0"><button class="btn sm ok" data-act="warn-ok" data-id="${it.id}">✓ Schválit i tak</button></div></div>`
+        : allWarnsOf(it).length ? `<div class="edited">✓ upozornění schváleno <button class="btn sm" data-act="warn-undo" data-id="${it.id}" title="Zrušit schválení upozornění">↺</button></div>` : "");
   const open = S.allMachine || S.open.has(it.id);
   return `<div class="row st-${d.stale ? "pending" : d.status}" id="r-${it.id}">
     <div class="id" data-label="#">${esc(it.id)}</div>
@@ -159,6 +189,7 @@ function rowHtml(it) {
         <button class="btn sm bad ${d.status === "rejected" && !d.stale ? "on" : ""}" data-act="reject" data-id="${it.id}" title="Zamítnout — zůstane původní znění">✕</button>
         <button class="btn sm" data-act="edit" data-id="${it.id}" title="Upravit text ručně">✎</button>
         ${d.status !== "pending" || d.final ? `<button class="btn sm" data-act="reset" data-id="${it.id}" title="Vrátit do stavu čeká">↺</button>` : ""}
+        ${d.status === "approved" && S.expanded.has(it.id) ? `<button class="linkish" data-act="collapse" data-id="${it.id}">▾ sbalit</button>` : ""}
       </div></div>
     ${open ? machineHtml(it) : ""}
   </div>`;
@@ -185,7 +216,7 @@ async function decide(id, status, final) {
   if (!res.ok) { toast("Uložení selhalo"); return; }
   const it = S.data.items.find((x) => x.id === id); it.decision = await res.json();
   S.editing = null; render();
-  toast({ approved: "Schváleno", rejected: "Zamítnuto", pending: "Vráceno" }[status]);
+  toast({ approved: "Schváleno", rejected: "Zamítnuto", pending: "Vráceno", check: "Přesunuto do Ke kontrole" }[status]);
 }
 
 document.addEventListener("click", async (e) => {
@@ -195,6 +226,15 @@ document.addEventListener("click", async (e) => {
   switch (b.dataset.act) {
     case "approve": return decide(id, "approved", d.stale ? null : d.final);
     case "reject": return decide(id, "rejected", null);
+    case "expand": S.expanded.add(id); render(); return;
+    case "collapse": S.expanded.delete(id); render(); return;
+    case "warn-ok": case "warn-undo": {
+      const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, status: d.status, final: d.final || null, note: d.note || "",
+          warn_ok: b.dataset.act === "warn-ok" ? allWarnsOf(it) : [] }) });
+      if (!res.ok) { toast("Uložení selhalo"); return; }
+      it.decision = await res.json(); render(); toast(b.dataset.act === "warn-ok" ? "Upozornění schváleno" : "Schválení upozornění zrušeno"); return;
+    }
     case "reset": return decide(id, "pending", null);
     case "edit": S.editing = id; render(); document.getElementById("ed-" + id)?.focus(); return;
     case "cancel": S.editing = null; render(); return;
