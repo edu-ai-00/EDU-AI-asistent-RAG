@@ -158,8 +158,13 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
                                      entry_form_tokens(cur, entry_id),
                                      state.get("query_language"))
     except Exception as e:
-        logger.warning("qa_vector: negation check failed (%s) — answer kept", e)
-        _neg = []
+        # Fail closed, like the guard in route.py: an answer whose polarity
+        # could not be checked is not given as a curated one.
+        logger.warning("qa_vector: negation check failed (%s) — no curated answer", e)
+        _neg = None
+    if _neg is None:
+        return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,
+                "trace_detail": {"negation_check": "failed"}}
     if _neg:
         logger.info("qa_vector: negation conflict on %s — no curated answer", _neg)
         return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,

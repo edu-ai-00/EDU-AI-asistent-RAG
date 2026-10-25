@@ -5,6 +5,7 @@ import json
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import (FastAPI, HTTPException, BackgroundTasks, Header, Response,
                      APIRouter)
@@ -38,15 +39,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-api = FastAPI(
-    title="edu_ai Search Service",
-    description="Deterministic QA→RAG search cascade (LangGraph)",
-    version="2.0.0",
-)
-
-
-@api.on_event("startup")
-def _warm_normalizer() -> None:
+@asynccontextmanager
+async def _lifespan(_app):
     """Load the dictionary that diacritics restoration looks words up in before
     the first query, instead of charging it to whoever asks first. A failure
     only means it is loaded on first use; the service starts either way."""
@@ -58,6 +52,15 @@ def _warm_normalizer() -> None:
         logger.info("normalizer: dictionaries ready in %.1f s", _time.monotonic() - t0)
     except Exception as e:
         logger.warning("normalizer: dictionaries not preloaded (%s) — loaded on first use", e)
+    yield
+
+
+api = FastAPI(
+    title="edu_ai Search Service",
+    description="Deterministic QA→RAG search cascade (LangGraph)",
+    version="2.0.0",
+    lifespan=_lifespan,
+)
 
 # Versioned surface, 2026-08-13. Everything except /health lives under /v1, the
 # same shape edu_ai_api already uses (/api/health + /api/v1/ingest) — the two
