@@ -21,9 +21,9 @@ ENV LC_CTYPE=cs_CZ.UTF-8
 # BuildKit and picks the matching package and its SHA-256 (the GitHub release
 # asset digest). pg_search needs shared_preload_libraries='pg_search' (set in
 # docker-compose) and `CREATE EXTENSION pg_search CASCADE;` (in init_clean).
-ARG PG_SEARCH_VERSION=0.26.2
-ARG PG_SEARCH_SHA256_amd64=4b42a3fc436964917a22e8b8caec99c11615151660ee61ead20fdc379e527346
-ARG PG_SEARCH_SHA256_arm64=7060e4d725278d9ffc46e7ea59db5f86c48c9d02bd7ec8f8c55644d5adcfb362
+ARG PG_SEARCH_VERSION=0.26.3
+ARG PG_SEARCH_SHA256_amd64=7a3429c998e2bfd8f12b025ff7fc13b02060b3ec96ed2dd416f04713d40a3714
+ARG PG_SEARCH_SHA256_arm64=ab554b531d1e1d644a1d0a6e75eda06ffbb3448ad19502b8ff584ba1e0bd0433
 ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
       amd64) sum="${PG_SEARCH_SHA256_amd64}" ;; \

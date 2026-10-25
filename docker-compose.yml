@@ -230,7 +230,7 @@ services:
   # http://bifrost:8080 on `app`; provider keys live in bifrost_data/config.db,
   # managed through the UI — never in this file and never in git.
   bifrost:
-    image: maximhq/bifrost:v2.2.6    # pinned: `latest` moves under you
+    image: maximhq/bifrost:v2.3.2    # pinned: `latest` moves under you
     container_name: bifrost
     ports:
       # The UI and the admin API need the admin login (BIFROST_ADMIN_USERNAME /
@@ -277,7 +277,7 @@ services:
   cloudflared:
     # Optional: enable explicitly with COMPOSE_PROFILES=cloudflare in .env.
     profiles: [cloudflare]
-    image: cloudflare/cloudflared:2026.10.1   # pinned for the same reason bifrost is
+    image: cloudflare/cloudflared:2026.10.3   # pinned for the same reason bifrost is
     container_name: cloudflared
     command: tunnel --no-autoupdate run
     environment:

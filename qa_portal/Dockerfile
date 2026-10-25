@@ -12,7 +12,7 @@
 # Build from the REPOSITORY ROOT, because the context needs the whole qa_portal/:
 #     docker compose build edu_ai_qa_admin
 
-FROM node:26.12.0-alpine@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS frontend-build
+FROM node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS frontend-build
 
 WORKDIR /frontend
 # The lockfile separately and before the sources: a component change then keeps the npm layer cache.
@@ -28,7 +28,7 @@ ENV VITE_BASE=${PORTAL_BASE}
 ENV VITE_QA_USE_FIXTURES=false
 RUN npm run build
 
-FROM python:3.12.15-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
+FROM python:3.12.15-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

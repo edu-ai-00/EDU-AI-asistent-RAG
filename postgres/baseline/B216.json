@@ -71,7 +71,7 @@
   "postgres": {
     "base_image": "pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
     "extensions": {
-      "pg_search": "0.26.2",
+      "pg_search": "0.26.3",
       "pg_trgm": "1.6",
       "plpgsql": "1.0",
       "unaccent": "1.1",
@@ -81,7 +81,7 @@
     "server_version": "18.6"
   },
   "source": {
-    "base_commit": "697d9651d5c7e4118db78eae4a1120c19188fc11",
+    "base_commit": "c1bde4bae5a95585232b41f79c82b36fc103fd09",
     "note": "Commit the inputs were generated from, i.e. the parent of the commit that adds this manifest (a manifest cannot name its own commit). Informational: identity is carried by the file hashes below."
   }
 }

@@ -44,7 +44,9 @@ values); keep
 [CLEAN_INSTALL.md](CLEAN_INSTALL.md)). A switch saved in the UI is kept over
 `config.json`; reinstalling or restarting does not reset it. An in-place upgrade of an installation
 running Bifrost v1.x is not supported (the v2 database migration is one-way): install
-cleanly and enter the provider key again. Restrict administration access;
+cleanly and enter the provider key again. Within v2, newer releases migrate Bifrost's own
+database one way too (v2.3.1 adds non-reversible columns): after an update, a return to an
+older Bifrost image needs the `bifrost_data` backup. Restrict administration access;
 do not put keys into Git or into public reports. A paid verification needs its own
 scope, test inputs and a recorded result.
 
