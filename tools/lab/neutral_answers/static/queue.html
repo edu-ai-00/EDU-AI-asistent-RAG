@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dotazy z provozu</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+.stats { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 40px; }
+.topic { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 14px 16px; }
+.topic.st-alternative { box-shadow: inset 3px 0 0 var(--ok), var(--shadow); }
+.topic.st-ambiguous { box-shadow: inset 3px 0 0 var(--warn), var(--shadow); }
+.topic.st-missing { box-shadow: inset 3px 0 0 var(--bad), var(--shadow); }
+.topic.st-skip { opacity: .7; }
+.thead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.cnt { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; min-width: 52px; }
+.tt { font-weight: 650; font-size: 17px; }
+.area { font-size: 12px; color: var(--faint); }
+.tmeta { font-size: 13px; color: var(--muted); margin-left: auto; }
+.icon { border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.icon:hover { color: var(--accent); }
+.subs { margin: 10px 0 0 64px; display: grid; gap: 8px; }
+.sub { border-left: 3px solid var(--line); padding-left: 10px; display: grid; gap: 2px; }
+.sub.multi { border-left-color: var(--accent); }
+.sublabel { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 4px 6px; border-radius: 6px; }
+.row:hover { background: var(--panel-2); }
+.row .rc { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; min-width: 34px; }
+.row .rq { flex: 1; min-width: 200px; font-size: 14px; overflow-wrap: anywhere; }
+.row .rw { display: block; font-size: 12px; color: var(--faint); }
+.row .ract { display: flex; gap: 6px; align-items: center; opacity: .7; transition: opacity .15s; }
+.aside { margin: 6px 0 0 64px; font-size: 13px; color: var(--muted); }
+.row .from { font-size: 12px; color: var(--faint); }
+.row:hover .ract, .row:focus-within .ract { opacity: 1; }
+.row select { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); max-width: 200px; }
+.row.ghost { background: var(--panel-2); }
+.row.ghost .rq { color: var(--faint); font-style: italic; }
+.row.ghost .gl { font-size: 12px; font-weight: 600; color: var(--accent); }
+.row.ghost .gl.bad { color: var(--bad); }
+.offer { margin: 12px 0 0 64px; display: grid; gap: 4px; }
+.offer .oh { font-size: 12px; color: var(--muted); }
+.offer label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.offer .sc { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; width: 34px; text-align: right; }
+.offer .bar { width: 60px; height: 5px; border-radius: 4px; background: var(--panel-2); overflow: hidden; flex: none; }
+.offer .bar i { display: block; height: 100%; background: var(--accent); }
+.offer .pk { color: var(--faint); font-size: 12px; }
+.none { color: var(--faint); font-style: italic; font-size: 13px; margin: 10px 0 0 64px; }
+.gact { margin: 10px 0 0 64px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.gact input[type=text] { font: inherit; font-size: 14px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--text); min-width: 240px; flex: 1; max-width: 420px; }
+.panel { margin: 10px 0 0 64px; background: var(--panel-2); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.panel textarea { min-height: 60px; }
+.done { margin: 10px 0 0 64px; font-size: 14px; }
+.saved { color: var(--ok); font-size: 12px; margin-left: 6px; }
+.also { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+@media (max-width: 1100px) { .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .subs, .offer, .none, .gact, .panel, .done { margin-left: 0; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gact input[type=text] { min-width: 0; }
+  .row .ract { opacity: 1; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div>
+      <h1>Dotazy z provozu</h1>
+      <div class="src" id="src">Načítám…</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="src" id="store" title="Rozhodnutí se ukládají hned po kliknutí do tohoto souboru ve stavové složce"></div>
+    <button class="btn" data-act="new-topic">+ Nová skupina</button>
+    <a class="btn" href="/export/queue.csv" title="Každý dotaz: skupina, rozhodnutí, znění, které se přidá">Stáhnout přehled</a>
+    <a class="btn" href="/">← Odpovědi</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="stats" id="stats"></section>
+  <section class="tools">
+    <input type="search" id="q" placeholder="Hledat ve skupinách, dotazech a nabídnutých odpovědích…" aria-label="Hledat">
+    <label style="font-size:14px;color:var(--muted);display:flex;gap:6px;align-items:center">
+      <input type="checkbox" id="good"> jen s dobrou nabídkou (≥ 0,6)</label>
+    <span class="count" id="count"></span>
+  </section>
+  <details class="legend"><summary>Jak karta funguje</summary>
+    <div class="legend-grid">
+      <div><b>Skupina</b> — dotazy na stejné téma. Rozhoduje se jednou za celou skupinu.</div>
+      <div><b>Modrý pruh</b> — dotazy, které chat bere jako stejnou otázku (liší se jen zápisem, diakritikou, tvarem slova nebo synonymem). Stačí mu z nich jedno znění.</div>
+      <div><b>Přidat jako alternativu</b> — z každého pruhu se k vybrané odpovědi přidá nejčastější znění; zaškrtnutím „všechna znění“ se přidají všechny dotazy skupiny.</div>
+      <div><b>Dvojznačný</b> — skupina se nepřidá nikam; zaškrtněte, které odpovědi má nabídka „myslel jste…?“ obsahovat.</div>
+      <div><b>Chybí odpověď u skupiny</b> — skupina zůstane pohromadě a půjde na seznam chybějících odpovědí (filtr „Chybí odpověď“); poznámku lze připsat potom, uloží se sama.</div>
+      <div><b>↺ u dotazu bez odpovědi</b> — zruší označení a vrátí dotaz do jeho původní skupiny.</div>
+      <div><b>Přeskočit</b> — učivo, nesmysl, test; skupina se schová z fronty.</div>
+      <div><b>U jednotlivého dotazu</b>: přesunout do jiné nebo nové skupiny; „chybí odpověď“ (jen tento dotaz se vyjme ze skupiny a ve filtru „Chybí odpověď“ bude samostatně v kartě „Dotazy vyjmuté ze skupin“); „odebrat ze skupiny“ (najdete v Odložené). Řádek zůstane označený na původním místě až do obnovení stránky: jde ho vrátit nebo s ním dál pracovat.</div>
+      <div><b>Vlastní skupiny</b> (tlačítko „+ Nová skupina“) jsou vždy nahoře, naposledy doplněná první.</div>
+    </div>
+  </details>
+  <section class="groups" id="groups" aria-live="polite"></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const LATER = "__later__", ALONE = "__alone__";
+const OUT = new Set([LATER, ALONE]);            // no topic decision applies there
+const S = { groups: [], byKey: {}, topics: {}, assign: {}, subgroup: {}, tdec: {}, filter: "pending", q: "", good: false,
+  panel: null, limit: 30, ghosts: new Map() };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1800); }
+const pct = (x) => (x ?? 0).toFixed(2).replace(".", ",");
+const LABEL = { pending: "čeká", alternative: "alternativa", ambiguous: "dvojznačný", missing: "chybí odpověď", skip: "přeskočeno" };
+const PILL = { alternative: "approved", missing: "rejected" };
+// Nothing is preselected: a well covered offer can still be the wrong answer
+// ("kdy je lyžařský výcvik?" -> "Platí školní řád i na výletě…?", 0.63).
+const GOOD = 0.6;
+
+const tdec = (tid) => S.tdec[tid] || { status: "pending" };
+// the group's own decision wins over its topic's (server: QueueReview.effective)
+function eff(g) {
+  if (g.decision.status !== "pending") return { d: g.decision, where: "group" };
+  const t = S.assign[g.key];
+  if (!OUT.has(t) && tdec(t).status !== "pending") return { d: tdec(t), where: "topic" };
+  return { d: g.decision, where: "group" };
+}
+const FILTERS = [
+  ["pending", "Čeká", (g) => eff(g).d.status === "pending" && !OUT.has(S.assign[g.key]), ""],
+  ["alternative", "Alternativa", (g) => eff(g).d.status === "alternative", "s-ok"],
+  ["ambiguous", "Dvojznačné", (g) => eff(g).d.status === "ambiguous", "s-warn"],
+  ["missing", "Chybí odpověď", (g) => { const d = eff(g).d; return d.status === "missing" || (d.status === "alternative" && d.missing_too); }, "s-bad"],
+  ["skip", "Přeskočeno", (g) => eff(g).d.status === "skip", ""],
+  ["later", "Odložené", (g) => OUT.has(S.assign[g.key]) && eff(g).d.status === "pending", ""],
+  ["all", "Vše", () => true, ""],
+];
+const ffn = () => FILTERS.find((f) => f[0] === S.filter)[2];
+const topicTitle = (tid) => tid === LATER ? "Odebrané ze skupin (na potom)" : tid === ALONE ? "Dotazy vyjmuté ze skupin"
+  : (S.topics[tid] || {}).title || tid;
+// one's own topics first, the one added to last on top
+const ownRank = (tid) => { const t = S.topics[tid]; return t && t.custom ? (t.touched_utc || "0") : ""; };
+const members = (tid) => S.groups.filter((g) => S.assign[g.key] === tid);
+
+function renderStats() {
+  const total = S.groups.reduce((n, g) => n + g.count, 0) || 1;
+  $("#stats").innerHTML = FILTERS.map(([k, label, fn, cls]) => {
+    const gs = S.groups.filter(fn), n = gs.reduce((a, g) => a + g.count, 0);
+    const nt = new Set(gs.map((g) => S.assign[g.key])).size;
+    return `<button class="stat ${cls} ${S.filter === k ? "on" : ""}" data-f="${k}">
+      <div class="n">${nt}</div><div class="l">${label} · ${gs.length} dotazů / ${n}×</div>
+      <div class="bar"><i style="width:${Math.round((n / total) * 100)}%"></i></div></button>`;
+  }).join("");
+}
+
+function offersOf(tid) {
+  const best = {}, cnt = {};
+  for (const g of members(tid)) {
+    if (g.decision.status !== "pending") continue;
+    for (const o of g.offered) {
+      cnt[o.entry] = (cnt[o.entry] || 0) + 1;
+      if (!best[o.entry] || o.score > best[o.entry].score) best[o.entry] = o;
+    }
+  }
+  return Object.values(best).sort((a, b) => b.score - a.score).map((o) => ({ ...o, n: cnt[o.entry] }));
+}
+
+// cards: [{tid, groups}] — groups matching the filter, plus the rows just moved
+// away from this topic (ghosts), which stay in place until the next click
+function cards() {
+  const fn = ffn(), q = S.q.toLowerCase(), by = new Map();
+  for (const g of S.groups) {
+    const gh = S.ghosts.get(g.key), ghost = gh && gh.filter === S.filter ? gh : null;
+    const tid = ghost ? ghost.from : S.assign[g.key];
+    if (!ghost && !fn(g)) continue;
+    if (!by.has(tid)) by.set(tid, []);
+    by.get(tid).push(g);
+  }
+  const out = [];
+  for (const [tid, gs] of by) {
+    const title = topicTitle(tid).toLowerCase();
+    const hit = !q || title.includes(q) || gs.some((g) => [...g.wordings, ...g.offered.map((o) => o.q)].join(" ").toLowerCase().includes(q));
+    if (!hit) continue;
+    if (S.good && !(offersOf(tid)[0] && offersOf(tid)[0].score >= GOOD)) continue;
+    out.push({ tid, groups: gs, n: gs.reduce((a, g) => a + g.count, 0) });
+  }
+  // the questions taken out of their topics first, then one's own topics
+  return out.sort((a, b) => (b.tid === ALONE) - (a.tid === ALONE) || ownRank(b.tid).localeCompare(ownRank(a.tid)) || b.n - a.n
+    || topicTitle(a.tid).localeCompare(topicTitle(b.tid), "cs"));
+}
+
+function moveSelect(g) {
+  const cur = S.assign[g.key], byArea = {}, own = [];
+  for (const [tid, t] of Object.entries(S.topics)) {
+    if (t.custom) own.push([tid, t.title]); else (byArea[t.area || "Ostatní"] ||= []).push([tid, t.title]);
+  }
+  const opt = ([tid, title]) => `<option value="${esc(tid)}" ${tid === cur ? "disabled" : ""}>${esc(title)}</option>`;
+  const groups = (own.length ? `<optgroup label="Vlastní skupiny">${own.sort((x, y) => ownRank(y[0]).localeCompare(ownRank(x[0]))).map(opt).join("")}</optgroup>` : "")
+    + Object.entries(byArea).sort((a, b) => a[0].localeCompare(b[0], "cs")).map(([a, ts]) =>
+    `<optgroup label="${esc(a)}">${ts.sort((x, y) => x[1].localeCompare(y[1], "cs")).map(opt).join("")}</optgroup>`).join("");
+  return `<select data-move="${esc(g.key)}" aria-label="Přesunout do skupiny" title="Přesunout do jiné skupiny">
+    <option value="">Přesunout do…</option><option value="__new__">+ nová skupina…</option>${groups}</select>`;
+}
+
+function rowHtml(g) {
+  const k = esc(g.key), ghost = S.ghosts.get(g.key);
+  const more = g.wordings.length > 1 ? `<span class="rw">${g.wordings.slice(1, 4).map(esc).join(" · ")}${g.wordings.length > 4 ? ` · … +${g.wordings.length - 4}` : ""}</span>` : "";
+  const { d, where } = eff(g);
+  if (ghost && ghost.filter === S.filter) {
+    const out = OUT.has(S.assign[g.key]), pend = g.decision.status === "pending";
+    return `<div class="row ghost" data-g="${k}"><span class="rc">${g.count}×</span>
+      <span class="rq">${esc(g.question)}</span><span class="gl ${ghost.bad ? "bad" : ""}">${esc(ghost.label)}</span>
+      <button class="btn sm" data-act="undo" data-k="${k}" title="Vrátit do této skupiny (zruší i označení chybí odpověď)">Vrátit</button>
+      <span class="ract">${moveSelect(g)}
+        ${pend ? `<button class="btn sm bad" data-act="row-missing" data-k="${k}">Chybí odpověď</button>` : ""}
+        ${out ? "" : `<button class="btn sm" data-act="later" data-k="${k}">Odebrat ze skupiny</button>`}</span></div>`;
+  }
+  const own = where === "group" && d.status !== "pending"
+    ? `<span class="pill ${PILL[d.status] || "pending"}">${LABEL[d.status]}</span>
+       <button class="btn sm" data-act="reset" data-k="${k}" title="Vrátit do fronty">↺</button>` : "";
+  const out = OUT.has(S.assign[g.key]);
+  const acts = `${moveSelect(g)}
+       ${own ? "" : `<button class="btn sm bad" data-act="row-missing" data-k="${k}" title="Vyjme dotaz ze skupiny a zapíše ho mezi chybějící odpovědi">Chybí odpověď</button>`}
+       ${out ? "" : `<button class="btn sm" data-act="later" data-k="${k}" title="Vyjme dotaz ze skupiny; najdete ho v Odložené">Odebrat ze skupiny</button>`}`;
+  const from = S.assign[g.key] === ALONE && S.base[g.key] ? `<span class="from">ze skupiny ${esc(topicTitle(S.base[g.key]))}</span>` : "";
+  return `<div class="row" data-g="${k}"><span class="rc">${g.count}×</span>
+    <span class="rq">${esc(g.question)}${more}</span>${from}${own}<span class="ract">${acts}</span></div>`;
+}
+
+function subsHtml(tid, gs) {
+  const by = new Map();
+  for (const g of gs) {
+    // out of the topics every question stands alone
+    const s = (S.ghosts.get(g.key) || {}).filter === S.filter || OUT.has(tid) ? "g" + g.key : S.subgroup[g.key];
+    if (!by.has(s)) by.set(s, []);
+    by.get(s).push(g);
+  }
+  return `<div class="subs">${[...by.values()].map((list) => `<div class="sub ${list.length > 1 ? "multi" : ""}">
+      ${list.length > 1 ? `<span class="sublabel">chat bere jako stejnou otázku</span>` : ""}
+      ${list.map(rowHtml).join("")}</div>`).join("")}</div>`;
+}
+
+function decidedHtml(tid) {
+  const d = tdec(tid);
+  let what = "";
+  if (d.status === "alternative") what = `${d.all_wordings ? "všechna znění" : "jedno znění z každého pruhu"} se přidá jako alternativa k odpovědi „<b>${esc(d.entry_q)}</b>“`;
+  if (d.status === "ambiguous") {
+    const qs = offersOf(tid).filter((o) => (d.entries || []).includes(o.entry)).map((o) => `„${esc(o.q)}“`);
+    what = `dvojznačná — nabídka má obsahovat ${qs.join(", ") || "(nic nevybráno)"}`;
+  }
+  if (d.status === "alternative" && d.missing_too) what += " · <b>a zároveň chybí/je neúplná odpověď</b>";
+  if (d.status === "missing") what = "odpověď chybí";
+  if (d.status === "skip") what = "přeskočeno";
+  const at = d.updated_utc ? new Date(d.updated_utc).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }) : "";
+  what += at ? ` <span class="saved" title="Uloženo do souboru rozhodnutí">✓ uloženo v ${at}</span>` : "";
+  const t = esc(tid);
+  return `<div class="done"><span class="pill ${PILL[d.status] || "pending"}">${LABEL[d.status]}</span> ${what}
+    <button class="btn sm" data-act="topic-reset" data-t="${t}" title="Vrátit skupinu do fronty">↺</button></div>
+    ${d.status !== "skip" ? `<div class="gact"><input type="text" class="note" data-tnote="${t}" value="${esc(d.note || "")}"
+      placeholder="${d.status === "missing" || d.missing_too ? "co by odpověď měla obsahovat (uloží se samo)" : "poznámka (uloží se sama)"}" aria-label="Poznámka"></div>` : ""}`;
+}
+
+function topicHtml(c) {
+  const tid = c.tid, t = esc(tid), d = OUT.has(tid) ? { status: "pending" } : tdec(tid);
+  const open = S.panel && S.panel.tid === tid ? S.panel.kind : null;
+  const offers = OUT.has(tid) ? [] : offersOf(tid);
+  const all = members(tid).length;
+  const head = `<div class="thead"><span class="cnt" title="počet dotazů v záznamu">${c.n}×</span>
+    <span class="tt">${esc(topicTitle(tid))}</span>
+    ${!OUT.has(tid) ? `<button class="icon" data-act="rename" data-t="${t}" title="Přejmenovat skupinu">✎</button>` : ""}
+    <span class="area">${esc((S.topics[tid] || {}).area || "")}</span>
+    <span class="tmeta">${c.groups.length < all ? `zobrazeno ${c.groups.length} z ${all} dotazů` : `${all} dotazů`}</span></div>`;
+  if (OUT.has(tid)) return `<article class="topic">${head}${subsHtml(tid, c.groups)}</article>`;
+  // members decided on their own are not in this view: say how many and where
+  const apart = S.filter === "pending" ? members(tid).filter((g) => g.decision.status !== "pending" && !S.ghosts.has(g.key)).length : 0;
+  const aside = apart ? `<div class="aside">${apart} ${apart === 1 ? "dotaz" : apart < 5 ? "dotazy" : "dotazů"} z této skupiny vyřízen${apart === 1 ? "" : "o"} zvlášť — najdete ve filtru podle rozhodnutí</div>` : "";
+  const offer = offers.length ? `<div class="offer"><div class="oh">Vyhledávání nabídlo:</div>${offers.slice(0, 6).map((o) => `
+      <label>${open === "ambiguous"
+        ? `<input type="checkbox" name="amb-${t}" value="${esc(o.entry)}" ${(d.entries || []).includes(o.entry) ? "checked" : ""}>`
+        : `<input type="radio" name="alt-${t}" value="${esc(o.entry)}" ${d.entry === o.entry ? "checked" : ""} ${d.status !== "pending" ? "disabled" : ""}>`}
+        <span class="bar"><i style="width:${Math.round(Math.min(o.score, 1) * 100)}%"></i></span><span class="sc">${pct(o.score)}</span>
+        <span>${esc(o.q)}</span><span class="pk">${esc(o.pack)} · u ${o.n} ${o.n === 1 ? "dotazu" : "dotazů"}</span></label>`).join("")}</div>`
+    : `<div class="none">vyhledávání nenabídlo žádnou odpověď</div>`;
+  let actions;
+  if (d.status !== "pending") actions = decidedHtml(tid);
+  else if (open === "ambiguous") actions = `<div class="panel">
+      <div style="font-size:13px;color:var(--muted)">Zaškrtněte výše odpovědi, které má nabídka obsahovat. Chybí-li výklad (např. kontakt na školu), popište ho:</div>
+      <textarea id="note-${t}" placeholder="poznámka">${esc(d.note || "")}</textarea>
+      <div class="actions"><button class="btn sm primary" data-act="save-ambiguous" data-t="${t}">Uložit</button>
+        <button class="btn sm" data-act="cancel">Zrušit</button></div></div>`;
+  else actions = `<div class="gact">
+      ${offers.length ? `<button class="btn sm ok" data-act="alternative" data-t="${t}">Přidat jako alternativu</button>
+      <label class="also" title="Jinak se přidá jen nejčastější znění z každého modrého pruhu"><input type="checkbox" id="aw-${t}"> všechna znění</label>
+      <label class="also"><input type="checkbox" id="mt-${t}"> a zároveň chybí / je neúplná odpověď</label>
+      <input type="text" id="an-${t}" placeholder="poznámka (nepovinná)" aria-label="Poznámka k alternativě">
+      <button class="btn sm" data-act="ambiguous" data-t="${t}">Dvojznačná…</button>` : ""}
+      <button class="btn sm bad" data-act="missing" data-t="${t}" title="Uloží se hned; poznámku můžete doplnit potom">Chybí odpověď</button>
+      <button class="btn sm" data-act="skip" data-t="${t}">Přeskočit</button></div>`;
+  return `<article class="topic st-${d.status}">${head}${aside}${subsHtml(tid, c.groups)}${offer}${actions}</article>`;
+}
+
+function renderStore() {
+  const n = S.groups.filter((g) => eff(g).d.status !== "pending").length;
+  $("#store").textContent = S.store ? `ukládá se do ${S.store.file} · rozhodnuto ${n} dotazů` : "";
+}
+
+function render() {
+  S.needRender = false;
+  renderStats();
+  const cs = cards(), shown = cs.slice(0, S.limit);
+  $("#count").textContent = `Zobrazeno ${shown.length} z ${cs.length} skupin`;
+  $("#groups").innerHTML = (shown.length ? shown.map(topicHtml).join("") : `<div class="empty">Žádná skupina neodpovídá filtru.</div>`)
+    + (cs.length > shown.length ? `<button class="btn" data-act="more" style="justify-self:center">Zobrazit dalších ${Math.min(30, cs.length - shown.length)}</button>` : "");
+  renderStore();
+}
+
+function applyState(st) {
+  S.topics = st.topics; S.assign = st.assign; S.base = st.base || {}; S.subgroup = st.subgroup; S.tdec = st.topic_decisions || {}; S.store = st.store;
+  for (const g of S.groups) if (st.decisions && st.decisions[g.key]) g.decision = st.decisions[g.key];
+}
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { toast("Uložení selhalo: " + (data.error || res.status)); return null; }
+  return data;
+}
+async function decideTopic(tid, body, msg) {
+  const st = await post("/api/queue/topic-decision", { topic: tid, ...body });
+  if (!st) return;
+  applyState(st); S.panel = null; render();
+  const where = { missing: "Chybí odpověď", alternative: "Alternativa", ambiguous: "Dvojznačné", skip: "Přeskočeno" }[body.status];
+  toast(msg + (where ? ` — najdete ve filtru „${where}“ nahoře` : " · uloženo"));
+}
+async function decideGroup(key, body) {
+  const d = await post("/api/queue/decision", { key, ...body });
+  if (!d) return null;
+  S.byKey[key].decision = d; return d;
+}
+// the first origin and the decision before it are kept: "Vrátit" goes all the way back
+function ghost(key, from, label, bad, decisionBefore) {
+  const old = S.ghosts.get(key);
+  S.ghosts.set(key, { from: old ? old.from : from, filter: old ? old.filter : S.filter, label, bad,
+    before: old ? old.before : (decisionBefore || S.byKey[key].decision.status) });
+}
+async function move(key, tid, ghostLabel) {
+  const from = S.assign[key];
+  const st = await post("/api/queue/assign", { key, topic: tid });
+  if (!st) return;
+  applyState(st);
+  if (ghostLabel) ghost(key, from, ghostLabel, false);
+  if (tid !== LATER && tdec(tid).status !== "pending") toast(`Skupina „${topicTitle(tid)}“ je už rozhodnutá — dotaz převzal její rozhodnutí`);
+  else toast(tid === LATER ? "Odebráno ze skupiny — najdete ve filtru „Odložené“ nahoře" : `Přesunuto do „${topicTitle(tid)}“ · uloženo`);
+  render();
+}
+async function newTopic() {
+  const title = (prompt("Název nové skupiny:") || "").trim();
+  if (!title) return null;
+  const st = await post("/api/queue/topic", { title });
+  if (!st) return null;
+  applyState(st); return st.id;
+}
+
+// a moved row (ghost) stays where it was until the page is reloaded: a
+// misclick can always be taken back, and the row can be worked with further
+document.addEventListener("click", async (e) => {
+  const st = e.target.closest(".stat"); if (st) { S.filter = st.dataset.f; S.limit = 30; S.panel = null; render(); return; }
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const key = b.dataset.k, tid = b.dataset.t, tq = tid && CSS.escape(tid);
+  switch (b.dataset.act) {
+    case "more": S.limit += 30; render(); return;
+    case "new-topic": { const id = await newTopic(); if (id) { toast(`Skupina „${topicTitle(id)}“ vytvořena — přesuňte do ní dotazy`); render(); } return; }
+    case "rename": {
+      const title = (prompt("Nový název skupiny:", topicTitle(tid)) || "").trim();
+      if (!title || title === topicTitle(tid)) return;
+      const s = await post("/api/queue/topic", { id: tid, title }); if (s) { applyState(s); render(); toast("Přejmenováno · uloženo"); }
+      return;
+    }
+    case "alternative": {
+      const r = document.querySelector(`input[name="alt-${tq}"]:checked`);
+      if (!r) { toast("Vyberte odpověď, ke které alternativy patří"); return; }
+      const mt = document.getElementById("mt-" + tid).checked;
+      return decideTopic(tid, { status: "alternative", entry: r.value, all_wordings: document.getElementById("aw-" + tid).checked,
+        missing_too: mt, note: document.getElementById("an-" + tid).value }, mt ? "Přidáno jako alternativa a zapsáno k doplnění" : "Přidáno jako alternativa");
+    }
+    case "ambiguous": S.panel = { tid, kind: "ambiguous" }; render(); return;
+    case "cancel": S.panel = null; render(); return;
+    case "save-ambiguous": {
+      const entries = [...document.querySelectorAll(`input[name="amb-${tq}"]:checked`)].map((x) => x.value);
+      return decideTopic(tid, { status: "ambiguous", entries, note: document.getElementById("note-" + tid).value }, "Označeno jako dvojznačná");
+    }
+    case "missing": return decideTopic(tid, { status: "missing", note: "" }, "Zařazeno mezi chybějící odpovědi");
+    case "skip": return decideTopic(tid, { status: "skip" }, "Přeskočeno");
+    case "topic-reset": return decideTopic(tid, { status: "pending" }, "Skupina vrácena do fronty");
+    case "row-missing": {
+      const from = S.assign[key];
+      if (!(await decideGroup(key, { status: "missing", note: "" }))) return;
+      if (!OUT.has(from)) {
+        const st = await post("/api/queue/assign", { key, topic: ALONE });
+        if (!st) return;
+        applyState(st);
+      }
+      ghost(key, from, "→ chybí odpověď, vyjmuto ze skupiny", true, "pending");
+      render(); toast("Zapsáno mezi chybějící odpovědi — najdete ve filtru „Chybí odpověď“ nahoře"); return;
+    }
+    case "later": return move(key, LATER, "→ odebráno ze skupiny (najdete v Odložené)");
+    case "reset": {
+      if (!(await decideGroup(key, { status: "pending" }))) return;
+      // taken out with "chybí odpověď": back into the topic it came from
+      if (S.assign[key] === ALONE && S.base[key]) return move(key, S.base[key], null);
+      render(); toast("Vráceno do fronty"); return;
+    }
+    case "undo": {
+      const gh = S.ghosts.get(key); if (!gh) return;
+      S.ghosts.delete(key);
+      if (gh.before === "pending" && S.byKey[key].decision.status !== "pending" && !(await decideGroup(key, { status: "pending" }))) return;
+      if (S.assign[key] !== gh.from) return move(key, gh.from, null);
+      render(); toast("Vráceno");
+      return;
+    }
+  }
+});
+
+document.addEventListener("change", async (e) => {
+  const sel = e.target.closest("select[data-move]");
+  if (sel) {
+    const key = sel.dataset.move; let tid = sel.value;
+    if (!tid) return;
+    if (tid === "__new__") { tid = await newTopic(); if (!tid) { sel.value = ""; return; } }
+    return move(key, tid, `→ přesunuto do „${topicTitle(tid)}“`);
+  }
+  if (e.target.matches("input.note")) saveNote(e.target);
+});
+async function saveNote(input) {
+  const tid = input.dataset.tnote, d = tdec(tid);
+  if ((d.note || "") === input.value) return;
+  const body = { status: d.status, note: input.value };
+  if (d.status === "alternative") Object.assign(body, { entry: d.entry, all_wordings: d.all_wordings, missing_too: d.missing_too });
+  if (d.status === "ambiguous") body.entries = d.entries || [];
+  const st = await post("/api/queue/topic-decision", { topic: tid, ...body });
+  if (!st) { toast("Poznámku se nepodařilo uložit"); return; }
+  applyState(st); toast("Poznámka uložena");
+  const saved = input.closest(".topic").querySelector(".saved");
+  if (saved) saved.textContent = "✓ uloženo v " + new Date(tdec(tid).updated_utc).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input.note")) { e.preventDefault(); e.target.blur(); } });
+$("#q").addEventListener("input", (e) => { S.q = e.target.value; S.limit = 30; render(); });
+$("#good").addEventListener("change", (e) => { S.good = e.target.checked; render(); });
+
+(async () => {
+  const res = await fetch("/api/queue");
+  if (!res.ok) { $("#groups").innerHTML = `<div class="empty">Nástroj běží bez fronty dotazů — spusťte ho s <code>--queue</code>.</div>`; return; }
+  const data = await res.json();
+  S.groups = data.groups; S.byKey = Object.fromEntries(S.groups.map((g) => [g.key, g])); applyState(data);
+  const schools = [...new Set(S.groups.map((g) => g.entity))];
+  $("#src").textContent = `${schools.join(", ")} · ${Object.keys(S.topics).length} skupin · ${S.groups.length} dotazů (${S.groups.reduce((n, g) => n + g.count, 0)}×) bez jisté odpovědi z QA`;
+  render();
+})();
+</script>
+</body>
+</html>

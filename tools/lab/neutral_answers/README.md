@@ -76,6 +76,77 @@ as *changed in source* and goes back to pending.
   `category_code` is written only when the input CSV had the column (an absent
   column keeps an entry's category, an empty cell clears it).
 
+## Address (`--osloveni`)
+
+`--osloveni vy` (default) turns tykání into polite vykání, `ty` turns vykání
+into tykání, `beze` leaves the address alone. Certain forms go by table
+(kontaktujte → kontaktuj, nemáte → nemáš, jste se → ses); a pronoun whose
+singular depends on case or gender (vám → ti/tobě, vaše → tvoje/tvá), generic
+verb endings and plural participles (abyste přišli → abys přišel) are offered
+for a check. A rewrite approved for another address becomes "jiné oslovení"
+and waits for a new approval; until then the pack keeps the original answer.
+
+## Questions from the log (`--queue`)
+
+```bash
+python3 tools/lab/neutral_answers/log_queue.py REPLAY.jsonl LOOKUP.json --entity SCHOOL --out queue.json
+tools/lab/neutral_answers/run.sh pack.csv --queue queue.json
+```
+
+[`log_queue.py`](log_queue.py) groups the logged questions a replay
+([`tools/lab/replay`](../replay/README.md)) left without a confident curated
+answer — same school, same lemmas, most frequent first — with every wording,
+what the search offered, how the production answered, and the curated entry
+that answered it before if that one is switched off now. With `--queue` the
+app shows them at `/queue.html` ("Dotazy z provozu"): the curator adds a
+question as an **alternative** to an offered entry, marks it **ambiguous**
+(which entries the suggestion list must hold), **missing an answer**, or
+skips it. Nothing is preselected: a well covered offer can still be wrong.
+Decisions go to `<workbook>.decisions.queue.json` next to the answer
+decisions; the queue holds users' questions and stays outside Git.
+
+### Topics (`--topics`)
+
+```bash
+python3 tools/lab/neutral_answers/topics.py queue.json --manual temata.json \
+    --synonyms syn.txt --stopwords stop.txt --out topics.json
+tools/lab/neutral_answers/run.sh pack.csv --queue queue.json --topics topics.json
+```
+
+The tab shows **topics** ("skupiny") instead of single groups, and the curator
+decides once per topic. [`topics.py`](topics.py) starts from a hand-made split
+(`--manual`, `{"topics": {group key: {"area", "title"}}}`, outside Git); a group
+it does not know joins the most similar topic, else "Nezařazené". Without
+`--manual` (or without `--topics` at all) the topics are the subgroups below.
+
+Inside a topic, a blue bar joins the groups **the search itself treats as one
+question**: the reduction of the QA cascade (lemmas, `coverage` stop-words,
+synonym groups, IDF-weighted coverage, each side covering ≥ 0.6 of the other).
+Measured on one log: 458 groups → 342, 93 % of the merged pairs belong
+together; different words with the same meaning stay apart. A topic's
+alternative therefore adds the most frequent wording of each bar (or every
+wording, when ticked).
+
+"Missing an answer" for a whole topic keeps the topic together; for a single
+question it takes the question out of its topic, listed on its own ("Dotazy
+vyjmuté ze skupin", first in the "Chybí odpověď" view); ↺ on it returns it to
+the topic it came from.
+
+Per group the curator can move it to another topic or a new one, mark it as
+missing an answer (which also takes it out of its topic, into "Dotazy vyjmuté
+ze skupin"), or take it out of the topic for later ("Odložené"). Topics of
+one's own come first, the one added to last on top. The row
+stays in place, struck through and with an undo button, until the next click
+elsewhere. Moves, topics of one's own and topic decisions are stored in the
+same decisions file; `/export/queue.csv` lists every group with its topic,
+decision and the wording it adds.
+
+`syn.txt` and `stop.txt` are exports of `qa_synonym` / `qa_stopword` (lang
+`cs`), e.g. `psql … -At -F'|' -c "SELECT group_id, kind, term_norm,
+term_lemma, term_stem FROM edu_ai.qa_synonym WHERE is_active AND lang='cs'"`
+and `"SELECT scope, term_norm, term_lemma FROM edu_ai.qa_stopword WHERE
+is_active AND lang='cs'"`. Without them the lemmas alone are compared.
+
 ## Tests
 
 ```bash

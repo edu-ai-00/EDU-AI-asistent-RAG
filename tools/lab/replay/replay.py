@@ -90,6 +90,13 @@ def _ask(server, row, user_id):
         "score": state.get("match_score"),
         "suggestions": [s.get("entry_id") for s in (state.get("suggestions") or [])
                         if s.get("entry_id")],
+        # what a NOT answered question was offered ("myslel jste…?"), parked
+        # for the answer step: deferred decision B, or the C fallback list
+        "offered": [{"entry": s.get("entry_id"), "score": s.get("score")}
+                    for s in ((state.get("deferred_suggest") or {}).get("suggestions")
+                              or state.get("fallback_suggestions") or [])
+                    if s.get("entry_id")],
+        "decision": state.get("decision"),
         "chunks": [c.get("chunk_id") for c in chunks][:10],
         "lemma": state.get("query_lemma_tokens"),
     }
@@ -107,7 +114,8 @@ def main() -> int:
     t0 = time.time()
     with open(a.out, "w", encoding="utf-8") as fh:
         for n, row in enumerate(rows, 1):
-            rec = {"id": row[0], "prod_source": row[7], "prod_entry": str(row[8]) if row[8] else None}
+            rec = {"id": row[0], "entity": row[2],
+                   "prod_source": row[7], "prod_entry": str(row[8]) if row[8] else None}
             try:
                 try:
                     rec.update(_ask(server, row, row[3]))

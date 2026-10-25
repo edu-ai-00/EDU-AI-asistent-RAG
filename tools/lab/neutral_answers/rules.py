@@ -3,8 +3,10 @@
 Goal: an answer must fit ANY phrasing of its question and
 any asker. So it does not open with "Ano/Ne", does not address one person in
 the familiar form, does not speak as "I", names the asker neutrally (default
-"uchazeč") and points to where to look or ask. Polite "vykání" stays — "Co
-nejdříve kontaktujte školu." reads human and fits every asker.
+"uchazeč") and points to where to look or ask. The address is a choice
+(`address`): "vy" turns tykání into polite vykání (the default — "Co nejdříve
+kontaktujte školu." fits every asker), "ty" turns vykání into tykání, "beze"
+leaves the address as it is.
 
 Every rule records what it did. Two kinds:
 
@@ -28,7 +30,8 @@ RULES = {
     "smajlik":      ("Smajlík", "Smajlíky a emoji do kurátorované odpovědi nepatří."),
     "by_jste":      ("Pravopis by/aby", "„by jste“ → „byste“, „by jsme“ → „bychom“, „aby jste“ → „abyste“."),
     "prvni_osoba":  ("1. osoba", "Odpověď nemluví za sebe („doporučuji“ → „doporučuje se“)."),
-    "tykani":       ("Tykání → vykání", "Zdvořilé vykání sedí na žáka, rodiče i učitele."),
+    "tykani":       ("Tykání → vykání", "Zdvořilé vykání sedí na žáka, rodiče i učitele (oslovení „vy“)."),
+    "vykani":       ("Vykání → tykání", "Oslovení „ty“: jistý tvar podle tabulky, ostatní odhad ke kontrole."),
     "ano_ne":       ("Ano/Ne na začátku", "Odpověď má dávat smysl na jakoukoli formulaci otázky."),
     "role":         ("Slovo pro roli", "syn, dcera, dítě … → neutrální podmět (výchozí „uchazeč“)."),
     "odkaz":        ("Chybí odkaz", "U „kde najdu…“ nebo odkazu na web musí mít odpověď zdroj s adresou "
@@ -182,6 +185,65 @@ def _tykani(r: _Run):
           "Odhad podle koncovky slovesa — zkontrolujte tvar.")
 
 
+# polite plural -> 2nd person singular (address "ty"). Certain forms by table;
+# a pronoun whose singular depends on case or gender ("vás" = tě / tebe,
+# "vaše" = tvoje / tvá …) and the generic endings are only offered (check).
+_VY_CERTAIN = {
+    "vámi": "tebou", "váš": "tvůj", "vašeho": "tvého", "vašemu": "tvému", "vaším": "tvým",
+    "vašich": "tvých", "vašimi": "tvými",
+    "jste": "jsi", "nejste": "nejsi", "byste": "bys", "abyste": "abys", "kdybyste": "kdybys",
+    "máte": "máš", "nemáte": "nemáš", "můžete": "můžeš", "nemůžete": "nemůžeš",
+    "musíte": "musíš", "nemusíte": "nemusíš", "budete": "budeš", "nebudete": "nebudeš",
+    "chcete": "chceš", "nechcete": "nechceš", "víte": "víš", "nevíte": "nevíš",
+    "smíte": "smíš", "nesmíte": "nesmíš",
+}
+# imperatives: the reverse of _TY_VERBS (zkuste -> zkus, kontaktujte -> kontaktuj)
+_VY_IMPERATIVE = {v: k for k, v in _TY_VERBS.items() if v.endswith("te") and k not in _VY_CERTAIN.values()}
+_VY_IMPERATIVE.update({
+    "omluvte": "omluv", "přineste": "přines", "doneste": "dones", "pište": "piš", "čtěte": "čti",
+    "choďte": "choď", "buďte": "buď", "nebuďte": "nebuď", "přihlaste": "přihlas", "nahlaste": "nahlas",
+    "odhlaste": "odhlas", "počítejte": "počítej", "vemte": "vem", "jděte": "jdi", "běžte": "běž",
+    "nechoďte": "nechoď", "nepište": "nepiš", "vraťte": "vrať", "pusťte": "pusť", "zaplaťte": "zaplať",
+})
+_VY_UNSURE = {"vy": "ty", "vás": "tě", "vám": "ti", "vaše": "tvoje", "vaši": "tvoji", "vašem": "tvém"}
+_VY_GENERIC = re.compile(r"\b(\w{3,})(ete|íte|áte)\b")
+_VY_IMP_GENERIC = re.compile(r"\b(\w{3,})(ujte|ejte|ajte|ěte)\b")
+_VY_GENERIC_END = {"ete": "eš", "íte": "íš", "áte": "áš", "ujte": "uj", "ejte": "ej", "ajte": "aj",
+                   "ěte": "i"}          # zvedněte -> zvedni, upozorněte -> upozorni
+
+
+def _vykani(r: _Run):
+    polite_past = re.search(r"\b(jste|byste|abyste|kdybyste)\b", r.text, re.I)
+    # "jste se" -> "ses", "jste si" -> "sis" (the reflexive joins the auxiliary)
+    r.sub(re.compile(r"\bjste\s+(se|si)\b", re.I), lambda m: _match_case(m.group(0), m.group(1).lower() + "s"),
+          "vykani", AUTO, "Vykání převedeno na tykání.")
+    table = {**_VY_CERTAIN, **_VY_IMPERATIVE}
+    rx = re.compile(r"\b(" + "|".join(sorted(table, key=len, reverse=True)) + r")\b", re.I)
+    r.sub(rx, lambda m: _match_case(m.group(0), table[m.group(0).lower()]),
+          "vykani", AUTO, "Vykání převedeno na tykání.")
+    rx = re.compile(r"\b(" + "|".join(sorted(_VY_UNSURE, key=len, reverse=True)) + r")\b", re.I)
+    r.sub(rx, lambda m: _match_case(m.group(0), _VY_UNSURE[m.group(0).lower()]), "vykani", CHECK,
+          "Tvar zájmena záleží na pádu a rodu (vás = tě/tebe, vaše = tvoje/tvá…) — zkontrolujte.")
+
+    def _generic(m):
+        return m.group(1) + _VY_GENERIC_END[m.group(2)]
+    r.sub(_VY_IMP_GENERIC, _generic, "vykani", CHECK, "Odhad rozkazovacího způsobu — zkontrolujte tvar.")
+    r.sub(_VY_GENERIC, _generic, "vykani", CHECK, "Odhad podle koncovky slovesa — zkontrolujte tvar.")
+
+    # "abyste přišli" -> "abys přišel": the participle follows, its gender is unknown
+    def _participle(m):
+        one = _singular_participle(m.group(2))
+        return f"{m.group(1)} {one}" if one else None
+    r.sub(re.compile(r"\b(abys|bys|kdybys|jsi|nejsi)\s+(\w+l[iy])\b", re.I), _participle, "vykani", CHECK,
+          "Příčestí do jednotného čísla v mužském rodě (přišli → přišel) — u ženského rodu přišla.")
+    if polite_past and re.search(r"\b\w{3,}l[iy]\b", r.text):
+        r.flag("vykani", "Ve větě zůstalo příčestí v množném čísle (např. „dozvěděli“) — "
+                         "u tykání patří jednotné číslo (dozvěděl/dozvěděla).")
+
+
+ADDRESSES = {"vy": "vykání", "ty": "tykání", "beze": "beze změny"}
+
+
 _NEGATION = re.compile(r"\b(ne\w{2,}|není|nelze|nikdy|nikde|nic|žádn\w*|bez)\b", re.I)
 
 
@@ -260,7 +322,10 @@ _AGREE_VERB = {"byste": "by", "jste": "je", "nejste": "není", "máte": "má",
 def _singular_participle(word: str) -> str | None:
     """měli/měly/měla -> měl; None when the word is not an l-participle."""
     m = re.fullmatch(r"(\w+l)(i|y|a)", word, re.I)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    # jít and its compounds: přišli -> přišel, odešli -> odešel (not "přišl")
+    return m.group(1)[:-1] + "el" if m.group(1).lower().endswith("šl") else m.group(1)
 
 
 def _subject_agreement(r: _Run, nom: str):
@@ -360,7 +425,7 @@ def _finish(r: _Run):
 
 
 def neutralize(answer: str, questions=(), sources: str = "",
-               subject: str = "uchazeč") -> dict:
+               subject: str = "uchazeč", address: str = "vy") -> dict:
     """Propose a neutral version of one curated answer.
 
     Returns {"proposed", "changes": [...], "flags": [...]} — plain dicts, ready
@@ -371,7 +436,10 @@ def neutralize(answer: str, questions=(), sources: str = "",
     _smileys(r)
     _by_jste(r)
     _first_person(r)
-    _tykani(r)
+    if address == "vy":
+        _tykani(r)
+    elif address == "ty":
+        _vykani(r)
     _ano_ne(r)
     _roles(r, subject)
     _missing_info(r, sources)
