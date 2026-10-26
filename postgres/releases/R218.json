@@ -1,0 +1,32 @@
+{
+  "baseline": "B216",
+  "baseline_schema_fingerprint": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+  "fingerprint_algorithm": "edu-ai-fp-v1",
+  "format": 1,
+  "generated_by": "scripts/migrate.py v1",
+  "migrations": [
+    {
+      "id": "217_synonyms_meeting_groups",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "a1051592e150cdfd024c3d0bfcdb2f565116d6935da2cd2f61ed2c3779d03df1"
+    },
+    {
+      "id": "218_coverage_stop_politeness",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "a190afedfcee3e2a5702a362ab547c3a42a883dd5448e728c219438195a7551b"
+    }
+  ],
+  "postgres": {
+    "base_image": "pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
+    "extensions": {
+      "pg_search": "0.26.2",
+      "pg_trgm": "1.6",
+      "plpgsql": "1.0",
+      "unaccent": "1.1",
+      "vector": "0.8.7"
+    },
+    "pg_dump_version": "18.6",
+    "server_version": "18.6"
+  },
+  "release": "R218"
+}
