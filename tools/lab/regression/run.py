@@ -42,16 +42,6 @@ def main() -> int:
     questions = json.load(open(a.questions, encoding="utf-8"))
     cases = json.load(open(a.cases, encoding="utf-8"))
     override = json.loads(a.config)
-    setting = get_active_setting(a.entity)
-    cfg = setting["config"]
-    p_exact, _ = measure._step_params(cfg, "qa_exact")
-    p_lex, _ = measure._step_params(cfg, "qa_lexical")
-    p_lex = {**p_lex, **override}
-    form = p_lex.get("form") or ["norm", "lemma", "stem"]
-    thresholds = (float(p_lex.get("t_answer", config.QA_T_ANSWER)),
-                  float(p_lex.get("t_suggest", config.QA_T_SUGGEST)),
-                  float(p_lex.get("m_margin", config.QA_M_MARGIN)))
-
     import psycopg2
     measure._conn = psycopg2.connect(host=config.PG_HOST, port=config.PG_PORT, dbname=config.PG_DATABASE,
                                      user=os.environ.get("LAB_PG_USER", config.PG_USER),
@@ -63,9 +53,21 @@ def main() -> int:
         with measure._conn.cursor() as cur:
             if os.environ.get("LAB_PG_ROLE"):
                 cur.execute("SET LOCAL ROLE " + os.environ["LAB_PG_ROLE"])
+            # the SQL goes in FIRST: a migration that changes the settings is read
+            # back below, so the run measures what the migration really does
             for path in a.with_sql:
                 with open(path, encoding="utf-8") as fh:
                     cur.execute(fh.read())
+        setting = get_active_setting(a.entity, force=True)   # sees the transaction
+        cfg = setting["config"]
+        p_exact, _ = measure._step_params(cfg, "qa_exact")
+        p_lex, _ = measure._step_params(cfg, "qa_lexical")
+        p_lex = {**p_lex, **override}
+        form = p_lex.get("form") or ["norm", "lemma", "stem"]
+        thresholds = (float(p_lex.get("t_answer", config.QA_T_ANSWER)),
+                      float(p_lex.get("t_suggest", config.QA_T_SUGGEST)),
+                      float(p_lex.get("m_margin", config.QA_M_MARGIN)))
+        with measure._conn.cursor() as cur:
             ids, pack_ids = cf._insert(cur, questions, a.entity, cfg, thresholds)
         key_of = {ids[q["idx"]]: (q.get("entry_key") or f"k{q['idx']}") for q in questions}
         id_of = {(q["pack"], q.get("entry_key") or f"k{q['idx']}"): ids[q["idx"]] for q in questions}
@@ -90,6 +92,7 @@ def main() -> int:
 
     meta = {"created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "setting_id": setting["setting_id"], "entity": a.entity, "config_override": override,
+            "qa_lexical": {k: v for k, v in p_lex.items() if k in ("form", "t_answer", "t_suggest", "m_margin", "suggest_top_n", "query_repair")},
             "with_sql": [os.path.basename(p) for p in a.with_sql], "skipped": skipped}
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump({"meta": meta, "results": results}, fh, ensure_ascii=False)

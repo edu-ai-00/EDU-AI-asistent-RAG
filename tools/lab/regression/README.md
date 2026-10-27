@@ -43,8 +43,11 @@ python3 tools/lab/regression/compare.py --cases cases.json --baseline base.json 
 ```
 
 The search code of this checkout is copied into the container, so an experiment
-that is not in the image yet can be run. The run uses the active setting of the
-entity; `--config` overrides `qa_lexical` params for the run only.
+that is not in the image yet can be run. `--with-sql` (repeatable) is applied FIRST
+and the active setting is read afterwards, so a migration that changes the
+settings is measured exactly as written; `meta.qa_lexical` in the result file
+holds the values the run used. `--config` overrides `qa_lexical` params on top,
+for the run only.
 
 ## Limits
 
