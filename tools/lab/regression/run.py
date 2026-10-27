@@ -81,7 +81,7 @@ def main() -> int:
                              {**p_lex, "form": form}, packs)
             found = key_of.get(r.get("entry"))
             sugg = {key_of.get(s) for s in r.get("suggestions") or []}
-            results[c["id"]] = {"verdict": scoring.verdict(c["entry_key"], r, found, sugg),
+            results[c["id"]] = {"verdict": scoring.verdict(c["entry_key"], r, found, sugg, c.get("accept") or ()),
                                 "found_key": found, "decision": r["decision"]}
             if n % 500 == 0:
                 print(f"[regression] {n}/{len(cases)}", file=sys.stderr)

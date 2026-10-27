@@ -18,14 +18,16 @@ SCORE = {"přesná shoda": 1.0, "odpověď": 1.0, "v nabídce": 0.5,
 CONFIDENT = ("exact", "A")
 
 
-def verdict(expect_key, r: dict, found_key=None, suggested_keys=()) -> str:
+def verdict(expect_key, r: dict, found_key=None, suggested_keys=(), accept=()) -> str:
     """`r` is the cascade result {decision, entry, suggestions}; the keys are
-    the entry keys of what it returned (entry ids differ between runs)."""
+    the entry keys of what it returned (entry ids differ between runs).
+    `accept`: further keys that are as right as `expect_key` (equivalent answers)."""
     d = r["decision"]
     if expect_key is None:
         return "ŠPATNÁ odpověď" if d in CONFIDENT else "správně bez jisté odpovědi"
-    hit = found_key == expect_key
-    in_sugg = expect_key in suggested_keys
+    right = {expect_key, *accept}
+    hit = found_key in right
+    in_sugg = bool(right & set(suggested_keys))
     if d in CONFIDENT:
         return ("přesná shoda" if d == "exact" else "odpověď") if hit else "ŠPATNÁ odpověď"
     if d.startswith("B"):
@@ -37,15 +39,19 @@ def score_of(verdicts) -> float:
     return round(sum(SCORE.get(v, 0.0) for v in verdicts), 1)
 
 
-def summarize(cases: list[dict], results: dict) -> dict:
-    """{set: {"cases", "score", "confident_right", "offered", "confident_wrong", "by_verdict"}}"""
+def summarize(cases: list[dict], results: dict, by_split: bool = False) -> dict:
+    """{set: {"cases", "score", "confident_right", "offered", "confident_wrong", "by_verdict"}}
+    `by_split`: also "SET:train" / "SET:holdout" (the split of the curated entry)."""
     by_set = defaultdict(list)
     for c in cases:
         res = results.get(c["id"])
         if res:
             by_set[c["set"]].append(res["verdict"])
+            if by_split and c.get("split"):
+                by_set[f"{c['set']}:{c['split']}"].append(res["verdict"])
     out = {}
-    for name, vs in {**by_set, "ALL": [v for l in by_set.values() for v in l]}.items():
+    all_v = [v for k, l in by_set.items() if ":" not in k for v in l]
+    for name, vs in {**by_set, "ALL": all_v}.items():
         cnt = Counter(vs)
         out[name] = {"cases": len(vs), "score": score_of(vs),
                      "confident_right": cnt["přesná shoda"] + cnt["odpověď"] + cnt["správně bez jisté odpovědi"],
@@ -80,3 +86,23 @@ def compare(cases: list[dict], baseline: dict, current: dict) -> dict:
     return {"regressions": regress, "improvements": improved,
             "new_confident_wrong": [r for r in regress if r["now"] == "ŠPATNÁ odpověď"],
             "only_now": only_now, "only_before": only_before}
+
+
+def bootstrap_delta(cases: list[dict], baseline: dict, current: dict, n: int = 2000, seed: int = 7):
+    """Paired bootstrap of the score difference (current − baseline) over the cases
+    both runs have: {"delta", "lo", "hi", "n", "significant"} with a 95 % interval.
+    A difference whose interval holds 0 is noise, not an improvement."""
+    import random
+    diffs = []
+    for c in cases:
+        b, c2 = baseline.get(c["id"]), current.get(c["id"])
+        if b and c2:
+            diffs.append(SCORE.get(c2["verdict"], 0.0) - SCORE.get(b["verdict"], 0.0))
+    if not diffs:
+        return {"delta": 0.0, "lo": 0.0, "hi": 0.0, "n": 0, "significant": False}
+    rnd = random.Random(seed)
+    m = len(diffs)
+    sums = sorted(sum(diffs[rnd.randrange(m)] for _ in range(m)) for _ in range(n))
+    lo, hi = sums[int(0.025 * n)], sums[int(0.975 * n) - 1]
+    return {"delta": round(sum(diffs), 1), "lo": round(lo, 1), "hi": round(hi, 1), "n": m,
+            "significant": lo > 0 or hi < 0}

@@ -20,6 +20,12 @@ def _load(name):
 
 sc = _load("scoring")
 bc = _load("build_cases")
+mn = _load("make_negatives")
+xw = _load("xlsx_write")
+_rspec = importlib.util.spec_from_file_location(
+    "lab_neutral_xlsx_read", os.path.join(_ROOT, "tools", "lab", "neutral_answers", "xlsx_read.py"))
+xr = importlib.util.module_from_spec(_rspec)
+_rspec.loader.exec_module(xr)
 
 
 class Verdict(unittest.TestCase):
@@ -94,6 +100,150 @@ class BuildCases(unittest.TestCase):
         a = bc.case_id("A", "p", "k", "dotaz")
         self.assertEqual(a, bc.case_id("A", "p", "k", "dotaz"))
         self.assertNotEqual(a, bc.case_id("A", "p", None, "dotaz"))
+
+
+class AcceptAndSplit(unittest.TestCase):
+    def test_equivalent_answer_is_not_a_wrong_answer(self):
+        self.assertEqual(sc.verdict("a", {"decision": "A"}, "b", accept=("b",)), "odpověď")
+        self.assertEqual(sc.verdict("a", {"decision": "A"}, "c", accept=("b",)), "ŠPATNÁ odpověď")
+        self.assertEqual(sc.verdict("a", {"decision": "B1"}, "x", {"b"}, accept=("b",)), "v nabídce")
+
+    def test_split_is_deterministic_and_close_to_the_share(self):
+        keys = [f"entry-{i}" for i in range(2000)]
+        first = [bc.split_of(k) for k in keys]
+        self.assertEqual(first, [bc.split_of(k) for k in keys])
+        share = first.count("holdout") / len(first)
+        self.assertAlmostEqual(share, bc.HOLDOUT_SHARE / 100, delta=0.05)
+
+    def test_cases_carry_split_accept_and_negatives(self):
+        q = [{"idx": 0, "pack": "p", "entry_key": "a", "q": "Q?", "alts": []},
+             {"idx": 1, "pack": "p", "entry_key": "b", "q": "R?", "alts": []}]
+        cases = bc.build(q, {"A": [{"idx": 0, "text": "x"}]}, negatives=[{"set": "N", "text": "mimo obsah"}],
+                         equivalents=[["a", "b"]])
+        by_set = {c["set"]: c for c in cases}
+        self.assertEqual(by_set["A"]["accept"], ["b"])
+        self.assertIsNone(by_set["N"]["entry_key"])
+        self.assertIn(by_set["A"]["split"], ("train", "holdout"))
+        self.assertEqual(by_set["A"]["split"], bc.split_of("a"))   # the split is the entry's
+
+    def test_summary_by_split(self):
+        cases = [{"id": "1", "set": "A", "split": "train"}, {"id": "2", "set": "A", "split": "holdout"}]
+        res = {"1": {"verdict": "odpověď"}, "2": {"verdict": "ŠPATNÁ odpověď"}}
+        s = sc.summarize(cases, res, by_split=True)
+        self.assertEqual((s["A:train"]["score"], s["A:holdout"]["score"], s["A"]["score"], s["ALL"]["cases"]),
+                         (1.0, -3.0, -2.0, 2))
+
+
+class Bootstrap(unittest.TestCase):
+    def test_clear_gain_is_significant_and_noise_is_not(self):
+        cases = [{"id": str(i)} for i in range(200)]
+        base = {c["id"]: {"verdict": "nic (C)"} for c in cases}
+        gain = {c["id"]: {"verdict": "odpověď" if int(c["id"]) < 60 else "nic (C)"} for c in cases}
+        b = sc.bootstrap_delta(cases, base, gain)
+        self.assertTrue(b["significant"]) and self.assertEqual(b["delta"], 60.0)
+        flip = {c["id"]: {"verdict": "odpověď" if int(c["id"]) % 2 else "ŠPATNÁ odpověď"} for c in cases}
+        mixed = {c["id"]: {"verdict": "ŠPATNÁ odpověď" if int(c["id"]) % 2 else "odpověď"} for c in cases}
+        swap = sc.bootstrap_delta(cases, flip, mixed)      # every case flips: +4 and −4 cancel out
+        self.assertEqual(swap["delta"], 0.0)
+        self.assertFalse(swap["significant"])
+
+    def test_no_common_cases(self):
+        self.assertEqual(sc.bootstrap_delta([{"id": "1"}], {}, {"1": {"verdict": "odpověď"}})["n"], 0)
+
+
+class WorksheetsAndNegatives(unittest.TestCase):
+    Q = [{"idx": 0, "pack": "p", "entry_key": "kdy-zacina-skola", "q": "Kdy začíná škola?", "alts": []}]
+
+    def test_d_worksheet_uses_the_opaque_id_map(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8-sig") as fh:
+            fh.write("id;odpoved;otazka_1;otazka_2\nD001;Prvního září.;kdy jdem do školy;\n"
+                     "BEZ;(x);kolik stojí lyžák;\nD002;neznámé;nic;\n")
+        out = bc.read_d_csv(fh.name, self.Q, {"D001": "kdy-zacina-skola"})
+        os.unlink(fh.name)
+        # D001 maps to the entry, BEZ has no answer, D002 is not in the map and is dropped
+        self.assertEqual([(c["entry_key"], c["query"]) for c in out],
+                         [("kdy-zacina-skola", "kdy jdem do školy"), (None, "kolik stojí lyžák")])
+
+    def test_equivalent_pairs_are_merged_into_groups(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8-sig") as fh:
+            fh.write("klic_A;klic_B;shodne (ano/ne)\na;b;ano\nb;c;ano\nx;y;ne\nm;n;\n")
+        groups = bc.read_equiv_csv(fh.name)
+        os.unlink(fh.name)
+        self.assertEqual(groups, [["a", "b", "c"]])
+
+    def test_negatives_are_cleaned_deduplicated_and_sampled_per_source(self):
+        rows = {"Mat": [["Kolik má krychle hran a vrcholů?"], ["Kolik má krychle hran a vrcholů?"],
+                        ["12 + 7 = 19"], ["https://example.org/x odkaz na úlohu"], ["a"], ["Co je to průměr čísel?"]],
+                "ČJ": [["Příbuzné slovo od dřevěný"]], "Učitelé": [["", "", "Jak hodnotit děti bez testů?"]]}
+        out = mn.collect(rows, per_source=5, seed=1)
+        self.assertEqual(sorted(n["text"] for n in out if n["category"] == "matematika"),
+                         ["Co je to průměr čísel?", "Kolik má krychle hran a vrcholů?"])
+        self.assertEqual([n["category"] for n in out if n["category"] != "matematika"], ["cestina", "ucitele"])
+        self.assertTrue(all(n["set"] == "N" for n in out))
+
+
+class Fixes(unittest.TestCase):
+    def test_drop_and_relabel_wrong_labels(self):
+        q = [{"idx": 0, "pack": "p1", "entry_key": "a", "q": "A?", "alts": []},
+             {"idx": 1, "pack": "p2", "entry_key": "b", "q": "B?", "alts": []}]
+        cases = bc.build(q, {}, negatives=[{"set": "N", "text": "x?"}, {"set": "N", "text": "y?"}])
+        fixed = bc.apply_fixes(cases, {"drop": [{"set": "N", "query": "x?"}],
+                                       "relabel": [{"set": "N", "query": "y?", "entry_key": "b"}]}, q)
+        self.assertEqual([(c["query"], c["entry_key"], c["pack"]) for c in fixed], [("y?", "b", "p2")])
+        self.assertEqual(fixed[0]["split"], bc.split_of("b"))
+        self.assertEqual(fixed[0]["id"], bc.case_id("N", "p2", "b", "y?"))
+
+
+class CsvEncodings(unittest.TestCase):
+    def _write(self, text, enc):
+        import tempfile
+        f = tempfile.NamedTemporaryFile("wb", suffix=".csv", delete=False)
+        f.write(text.encode(enc)); f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_windows_1250_csv_and_header_suffix(self):
+        q = [{"idx": 0, "pack": "p", "entry_key": "k1", "q": "Kdy začíná škola?", "alts": []}]
+        text = "id;odpoved;otazka_1 (normálně);otazka_2 (krátce / hovorově)\nD001;Prvního září.;kdy začíná škola;začátek školy\n"
+        for enc in ("cp1250", "utf-8-sig"):
+            out = bc.read_d_csv(self._write(text, enc), q, {"D001": "k1"})
+            self.assertEqual([c["query"] for c in out], ["kdy začíná škola", "začátek školy"], enc)
+
+
+class Xlsx(unittest.TestCase):
+    def _tmp(self):
+        import tempfile
+        f = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_roundtrip_keeps_commas_semicolons_quotes_newlines_and_diacritics(self):
+        rows = [["id", "odpoved", "otazka_1"],
+                ["D001", 'Ano, může; "ano" & <ne>\nDruhý řádek: příští týden', ""],
+                ["BEZ", "x", "kolik stojí lyžák?"]]
+        path = self._tmp()
+        xw.write_xlsx(path, rows, widths=[8, 60, 30], input_cols={2}, sheet="Sada D")
+        back = xr.read_rows(path, "Sada D")
+        self.assertEqual(back[0], rows[0])
+        self.assertEqual(back[1][:2], rows[1][:2])                 # an empty trailing cell may be dropped
+        self.assertEqual(back[2], rows[2])
+
+    def test_d_worksheet_and_equivalents_are_read_from_xlsx(self):
+        q = [{"idx": 0, "pack": "p", "entry_key": "kdy-zacina-skola", "q": "Kdy začíná škola?", "alts": []}]
+        path = self._tmp()
+        xw.write_xlsx(path, [["id", "odpoved", "otazka_1", "otazka_2"],
+                             ["D001", "Prvního září, v pondělí.", "kdy jdem do školy", "zacatek skoly"],
+                             ["BEZ", "(x)", "kolik stojí lyžák", ""]])
+        out = bc.read_d_csv(path, q, {"D001": "kdy-zacina-skola"})
+        self.assertEqual([(c["entry_key"], c["query"]) for c in out],
+                         [("kdy-zacina-skola", "kdy jdem do školy"), ("kdy-zacina-skola", "zacatek skoly"),
+                          (None, "kolik stojí lyžák")])
+        eq = self._tmp()
+        xw.write_xlsx(eq, [["klic_A", "klic_B", "shodne (ano/ne)"], ["a", "b", "ano"], ["c", "d", "ne"]])
+        self.assertEqual(bc.read_equiv_csv(eq), [["a", "b"]])
 
 
 if __name__ == "__main__":

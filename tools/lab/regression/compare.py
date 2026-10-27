@@ -26,18 +26,28 @@ def main() -> int:
     ap.add_argument("--now", required=True)
     ap.add_argument("--out", help="CSV of the changed cases (contains the query texts: keep it private)")
     ap.add_argument("--show", type=int, default=10, help="how many regressions to list (default 10)")
+    ap.add_argument("--by-split", action="store_true",
+                    help="also the train / holdout halves of every set (hold-out = never tuned on)")
     a = ap.parse_args()
     cases = json.load(open(a.cases, encoding="utf-8"))
     base = json.load(open(a.baseline, encoding="utf-8"))
     now = json.load(open(a.now, encoding="utf-8"))
     by_id = {c["id"]: c for c in cases}
 
-    sb, sn = scoring.summarize(cases, base["results"]), scoring.summarize(cases, now["results"])
-    print(f"{'sada':<6}{'případů':>8}{'skóre před':>12}{'skóre teď':>11}{'jistě špatně před→teď':>25}")
+    sb = scoring.summarize(cases, base["results"], a.by_split)
+    sn = scoring.summarize(cases, now["results"], a.by_split)
+    print(f"{'sada':<14}{'případů':>8}{'skóre před':>12}{'skóre teď':>11}{'jistě špatně':>14}   změna skóre (95% interval)")
     for name in sn:
         b = sb.get(name, {"score": 0, "confident_wrong": 0})
         n = sn[name]
-        print(f"{name:<6}{n['cases']:>8}{b['score']:>12}{n['score']:>11}{b['confident_wrong']:>14} →{n['confident_wrong']:>4}")
+        if ":" in name:
+            sel = [c for c in cases if f"{c['set']}:{c.get('split')}" == name]
+        else:
+            sel = cases if name == "ALL" else [c for c in cases if c["set"] == name]
+        bs = scoring.bootstrap_delta(sel, base["results"], now["results"])
+        verdict = "význam" if bs["significant"] else "šum"
+        print(f"{name:<14}{n['cases']:>8}{b['score']:>12}{n['score']:>11}{b['confident_wrong']:>8} →{n['confident_wrong']:>4}"
+              f"   {bs['delta']:+} ({bs['lo']:+} … {bs['hi']:+}) {verdict}")
     d = scoring.compare(cases, base["results"], now["results"])
     print(f"\nzhoršeno {len(d['regressions'])}, zlepšeno {len(d['improvements'])}, "
           f"NOVÉ jisté špatné {len(d['new_confident_wrong'])}"
