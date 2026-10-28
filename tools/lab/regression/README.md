@@ -16,6 +16,8 @@ same cases are run before and after, and the cases that got worse are listed.
 | [`check_step.sh`](check_step.sh) | host | kontrola po každém kroku: testy, docs-check, parita, regresní sada proti přijatému základu, stav gitu (viz [PLAN.md](PLAN.md) §4) |
 | `make_negatives.py`, `make_clicks.py`, `make_d_template.py`, `make_equiv_candidates.py` | host / kontejner | příprava sad N, C, D a kandidátů na ekvivalentní odpovědi (viz Sady a zásady) |
 | `make_log_set.py` | host | sada L: skutečná znění z logu se slabým štítkem (volba OpenAI) |
+| `eval_rank.py` | search container | offline odhad: co by dalo řazení nabídky podle součtu vah sdílených slov (politiky fill / lex2 / replace, práh) a kolik tlačítek navíc by dostaly otázky mimo obsah |
+| `mine_word_pairs.py` | search container | vytěží z trénovacích otázek kandidáty na jednoslovná synonyma (neznámé slovo → slovo školní otázky) a napíše what-if SQL; ověřuje se na zadržených |
 | `analyze_errors.py` | search container | rozbor chyb: zařadí nevidené a jistě špatné případy do skupin (jen A, B, D:train), s podílem, který by lokální model našel |
 | `eval_semantic.py` | search container | fáze 3: zkouší, kolik správných odpovědí by do nabídky přidal lokální model (politiky fill / lex2 / rrf, práh τ), a kolik tlačítek přidá otázkám mimo obsah; `D:holdout` odmítá |
 | [`scoring.py`](scoring.py) | both | verdict and score (stdlib only, unit-tested in `tests/test_lab_regression.py`) |

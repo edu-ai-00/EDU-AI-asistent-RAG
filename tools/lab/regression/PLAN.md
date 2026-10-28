@@ -231,7 +231,7 @@ Nástroj `analyze_errors.py` (běží v kontejneru) zařadí každý případ, u
 **Pořadí práce (podle velikosti skupiny a dosahu):**
 
 1. **Fáze 3, sémantická nabídka** zasáhne všechny čtyři velké skupiny (53 % případů). Je to největší jednotlivá páka.
-2. **Neznámá slova (28 %):** lokální model je zčásti pokryje. Zbytek je malá tabulka tvarů (hovorové a odvozené tvary → lemma), jen se zřetelem na přeučení: ověřit na D:train a závěrečně na D:holdout.
+2. **Neznámá slova (28 %):** lokální model je zčásti pokryje. **Tabulka tvarů se vyzkoušela a zamítla (28. 10.):** z 370 různých neznámých slov se jen u 3 dvojic opakuje stejný partner (≥ 3 případy), takže jde o dlouhý chvost jednorázových slov, ne o systematiku. Volnější tabulka (37 dvojic) zlepšila trénovací otázky, ale na zadržených otázkách je rozdíl šum (A:holdout +2, B:holdout −0,5, D:train −0,5) a přibylo 5 jistých omylů. Zbytek neznámých slov proto nechat na sémantické nabídce a opravě překlepů.
 3. **Dlouhé dotazy (34 % + 7 %):** nabídku řadit podle váhy **tematických** slov místo podílu všech slov dotazu. Jen pro nabídku, jisté odpovědi se nemění; nejdřív změřit.
 4. **Jisté omyly (4 %):** ekvivalence potvrdí kurátor (40 dvojic čeká). Zbytek jsou záměny přes obecné slovo, kde pomůže bod 3.
 
