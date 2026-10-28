@@ -176,26 +176,39 @@ Dnešní měření má čtyři slabiny. Odstraní se dřív než jakékoli dalš
 | sada N (445 otázek mimo obsah) | hotovo; 443 bez jisté odpovědi, 2 k ručnímu posouzení |
 | měření se šumem (bootstrap, `--by-split`) | hotovo |
 | sada C | hotovo, jen 17 případů (viz výše) |
-| kandidáti na ekvivalentní odpovědi (40 dvojic) | připraveno, **čeká na potvrzení ano/ne** |
+| kandidáti na ekvivalentní odpovědi (40 dvojic) | **potvrzeno**: 6× ano, 31× ne, 3 prázdné; použito v měření (zlepšeny 4 případy, nový základ) |
 | sada D | **hotová** (221 otázek: 174 s odpovědí, 47 „BEZ“); změřeno poprvé, viz 5.1; dvě chybné štítky opraveny souborem oprav (`--fixes`, záznam v deníku) |
 | testy (18), deník pokusů, `check_step.sh` s `--by-split` | hotovo |
 
 *Výstup fáze 1:* sady A, B, C, D, N s popsaným účelem, skupiny ekvivalencí, měření se šumem. Nové výchozí cíle z 5.1 se přepíšou po napsání D a potvrzení ekvivalencí. Kontrola kroku podle části 4.
 
-### 5.3 Fáze 2 — rozbor chyb a pořadí práce
+### 5.3 Fáze 2 — rozbor chyb a pořadí práce (hotovo 27. 10.)
 
-Po fázi 1 se všechny nevidené a špatné případy roztřídí:
+Nástroj `analyze_errors.py` (běží v kontejneru) zařadí každý případ, u kterého uživatel **nevidí správnou odpověď** (ani v nabídce, ani v záloze), nebo dostane **jistě špatnou** odpověď, do jedné skupiny. Analyzují se jen **A, B a D:train**; `D:holdout` se nepoužil. Slovo je „tematické“, když není obecné (lemma ve více než 5 % otázek, např. „škola“, „žák“, „dítě“). Výsledek ze 27. 10. (521 případů):
 
-| Skupina | Příklad | Čím se řeší |
-|---|---|---|
-| jiná slova, stejný význam | „výsledky přijímaček“ × „výsledek přijímací zkoušky“ | fáze 3 (sémantická nabídka) |
-| záměna sousedních otázek | „kdo má nárok“ × „jak požádat“ | fáze 4 (rozlišení) |
-| obecné slovo zavede jinam | „škola“, „žák“, „kam“ | fáze 4 (pravidla nad pokrytím) |
-| překlep, neznámé slovo | „prohlídnout“ | hotovo (migrace 220), případně tabulka lemmat |
-| chybí obsah | dotaz mimo QA | jen se vykáže (5.1) |
-| zápor, číslo, rok | „nesmím“, „4. kolo“ | dosavadní pravidla; jen kontrola regrese |
+| Skupina | A | B | D:train | Celkem | Podíl | Správná v top 5 u lokálního modelu |
+|---|---|---|---|---|---|---|
+| neznámé slovo (hovorové tvary, odvozeniny: „reparát“, „matika“, „třídnické“) | 54 | 77 | 14 | 145 | 28 % | 48 % |
+| žádné tematické společné slovo (jiná slova, např. „zlomila prst“ × „úraz“) | 56 | 69 | 15 | 140 | 27 % | 40 % |
+| jedno tematické společné slovo (zbytek dotazu zřeďuje shodu) | 71 | 103 | 5 | 179 | 34 % | 61 % |
+| dvě a více tematických slov, přesto nic | 9 | 27 | 0 | 36 | 7 % | 67 % |
+| jistě špatně: téměř shodná otázka (data, ne chyba) | 2 | 4 | 1 | 7 | 1 % | 86 % |
+| jistě špatně: jiné téma (obecné slovo zavede jinam) | 8 | 5 | 1 | 14 | 3 % | 86 % |
 
-Pořadí práce se řídí **velikostí skupiny na B/D/C a ne dojmem**. Výstupem je tabulka skupin s počty, která se po každé fázi přepočítá.
+**Co z toho plyne:**
+
+1. **Většina zmeškaných případů není „jiný význam“, ale slovní hledání, které se nechá zmást tvarem nebo délkou dotazu.** Neznámé tvary a dlouhé dotazy, kde jedno tematické slovo zapadne mezi ostatními, jsou dohromady 62 %.
+2. **Lokální model by u více než poloviny z nich správnou odpověď nabídl** (spočteno vážené na 521 případů: asi 53 %). Zbytek (~47 %) nezachrání ani on, takže to je strop pro samotnou nabídku.
+3. **Jistě špatných odpovědí je málo (21 z 521, 4 %)** a třetina z nich je věcně přijatelná záměna (kandidáti na ekvivalenci). Jisté omyly nejsou hlavní problém; hlavní problém je, že správná odpověď chybí v nabídce.
+
+**Pořadí práce (podle velikosti skupiny a dosahu):**
+
+1. **Fáze 3, sémantická nabídka** zasáhne všechny čtyři velké skupiny (53 % případů). Je to největší jednotlivá páka.
+2. **Neznámá slova (28 %):** lokální model je zčásti pokryje. Zbytek je malá tabulka tvarů (hovorové a odvozené tvary → lemma), jen se zřetelem na přeučení: ověřit na D:train a závěrečně na D:holdout.
+3. **Dlouhé dotazy (34 % + 7 %):** nabídku řadit podle váhy **tematických** slov místo podílu všech slov dotazu. Jen pro nabídku, jisté odpovědi se nemění; nejdřív změřit.
+4. **Jisté omyly (4 %):** ekvivalence potvrdí kurátor (40 dvojic čeká). Zbytek jsou záměny přes obecné slovo, kde pomůže bod 3.
+
+*Zbývá z fáze 2:* po každé další fázi tabulku obnovit (`analyze_errors.py` s novým `accepted.json`).
 
 ### 5.4 Fáze 3 — sémantická nabídka (lokální model)
 
@@ -207,6 +220,32 @@ Cíl: doplnit nabídku „Nechtěl ses zeptat…?“ i tam, kde slova nesedí. *
 4. **Kontrola na C:** zvolená odpověď z logu je v nové nabídce ve stejné nebo lepší pozici.
 5. **Rozhodnutí (schvaluje uživatel):** nový model a změna chování nabídky patří do „Ask first“ v `AGENTS.md`.
 6. **Implementace jako vypnutý krok:** vektory v paměti procesu (bez změny schématu), vše přes `search/app/scope.py`, selhání modelu = tiše přeskočit, migrace zapne parametr jen u schválených škol; test + `SETTINGS_REFERENCE.md`.
+
+**Výsledek měření s modelem `multilingual-e5-small` (28. 10., A, B, `D:train`, N; `D:holdout` nepoužit):**
+
+Měří se, kolikrát uživatel uvidí správnou odpověď (jistě, nebo mezi nejvýš 5 tlačítky). Jisté odpovědi se nemění. Tři způsoby, jak model do 5 tlačítek zapojit (práh τ = nejnižší podobnost, od které model tlačítko nabídne):
+
+| Způsob | A (dnes 86,5 %) | B (dnes 77,3 %) | D:train (dnes 53,8 %) | otázky mimo obsah s tlačítkem od modelu |
+|---|---|---|---|---|
+| **fill**: model jen doplní volná místa, τ ≤ 0,84 | 91,0 | 81,8 | 60,3 | 60–66 % |
+| **lex2**: první dvě slovní tlačítka zůstanou, model další tři, τ = 0,88 | 93,4 | 83,1 | 60,3 | **22 %** |
+| **lex2**, τ = 0,84 | 93,7 | 82,8 | **66,7** | 91 % |
+| **rrf** (sloučení pořadí), τ = 0,88 | 93,4 | 84,3 | 60,3 | 22 % |
+
+- **Přínos při 5 tlačítkách je +6 až +7 bodů na A a B a +6,5 až +13 bodů na `D:train`**, podle prahu. Dřívější odhad +10 platil bez limitu tlačítek.
+- **Cena prahu:** nižší τ zvýší zisk, ale model pak přidá tlačítko skoro ke každé otázce mimo obsah (τ = 0,84: 91 %). Dnešní systém ukazuje alespoň jedno tlačítko u **69 %** takových otázek (průměr 2,5), takže nejde o novou věc, jen o víc tlačítek. **Výchozí volba τ = 0,88 s politikou `lex2`**: zachová většinu zisku a model se u mimoobsahových otázek ozve jen ve 22 %.
+- **Náklady:** 11 ms na dotaz, načtení modelu 8–10 s, špička paměti ~1,1 GB (celý proces s torch). To je pro stroj školy třeba ověřit.
+- **Práh na obou půlkách N (τ = 0,88, `lex2`):** trénovací 24,5 %, zadržená 17,6 %, takže se na zadržené půlce nechová hůř. Nižší τ = 0,87 dá na `D:train` 65,4 % místo 60,3 %, ale model by pak přidal tlačítko 44 % mimoobsahových otázek.
+
+**Porovnání se druhým modelem (28. 10.):** `paraphrase-multilingual-MiniLM-L12-v2` (471 MB) má jinou škálu podobnosti (τ 0,30–0,70), proto se porovnává při stejné míře tlačítek u otázek mimo obsah (kolem 20 %, politika `lex2`):
+
+| Model | sám v top 5 (A / B / D:train) | A | B | D:train | čas na dotaz | špička paměti |
+|---|---|---|---|---|---|---|
+| **multilingual-e5-small** (τ = 0,88) | 85,1 / 71,5 / 53,8 | **93,4** | **83,1** | **60,3** | 9–11 ms | ~1,1 GB |
+| paraphrase-multilingual-MiniLM-L12-v2 (τ ≈ 0,65) | 82,7 / 68,0 / 50,0 | ~91 | ~80,5 | ~57,7 | 13–35 ms | ~1,45 GB |
+
+e5-small je lepší na všech třech sadách (o ~2,5 bodu při stejné míře tlačítek), rychlejší a nenáročnější na paměť. **Volba: `multilingual-e5-small`.** MiniLM už není potřeba (471 MB k uvolnění ve volume).
+- **Zbývá:** rozhodnutí o implementaci (část 5.4, bod 5).
 
 ### 5.5 Fáze 4 — lepší rozlišení u jistých odpovědí
 
@@ -257,7 +296,7 @@ Ladění se zastaví, když **tři po sobě jdoucí kroky přinesou méně než 
 
 ## 7. Co od tebe potřebuji
 
-1. Souhlas s **fází 1** (sady N, D, skupiny ekvivalencí, měření se šumem) a s tím, kdo napíše sadu D (stačí 100–200 otázek od několika lidí, bez osobních údajů).
-2. Jestli model ve volume **nechat**, nebo po měření smazat.
-3. Až bude výsledek fáze 3: **rozhodnutí o sémantické nabídce** (nový model, změna nabídky).
-4. Kdy nasadit migrace 218–221 do skutečné databáze (jediné místo, kde se mění provoz).
+1. **Rozhodnutí o implementaci sémantické nabídky** (model `multilingual-e5-small`, politika `lex2`, τ = 0,88, nejvýš 5 tlačítek; nový model a změna chování nabídky patří do „Ask first“ v `AGENTS.md`). Návrh implementace je v části 5.4, bod 6.
+2. Volitelně: smazat model MiniLM, který už není potřeba (uvolní 471 MB): `docker exec edu_ai_search rm -rf /models/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2`.
+3. Kdy nasadit migrace 218–221 do skutečné databáze (jediné místo, kde se mění provoz).
+4. Volitelně: seznam dvojic ke sloučení pro kurátora (6 potvrzených dvojic).

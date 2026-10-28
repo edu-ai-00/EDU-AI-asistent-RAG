@@ -15,6 +15,8 @@ same cases are run before and after, and the cases that got worse are listed.
 | [`compare.py`](compare.py) | host | baseline × now: score per set, cases that got worse (new confident wrong answers first), CSV of the changes; exit code 1 on a new confident wrong answer |
 | [`check_step.sh`](check_step.sh) | host | kontrola po každém kroku: testy, docs-check, parita, regresní sada proti přijatému základu, stav gitu (viz [PLAN.md](PLAN.md) §4) |
 | `make_negatives.py`, `make_clicks.py`, `make_d_template.py`, `make_equiv_candidates.py` | host / kontejner | příprava sad N, C, D a kandidátů na ekvivalentní odpovědi (viz Sady a zásady) |
+| `analyze_errors.py` | search container | rozbor chyb: zařadí nevidené a jistě špatné případy do skupin (jen A, B, D:train), s podílem, který by lokální model našel |
+| `eval_semantic.py` | search container | fáze 3: zkouší, kolik správných odpovědí by do nabídky přidal lokální model (politiky fill / lex2 / rrf, práh τ), a kolik tlačítek přidá otázkám mimo obsah; `D:holdout` odmítá |
 | [`scoring.py`](scoring.py) | both | verdict and score (stdlib only, unit-tested in `tests/test_lab_regression.py`) |
 
 ## Case

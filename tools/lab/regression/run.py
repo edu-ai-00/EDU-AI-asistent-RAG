@@ -82,7 +82,8 @@ def main() -> int:
             found = key_of.get(r.get("entry"))
             sugg = {key_of.get(s) for s in r.get("suggestions") or []}
             results[c["id"]] = {"verdict": scoring.verdict(c["entry_key"], r, found, sugg, c.get("accept") or ()),
-                                "found_key": found, "decision": r["decision"]}
+                                "found_key": found, "decision": r["decision"],
+                                "suggestion_keys": [key_of.get(x) for x in (r.get("suggestions") or [])]}
             if n % 500 == 0:
                 print(f"[regression] {n}/{len(cases)}", file=sys.stderr)
     finally:
