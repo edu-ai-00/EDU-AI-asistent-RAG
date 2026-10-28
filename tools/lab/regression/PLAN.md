@@ -4,7 +4,7 @@
 
 ## 1. Cíl a omezení
 
-**Cíl:** aby asistent co nejlépe našel správnou kurátorovanou odpověď **bez OpenAI klíče** (dnes bez klíče nefunguje hledání podle významu, dokumenty přes embeddingy ani generování odpovědí; odpověď z QA se vrací doslova a spoléhá jen na slova).
+**Cíl:** aby asistent co nejlépe našel správnou kurátorovanou odpověď **bez OpenAI klíče**. K OpenAI se nepřechází: směr je provoz, který klíč nepotřebuje (rozhodnutí 28. 10. 2026). Stávající `qa_vector` a `rag_vector` (vektory od OpenAI) proto zůstávají nečinné (dnes bez klíče nefunguje hledání podle významu, dokumenty přes embeddingy ani generování odpovědí; odpověď z QA se vrací doslova a spoléhá jen na slova).
 
 **Omezení zadaná při práci — plán je musí dodržet:**
 
@@ -182,6 +182,33 @@ Dnešní měření má čtyři slabiny. Odstraní se dřív než jakékoli dalš
 
 *Výstup fáze 1:* sady A, B, C, D, N s popsaným účelem, skupiny ekvivalencí, měření se šumem. Nové výchozí cíle z 5.1 se přepíšou po napsání D a potvrzení ekvivalencí. Kontrola kroku podle části 4.
 
+**Sada L ze skutečného logu (28. 10.):** dotazy, které produkce vyřešila hledáním podle významu přes OpenAI, s jeho volbou jako *slabým štítkem* (`make_log_set.py`; 85 různých znění, zeptáno 262×; 30 se silnou shodou ≥ 0,75, 55 hraničních). **Výběrové zkreslení:** do tohoto kroku se dotaz dostane, jen když slovní hledání selhalo, takže L jsou ze své podstaty těžké dotazy a nereprezentují všechen provoz. Štítek není pravda: u 7 „jistých omylů“ se asi polovina liší jen blízkou otázkou (např. „V kolik začíná JPZ?“ × „Kdy se konají řádné termíny JPZ?“).
+
+| L (85 znění) | Dnes | s lokálním modelem (lex2, τ 0,88) |
+|---|---|---|
+| uživatel uvidí správnou odpověď | **48 %** | **66 %** (+18 bodů) |
+| jistě správně | 5 % | beze změny |
+| jistě špatně | 8 % (7), z toho asi polovina blízká otázka | beze změny |
+| model sám: správná v top 3 / top 5 | 62 % / 74 % | |
+
+Na skutečných formulacích je přínos modelu **větší než na napsaných sadách** (+18 proti +7), což podporuje směr sémantické nabídky. Je to ale malá sada slabých štítků, proto jde o směr, ne o přesné číslo.
+
+**Přehrání skutečného logu s migracemi 218–221 (28. 10., 4 442 dotazů, kopie produkce, bez klíče):**
+
+Vyhodnocuje se proti **volbě produkce** jako slabému štítku (dotazy, které produkce vyřešila z QA, 3 403 řádků). Štítek má zkreslení: starý kód souhlasí sám se sebou, takže *změna* chování vypadá jako neshoda. Řádky logu jsou vážené počtem opakování, proto jsou uvedena i různá znění.
+
+| Verze | uživatel vidí produkční odpověď (jistě nebo v nabídce) | jistá odpověď jiná než produkce |
+|---|---|---|
+| produkční kód (`main`) | 48,4 % | 11,7 % |
+| po migraci 217 | 48,4 % | 11,8 % |
+| **218–221** | **48,8 %** | **11,5 %** |
+
+- **Celkově se nic nezhoršilo ani nezlepšilo** (shoda 48,4 → 48,8 %).
+- **Dotazy, které produkce vyřešila přes OpenAI (447 řádků), vidí správnou o 6 bodů víc**: 28,6 → 34,7 % (jistě 0,4 → 3,8 %). Jde o skutečné formulace, které slovní pravidla dřív nechytila.
+- **Dotazy vyřešené slovním hledáním (211 řádků): −7 bodů** (72,0 → 64,9 %). Za tím stojí **jediné znění zeptané 13× (jistá odpověď se změnila na jinou jistou)** a **jediné znění 12× (jistá odpověď se změnila na nabídku)**. Dvě různá znění z 211 řádků, takže jde o volumen, ne o plošný problém.
+- **Přechody mezi stavem po 217 a 218–221** (řádky, různá znění): jistá jiná → nic 31 / 7; nic → v nabídce 30 / 8; jistá shodná → jistá jiná 13 / 1; jistá shodná → v nabídce 12 / 1; nic → jistá jiná 7 / 2. Změny ve prospěch (odstraněná jistá jiná, nová nabídka) převažují nad změnami v neprospěch.
+- **Dokumenty:** u 8,2 % dotazů je jiný první úryvek než u produkčního kódu, ale to je účinek nové normalizace 3.3.0, ne migrací 218–221 (oproti stavu po 217 se úryvky shodují u 99,8 %). Kvalita dokumentů se dál neměří.
+
 ### 5.3 Fáze 2 — rozbor chyb a pořadí práce (hotovo 27. 10.)
 
 Nástroj `analyze_errors.py` (běží v kontejneru) zařadí každý případ, u kterého uživatel **nevidí správnou odpověď** (ani v nabídce, ani v záloze), nebo dostane **jistě špatnou** odpověď, do jedné skupiny. Analyzují se jen **A, B a D:train**; `D:holdout` se nepoužil. Slovo je „tematické“, když není obecné (lemma ve více než 5 % otázek, např. „škola“, „žák“, „dítě“). Výsledek ze 27. 10. (521 případů):
@@ -219,7 +246,7 @@ Cíl: doplnit nabídku „Nechtěl ses zeptat…?“ i tam, kde slova nesedí. *
 3. **Kontrola na N:** model nesmí do nabídky vnášet nesmysly u otázek mimo obsah (nabídka u nich je přijatelná jen s nízkým skóre; předem určit práh pro „raději nic“).
 4. **Kontrola na C:** zvolená odpověď z logu je v nové nabídce ve stejné nebo lepší pozici.
 5. **Rozhodnutí (schvaluje uživatel):** nový model a změna chování nabídky patří do „Ask first“ v `AGENTS.md`.
-6. **Implementace jako vypnutý krok:** vektory v paměti procesu (bez změny schématu), vše přes `search/app/scope.py`, selhání modelu = tiše přeskočit, migrace zapne parametr jen u schválených škol; test + `SETTINGS_REFERENCE.md`.
+6. **Implementace jako vypnutý krok (navrženo, zatím NEprovedeno, viz rozhodnutí níže):** vektory v paměti procesu (bez změny schématu), vše přes `search/app/scope.py`, selhání modelu = tiše přeskočit, migrace zapne parametr jen u schválených škol; test + `SETTINGS_REFERENCE.md`.
 
 **Výsledek měření s modelem `multilingual-e5-small` (28. 10., A, B, `D:train`, N; `D:holdout` nepoužit):**
 
@@ -245,7 +272,8 @@ Měří se, kolikrát uživatel uvidí správnou odpověď (jistě, nebo mezi ne
 | paraphrase-multilingual-MiniLM-L12-v2 (τ ≈ 0,65) | 82,7 / 68,0 / 50,0 | ~91 | ~80,5 | ~57,7 | 13–35 ms | ~1,45 GB |
 
 e5-small je lepší na všech třech sadách (o ~2,5 bodu při stejné míře tlačítek), rychlejší a nenáročnější na paměť. **Volba: `multilingual-e5-small`.** MiniLM už není potřeba (471 MB k uvolnění ve volume).
-- **Zbývá:** rozhodnutí o implementaci (část 5.4, bod 5).
+- **Rozhodnutí (28. 10. 2026): implementace se do `search/app` zatím nedělá, zůstává v plánu.** Krok by potřeboval úpravu `executor.py` (seznam kroků kaskády) a nový příznak v nastavení, tedy zásah do jádra, které není součástí tohoto úkolu. Měření, výběr modelu, politika a práh jsou hotové a zapsané, takže se na ně dá kdykoli navázat. Případný návrh pro vlastníky jádra a samostatný prototyp v `tools/lab` jsou možné další kroky, ale nezačaly.
+- **Co by implementace obnášela** (pro posouzení): nový soubor `search/app/nodes/semantic_offer.py`, řádek v `executor.py`, parametr v nastavení (vypnutý), migrace, test a řádek v `SETTINGS_REFERENCE.md`; bez změny databáze, bez zásahu do `qa_lexical.py`, `qa_common.py` a `qa_vector.py`.
 
 ### 5.5 Fáze 4 — lepší rozlišení u jistých odpovědí
 
@@ -296,7 +324,7 @@ Ladění se zastaví, když **tři po sobě jdoucí kroky přinesou méně než 
 
 ## 7. Co od tebe potřebuji
 
-1. **Rozhodnutí o implementaci sémantické nabídky** (model `multilingual-e5-small`, politika `lex2`, τ = 0,88, nejvýš 5 tlačítek; nový model a změna chování nabídky patří do „Ask first“ v `AGENTS.md`). Návrh implementace je v části 5.4, bod 6.
+1. **Nic k blokujícímu rozhodnutí.** Sémantická nabídka zůstává v plánu; pokud ji někdo z vlastníků jádra bude chtít převzít, podklady jsou v části 5.4 a v deníku.
 2. Volitelně: smazat model MiniLM, který už není potřeba (uvolní 471 MB): `docker exec edu_ai_search rm -rf /models/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2`.
-3. Kdy nasadit migrace 218–221 do skutečné databáze (jediné místo, kde se mění provoz).
+3. ~~Nasadit migrace 218–221~~ — hotovo 28. 10. do lokální databáze; zbývá přestavět obraz vyhledávání (kvůli `query_repair`) a nasadit na další instalace podle rozhodnutí o převzetí existujících instalací (D11).
 4. Volitelně: seznam dvojic ke sloučení pro kurátora (6 potvrzených dvojic).

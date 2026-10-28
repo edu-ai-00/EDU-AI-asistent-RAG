@@ -15,6 +15,7 @@ same cases are run before and after, and the cases that got worse are listed.
 | [`compare.py`](compare.py) | host | baseline × now: score per set, cases that got worse (new confident wrong answers first), CSV of the changes; exit code 1 on a new confident wrong answer |
 | [`check_step.sh`](check_step.sh) | host | kontrola po každém kroku: testy, docs-check, parita, regresní sada proti přijatému základu, stav gitu (viz [PLAN.md](PLAN.md) §4) |
 | `make_negatives.py`, `make_clicks.py`, `make_d_template.py`, `make_equiv_candidates.py` | host / kontejner | příprava sad N, C, D a kandidátů na ekvivalentní odpovědi (viz Sady a zásady) |
+| `make_log_set.py` | host | sada L: skutečná znění z logu se slabým štítkem (volba OpenAI) |
 | `analyze_errors.py` | search container | rozbor chyb: zařadí nevidené a jistě špatné případy do skupin (jen A, B, D:train), s podílem, který by lokální model našel |
 | `eval_semantic.py` | search container | fáze 3: zkouší, kolik správných odpovědí by do nabídky přidal lokální model (politiky fill / lex2 / rrf, práh τ), a kolik tlačítek přidá otázkám mimo obsah; `D:holdout` odmítá |
 | [`scoring.py`](scoring.py) | both | verdict and score (stdlib only, unit-tested in `tests/test_lab_regression.py`) |
@@ -65,6 +66,7 @@ Plán dalšího zlepšování hledání (cíl, omezení, pravidlo přijetí změ
 | **D** | otázky, které napíše člověk podle *odpovědí* (viz `make_d_template.py`) | **testovací, zmrazená**: nikdy se podle ní neladí, jen závěrečné ověření |
 | **N** | otázky mimo obsah školy (`make_negatives.py`) | očekává se žádná jistá odpověď; trénovací a zadržená půlka |
 | **D:train / D:holdout** | půlky D podle otázky školy | `train` smí sloužit k volbě mezi variantami (např. modelů), `holdout` jen na závěr |
+| **L** | skutečné dotazy z logu, které produkce vyřešila přes OpenAI (`make_log_set.py`); štítek = jeho volba | jen test (slabý štítek, výběrově zkreslená); neladí se na ní |
 | **C** | dotazy z logu, kde uživatel klikl na nabídku *místo odpovědi* (`make_clicks.py`) | jen orientační (17 případů), zkreslené štítky |
 
 1. **Dělení podle otázek školy, ne podle vět.** Každá z 210 kurátorovaných otázek je deterministicky `train` (70 %) nebo `holdout` (30 %), `build_cases.split_of`. Přepisy A i B jsou ze stejných otázek, takže dělení podle vět by nechalo ladění prosvítat do měření. Ladí se jen na `train`; závěrečné číslo se bere z `holdout`. `compare.py --by-split` ukáže obě půlky zvlášť.

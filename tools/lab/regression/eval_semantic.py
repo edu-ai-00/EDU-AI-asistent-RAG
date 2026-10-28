@@ -12,7 +12,7 @@ per set and tau: how often the asker sees the right answer (confident, or among 
 chips) against today, and on the negatives N how often the model adds a chip to a
 question the school has no answer for (pollution).
 
-Sets used: A, B, N and D:train. D:holdout (the frozen half) is refused.
+Sets used: A, B, N, L (weak labels from the log) and D:train. D:holdout (the frozen half) is refused.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def merge(variant, base, model_ranked, tau):
 def usable(c: dict) -> bool:
     if c["set"] == "D":
         return c.get("split") == "train"           # D:holdout is frozen
-    return c["set"] in ("A", "B", "N")
+    return c["set"] in ("A", "B", "N", "L")
 
 
 def main() -> int:
