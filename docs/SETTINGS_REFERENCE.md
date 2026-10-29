@@ -207,7 +207,7 @@ A normalized exact question match answers immediately.
 | Parameter | Reference | Meaning |
 |---|---|---|
 | `related_suggestions` | `true` | Offer related curated questions beside the exact answer. They are ranked by `qa_lexical` with **its** configured thresholds (§3.3), so they are the same questions it would have offered next to its own answer; off, and an exact hit offers nothing (the behaviour before 2026-09-03). Costs the fast path the lexical stage's queries. |
-| `suggest_top_n` | `5` | How many of them are shown. Falls back to the `qa_lexical` value. |
+| `suggest_top_n` | `3` | How many of them are shown. Falls back to the `qa_lexical` value. |
 
 ### 3.3 `qa_lexical` — curated pairs, lexical match
 
@@ -222,7 +222,7 @@ Reference values below are not a substitute for the resolved organisation profil
 | `coverage_reverse` | off | Experiment, off. Also scores how much of a curated wording the query holds. Measured and not adopted: confident right answers up, but confident wrong answers up with them. |
 | `fetch_k` | `50` | Candidate QA entries pulled before ranking. |
 | `synonyms` | `true` | Expand the query through `edu_ai.qa_synonym` groups (abbreviations, local names). |
-| `suggest_top_n` | `5` | How many near misses are offered as "did you mean" (3 until migration 221: the right answer was on the 4th or 5th place often enough that the asker saw it 3 points more often with 5, no decision changed). |
+| `suggest_top_n` | `3` | How many near misses are offered as "did you mean". |
 | `trgm_suggest_min` | `0.4` | Trigram similarity floor for a near miss to be offered — typo tolerance. |
 | `other_grade_top_n` | `2` | Safety net: how many matches from a *different* grade may be shown when the asker's own grade has none. |
 | `other_grade_min_ratio` | `0.5` | How good such an other-grade match must be, relative to the best match, to be worth showing. |

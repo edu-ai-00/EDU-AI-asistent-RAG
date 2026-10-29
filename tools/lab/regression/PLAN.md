@@ -17,17 +17,16 @@
 
 ## 2. Kde jsme
 
-### Hotovo a commitnuto (migrace 218–221, manifest `R221`)
+### Hotovo a commitnuto (migrace 218–220, manifest `R220`)
 
 | Změna | Co dělá |
 |---|---|
 | 218 | zdvořilostní a výplňová slova se nepočítají do pokrytí (21 slov) |
 | 219 | QA hledá jen podle lemmatu, ne podle kmene |
 | 220 | oprava překlepů v dotazu (`query_repair: ["typo"]`) |
-| 221 | nabídka „Nechtěl ses zeptat…?“ ukáže až 5 otázek místo 3 |
 | nástroje | regresní sada (`tools/lab/regression`), porovnání nastavení (`tools/lab/variants/compare_forms.py`) |
 
-Změny 218–221 **zatím nejsou spuštěné v žádné databázi** (jen ověřené na izolované referenční a na kopii nastavení produkce, vždy s ROLLBACKem) a kód opravy překlepů není v nasazeném obrazu.
+Změny 218–220 jsou **nasazené v lokální databázi a v lokálním obrazu vyhledávání** (28.–29. 10.). Migrace 221 (nabídka s 5 tlačítky) byla 29. 10. **zrušena**: počet tlačítek zůstává původní, **3**, jako v původním repozitáři (omezení uživatele: nejvýš 3 až 4, víc tlačítek není cesta).
 
 ### Naměřeno regresní sadou (jen QA; napsané dotazy, ne skutečné)
 
@@ -95,7 +94,7 @@ tools/lab/regression/check_step.sh --regression # i po změně hledání, nastav
 | `make docs-check` | odkazy, zdroje a hlavičky dokumentace |
 | testy v obrazu vyhledávání | záporná lemmata, stop-slova, diakritika, oprava překlepů — na kódu z tohoto checkoutu, ne ze starého obrazu |
 | parita normalizace | `contracts/parity` (`AGENTS.md`: před i po změně normalizace) |
-| regresní sada (`--regression`) | proti přijatému základu `accepted.json`, s migracemi 218–221 v transakci; končí chybou při novém jistě špatném případu |
+| regresní sada (`--regression`) | proti přijatému základu `accepted.json`, s migracemi 218–220 v transakci; končí chybou při novém jistě špatném případu |
 | stav gitu | co je necommitnuté a nepushnuté, zapomenuté kontejnery po měření |
 
 Skript skončí kódem 0 (`ALL CHECKS PASSED`), nebo vypíše, co selhalo. **Přijatý základ** (`accepted.json`) přepíšu jen po změně, kterou jsi schválil, a řeknu to.
@@ -317,7 +316,7 @@ Ladění se zastaví, když **tři po sobě jdoucí kroky přinesou méně než 
 | Čas a paměť na stroji školy | změřit v etapě 1 na cílovém hardwaru |
 | Model je slabší než OpenAI embedding | očekává se; proto jen doplněk nabídky |
 | Produkce lemmatizuje starší simplemma | po nasazení 3.3.0 se změní všechna lemma, data je nutné znovu nahrát (viz nasazovací poznámka) |
-| Migrace 218–221 se v existujících instalacích dosud nespouštějí | postup pro existující instalace (D11) není rozhodnutý; dnes ručně přes `psql` |
+| Migrace 218–220 se v existujících instalacích dosud nespouštějí | postup pro existující instalace (D11) není rozhodnutý; dnes ručně přes `psql` |
 | Role uživatelů (učitel × žák) | QA dnes podle role nefiltruje; zatím se neřeší |
 | Osobní údaje v logu | kopie se používá lokálně, texty se nevypisují ani neukládají do Gitu; další export jen s vědomím správce |
 | Strop je dán obsahem | výběr odpovědí nenahradí chybějící odpovědi (část 5.1) |
@@ -326,7 +325,7 @@ Ladění se zastaví, když **tři po sobě jdoucí kroky přinesou méně než 
 
 1. **Nic k blokujícímu rozhodnutí.** Sémantická nabídka zůstává v plánu; pokud ji někdo z vlastníků jádra bude chtít převzít, podklady jsou v části 5.4 a v deníku.
 2. Volitelně: smazat model MiniLM, který už není potřeba (uvolní 471 MB): `docker exec edu_ai_search rm -rf /models/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2`.
-3. ~~Nasadit migrace 218–221~~ — hotovo 28. 10. do lokální databáze; zbývá přestavět obraz vyhledávání (kvůli `query_repair`) a nasadit na další instalace podle rozhodnutí o převzetí existujících instalací (D11).
+3. ~~Nasadit migrace 218–220~~ — hotovo 28. 10. do lokální databáze; zbývá přestavět obraz vyhledávání (kvůli `query_repair`) a nasadit na další instalace podle rozhodnutí o převzetí existujících instalací (D11).
 4. Volitelně: seznam dvojic ke sloučení pro kurátora (6 potvrzených dvojic).
 
 ## 8. Přidání nového obsahu bez zhoršení (postup, 29. 10. 2026)

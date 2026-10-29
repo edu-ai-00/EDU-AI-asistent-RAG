@@ -8,7 +8,7 @@
 # (negation, stop-words, diacritics, query repair), the normalization parity
 # check, the git state. With --regression also the regression set against the
 # accepted baseline ($EDU_AI_STATE_DIR/regression/accepted.json), with the
-# migrations 218-221 applied in the rolled-back transaction.
+# migrations 218-220 applied in the rolled-back transaction.
 # Exit code 0 = all checks passed; the last lines say what did not.
 set -uo pipefail
 
@@ -68,7 +68,7 @@ if [ "${1:-}" = "--regression" ]; then
   else
     tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/cases.json" "$R/check_now.json" \
       --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
-      --with-sql $M/220_qa_lexical_query_repair.sql --with-sql $M/221_qa_suggest_top_n_5.sql 2>&1 | grep -E '^(A|B|ALL) '
+      --with-sql $M/220_qa_lexical_query_repair.sql 2>&1 | grep -E '^(A|B|ALL) '
     if python3 tools/lab/regression/compare.py --cases "$R/cases.json" --baseline "$R/accepted.json" \
          --now "$R/check_now.json" --show 5 --by-split; then ok "regression: no new confident wrong answer"
     else fail "regression: a case turned into a confident wrong answer (listed above)"; fi
