@@ -29,7 +29,7 @@ def _f(text, lang="cs"):
 
 def test_leaking_stopwords_dropped_in_every_form():
     for text, gone in (("Kdy jsou přijímačky?", {"jso", "jsou", "byt"}),
-                       ("Kdy budou výsledky?", {"bud", "budou"}),
+                       ("Kdy budou známky?", {"bud", "budou"}),
                        ("Moje dcera", {"moj", "moje", "muj"}),
                        ("Je mezi testy přestávka?", {"meh", "mezi"})):
         f = _f(text)

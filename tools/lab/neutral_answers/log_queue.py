@@ -29,7 +29,7 @@ def group_key(entity: str, lemmas) -> str:
 
 
 def is_follow_up(text: str, turn) -> bool:
-    """A follow-up needs its conversation: "A v kolik hodin?" alone means nothing."""
+    """A follow-up needs its conversation: "A kolik to stojí?" alone means nothing."""
     if turn not in (None, "", 0, 1, "1"):
         return True
     t = (text or "").strip().lower()

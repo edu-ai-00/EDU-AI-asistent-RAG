@@ -40,7 +40,7 @@ if docker ps --format '{{.Names}}' | grep -qx "$CT"; then
   # tests piped over stdin take their repository root from the working dir's PARENT
   # (test_stopword_surface reads <root>/contracts/parity/stoplist.json)
   ROOT=/tmp/check_step; W=$ROOT/run
-  docker exec "$CT" rm -rf $ROOT >/dev/null 2>&1
+  docker exec "$CT" rm -rf "${ROOT:?}" >/dev/null 2>&1
   docker exec "$CT" mkdir -p $W $ROOT/contracts && docker cp -q search/app "$CT:$W/" && docker cp -q tests "$CT:$W/" \
     && docker cp -q contracts/parity "$CT:$ROOT/contracts/parity" && docker cp -q contracts/parity "$CT:$W/parity-src"
   step "Tests in the search image (the code of THIS checkout)"
@@ -54,7 +54,7 @@ if docker ps --format '{{.Names}}' | grep -qx "$CT"; then
   if docker exec -i -w $W/parity-src -e PYTHONPATH=$W:/app "$CT" python - $W/parity-src \
        < contracts/parity/check_vectors.py >/tmp/check_step.out 2>&1; then ok "parity vectors"
   else fail "parity vectors"; tail -6 /tmp/check_step.out; fi
-  docker exec "$CT" rm -rf $ROOT >/dev/null 2>&1
+  docker exec "$CT" rm -rf "${ROOT:?}" >/dev/null 2>&1
 else
   step "Search image"
   fail "container $CT is not running: image tests and parity not checked"

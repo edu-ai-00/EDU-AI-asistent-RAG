@@ -143,7 +143,7 @@ Záznam dotazů (`question_answer_log`) je nejvěrnější obraz toho, jak se li
 ### 7.2 Co má funkce umět
 
 1. **Vstup:** výsledek přehrání nové verze (`tools/lab/replay`) a QA sady škol (CSV z portálu nebo z dumpu). Vybírají se dotazy, které skončily **jen nabídkou** nebo **ničím**.
-2. **Seskupení:** stejné a skoro stejné dotazy (stejná lemmata) se spojí do jednoho řádku s počtem výskytů a se všemi zněními. Řadí se od nejčastějších. Navazující dotazy („A v kolik hodin?“) se vynechají: bez konverzace nedávají smysl.
+2. **Seskupení:** stejné a skoro stejné dotazy (stejná lemmata) se spojí do jednoho řádku s počtem výskytů a se všemi zněními. Řadí se od nejčastějších. Navazující dotazy („A kolik to stojí?“) se vynechají: bez konverzace nedávají smysl.
 3. **Návrh:** u každé skupiny odpovědi, které vyhledávání nabídlo, s pokrytím. Navrhuje se jen z odpovědí školy, ke které dotaz patří.
 4. **Tři volby kurátora:**
    - **přidat jako alternativu** k vybrané odpovědi; nástroj předem změří, že to pomůže a jiné otázky to nerozbije,

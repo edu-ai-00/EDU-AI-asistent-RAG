@@ -166,7 +166,7 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
         return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,
                 "trace_detail": {"negation_check": "failed"}}
     if _neg:
-        logger.info("qa_vector: negation conflict on %s — no curated answer", _neg)
+        logger.info("qa_vector: negation conflict (%d word(s)) — no curated answer", len(_neg))
         return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,
                 "trace_detail": {"negation_conflict": _neg}}
 

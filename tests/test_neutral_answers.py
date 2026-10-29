@@ -200,7 +200,7 @@ class LogQueueTest(unittest.TestCase):
     LOOKUP = {
         "questions": {"1": {"q": "Kdy jsou náhradní termíny?", "turn": 1, "entity": "S1"},
                       "2": {"q": "kdy jsou nahradni terminy", "turn": 1, "entity": "S1"},
-                      "3": {"q": "A v kolik hodin?", "turn": 2, "entity": "S1"},
+                      "3": {"q": "A kolik to stojí?", "turn": 2, "entity": "S1"},
                       "4": {"q": "Kdy jsou náhradní termíny?", "turn": 1, "entity": "S2"},
                       "5": {"q": "Kdy je JPZ?", "turn": 1, "entity": "S1"}},
         "entries": {"e1": {"q": "Kdy se konají náhradní termíny JPZ?", "entity": "S1",

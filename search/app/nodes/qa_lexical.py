@@ -636,7 +636,7 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
             _neg = negation_conflict(state.get("query_lemma_tokens"), top["tokens"], lang)
             if _neg:
                 _detail["negation_conflict"] = _neg
-                logger.info("qa_lexical: negation conflict on %s — no curated answer", _neg)
+                logger.info("qa_lexical: negation conflict (%d word(s)) — no curated answer", len(_neg))
             if (top_cov >= t_answer and margin >= m_margin
                     and _rare_hit is not False and not _neg):
                 _q, answer_md, _tags, _refs = fetch_answer(cur, top_id)
