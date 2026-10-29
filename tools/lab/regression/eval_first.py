@@ -42,6 +42,9 @@ def main() -> int:
     ap.add_argument("--results", required=True)
     ap.add_argument("--model", default="intfloat/multilingual-e5-small")
     ap.add_argument("--prefix", default="query: ")
+    ap.add_argument("--packs-dir", help="the pack CSVs: with --lam the ANSWER text joins the model's score")
+    ap.add_argument("--packs", nargs="+", default=["faq-jpz", "faq-provoz"])
+    ap.add_argument("--lam", type=float, default=0.0, help="weight of the answer-text similarity (0 = question only)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     from sentence_transformers import SentenceTransformer
@@ -63,6 +66,17 @@ def main() -> int:
                  show_progress_bar=False)
     sim = Q @ W.T
     ent = np.stack([sim[:, owner == j].max(axis=1) for j in range(len(keys))], axis=1)
+    if a.lam and a.packs_dir:
+        import csv
+        ans = {}
+        for pack in a.packs:
+            with open(os.path.join(a.packs_dir, pack + ".csv"), encoding="utf-8-sig", newline="") as fh:
+                head = fh.readline(); fh.seek(0)
+                for r in csv.DictReader(fh, delimiter=";" if head.count(";") >= head.count(",") else ","):
+                    ans[r["entry_key"]] = r["answer_md"].replace("\n", " ")
+        AP = m.encode(["passage: " + ans.get(k, "") for k in keys], batch_size=64, normalize_embeddings=True,
+                      show_progress_bar=False)
+        ent = ent + a.lam * (Q @ AP.T)
     right = lambda c: {c["entry_key"], *(c.get("accept") or [])}
     names = sorted({c["set"] if c["set"] != "D" else "D:train" for c in cases})
     out = {}

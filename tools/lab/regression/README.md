@@ -18,6 +18,7 @@ same cases are run before and after, and the cases that got worse are listed.
 | `make_log_set.py` | host | sada L: skutečná znění z logu se slabým štítkem (volba OpenAI) |
 | `build_index.py`, `content_check.py` | host | **kontrola nového obsahu**: z balíčků CSV udělá seznam otázek, pustí celou regresní sadu proti základu, vypíše ukradené odpovědi a přitahující záznamy, připraví tabulku pro testovací otázky (viz [PLAN.md](PLAN.md) §8) |
 | `make_gap_report.py` | host | přehled mezer v obsahu pro kurátora (Excel): témata, počty dotazů bez odpovědi, klíčová slova a nejbližší dnes nabízená odpověď; **bez celých dotazů uživatelů** |
+| `eval_semantic_variants.py` | search container | pořadí modelu: skóre jen z otázky × s textem odpovědi × bez téměř shodných tlačítek, hit@1/3/4 bez prahů; `D:holdout` odmítá |
 | `eval_first.py` | search container | úspěšnost PRVNÍ odpovědi (jistá odpověď, jinak první tlačítko): dnes, model sám, strop, přeřazení kandidátů modelem, pravidlo s prahem; `D:holdout` odmítá |
 | `eval_rank.py` | search container | offline odhad: co by dalo řazení nabídky podle součtu vah sdílených slov (politiky fill / lex2 / replace, práh) a kolik tlačítek navíc by dostaly otázky mimo obsah |
 | `mine_word_pairs.py` | search container | vytěží z trénovacích otázek kandidáty na jednoslovná synonyma (neznámé slovo → slovo školní otázky) a napíše what-if SQL; ověřuje se na zadržených |
