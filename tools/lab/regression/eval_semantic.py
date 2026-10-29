@@ -72,11 +72,13 @@ def main() -> int:
     ap.add_argument("--model", default="intfloat/multilingual-e5-small")
     ap.add_argument("--prefix", default="query: ")
     ap.add_argument("--taus", type=float, nargs="+", help="the similarity thresholds to try (scales differ per model)")
+    ap.add_argument("--chips", type=int, default=5, help="how many chips the offer may hold (default 5)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    global TAUS
+    global TAUS, CHIPS
     if a.taus:
         TAUS = a.taus
+    CHIPS = a.chips
     from sentence_transformers import SentenceTransformer
 
     questions = json.load(open(a.questions, encoding="utf-8"))

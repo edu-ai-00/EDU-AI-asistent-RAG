@@ -22,6 +22,7 @@ sc = _load("scoring")
 bc = _load("build_cases")
 mn = _load("make_negatives")
 xw = _load("xlsx_write")
+bi = _load("build_index")
 _rspec = importlib.util.spec_from_file_location(
     "lab_neutral_xlsx_read", os.path.join(_ROOT, "tools", "lab", "neutral_answers", "xlsx_read.py"))
 xr = importlib.util.module_from_spec(_rspec)
@@ -194,6 +195,44 @@ class Fixes(unittest.TestCase):
         self.assertEqual([(c["query"], c["entry_key"], c["pack"]) for c in fixed], [("y?", "b", "p2")])
         self.assertEqual(fixed[0]["split"], bc.split_of("b"))
         self.assertEqual(fixed[0]["id"], bc.case_id("N", "p2", "b", "y?"))
+
+
+class BuildIndex(unittest.TestCase):
+    CSV = ("entry_key,canonical_q,answer_md,cat,variants,sources,is_active\n"
+           'kdy-zacina,Kdy začíná škola?,Prvního září.,Provoz,"Kdy se jde do školy?\nZačátek školního roku",,TRUE\n'
+           "vypnuta,Vypnutá otázka?,x,Provoz,,,FALSE\n"
+           "kde-je-satna,Kde je šatna?,V přízemí.,Provoz,,,TRUE\n")
+
+    def _dir(self, files):
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d, True)
+        for n, t in files.items():
+            with open(os.path.join(d, n), "w", encoding="utf-8-sig", newline="") as fh:
+                fh.write(t)
+        return d
+
+    def test_pack_is_the_file_name_variants_split_and_inactive_skipped(self):
+        idx, stat = bi.build(self._dir({"faq-x.csv": self.CSV}))
+        self.assertEqual([(e["pack"], e["entry_key"]) for e in idx], [("faq-x", "kdy-zacina"), ("faq-x", "kde-je-satna")])
+        self.assertEqual(idx[0]["alts"], ["Kdy se jde do školy?", "Začátek školního roku"])
+        self.assertEqual(len(stat["new"]), 2)
+
+    def test_like_keeps_old_idx_and_appends_new_entries(self):
+        old = [{"idx": 7, "pack": "faq-x", "entry_key": "kdy-zacina", "q": "Kdy začíná škola?",
+                "alts": ["Kdy se jde do školy?", "Začátek školního roku"]},
+               {"idx": 8, "pack": "faq-x", "entry_key": "mizi", "q": "Zmizí?", "alts": []}]
+        idx, stat = bi.build(self._dir({"faq-x.csv": self.CSV}), old)
+        self.assertEqual({(e["entry_key"]): e["idx"] for e in idx}, {"kdy-zacina": 7, "kde-je-satna": 9})
+        self.assertEqual([k[1] for k in stat["removed"]], ["mizi"])
+        self.assertEqual([k[1] for k in stat["new"]], ["kde-je-satna"])
+        self.assertEqual(stat["changed"], [])
+
+    def test_changed_wording_and_key_collision_between_packs(self):
+        old = [{"idx": 0, "pack": "faq-x", "entry_key": "kdy-zacina", "q": "Jiné znění?", "alts": []}]
+        idx, stat = bi.build(self._dir({"faq-x.csv": self.CSV, "faq-y.csv": self.CSV}), old)
+        self.assertEqual([k[1] for k in stat["changed"]], ["kdy-zacina"])
+        self.assertIn("kdy-zacina", stat["collisions"])
 
 
 class CsvEncodings(unittest.TestCase):

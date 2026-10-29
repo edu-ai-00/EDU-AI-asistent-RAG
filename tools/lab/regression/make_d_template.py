@@ -52,6 +52,8 @@ def main() -> int:
     ap.add_argument("--extra-train", type=int, default=40)
     ap.add_argument("--none-rows", type=int, default=25)
     ap.add_argument("--seed", type=int, default=5)
+    ap.add_argument("--only-keys", help="JSON list of entry keys: a worksheet just for these (new content), "
+                                        "all of them, no hold-out/extra-train selection")
     a = ap.parse_args()
     questions = json.load(open(a.questions, encoding="utf-8"))
     answers = answers_from(a.packs_dir, a.packs)
@@ -60,7 +62,12 @@ def main() -> int:
     train = [k for k in keys if build_cases.split_of(k) == "train"]
     rnd = random.Random(a.seed)
     rnd.shuffle(train)
-    chosen = hold + train[:a.extra_train]
+    if a.only_keys:
+        only = set(json.load(open(a.only_keys, encoding="utf-8")))
+        chosen = [k for k in keys if k in only]
+        hold = []
+    else:
+        chosen = hold + train[:a.extra_train]
     rnd.shuffle(chosen)
     rows = [["id", "odpoved", "otazka_1 (normálně)", "otazka_2 (krátce / hovorově)"]]
     mapping = {}

@@ -328,3 +328,26 @@ Ladění se zastaví, když **tři po sobě jdoucí kroky přinesou méně než 
 2. Volitelně: smazat model MiniLM, který už není potřeba (uvolní 471 MB): `docker exec edu_ai_search rm -rf /models/hub/models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2`.
 3. ~~Nasadit migrace 218–221~~ — hotovo 28. 10. do lokální databáze; zbývá přestavět obraz vyhledávání (kvůli `query_repair`) a nasadit na další instalace podle rozhodnutí o převzetí existujících instalací (D11).
 4. Volitelně: seznam dvojic ke sloučení pro kurátora (6 potvrzených dvojic).
+
+## 8. Přidání nového obsahu bez zhoršení (postup, 29. 10. 2026)
+
+Nové nebo upravené odpovědi mohou starým záznamům **ukrást jistou odpověď** (sourozenecké otázky, podobná témata) a mění váhy slov. Naše sady to umí změřit, takže přidání obsahu má jednotný postup:
+
+1. **Připravit balíčky.** Adresář s CSV balíčky školy **tak, jak budou po změně** (stará QA + nová nebo upravená), ve formátu exportu z QA portálu.
+2. **Spustit kontrolu:**
+   ```bash
+   python3 tools/lab/regression/content_check.py --packs-dir DIR [--sweep]
+   ```
+   Skript převede balíčky na seznam otázek (`build_index.py`, stará `idx` zůstávají), pustí celou regresní sadu (A, B, C, D, L, N) s nasazeným nastavením a porovná s přijatým základem. Vypíše:
+   - skóre před a po po sadách,
+   - **kolikrát nový záznam ukradl jistou správnou odpověď** a **kolikrát jistě odpověděl na otázku mimo obsah**,
+   - **které nové záznamy přitáhly nejvíc cizích dotazů** (k přepsání nebo sloučení),
+   - s `--sweep` i prahy `t_answer` a `m_margin` v okolí dnešních hodnot.
+   Končí kódem 1, když je ukradená odpověď nebo jistá odpověď mimo obsah (meze `--max-stolen`, `--max-n-confident`).
+3. **Rozhodnout u přitahujících záznamů:** zpřesnit znění otázky, označit věcně shodné dvojice jako ekvivalentní (`build_cases.py --equiv-csv`), nebo záznam přijmout, pokud je skutečně lepší odpovědí.
+4. **Testovací otázky k novým záznamům.** Kontrola připraví `testovaci_otazky_nove.xlsx` (člověk píše otázky podle odpovědí jako u sady D); po vyplnění `build_cases.py --d-csv … --d-map …` je přidá do sad.
+5. **Po přijetí:** přegenerovat `otazky_idx.json` (`build_index.py --like`), nový základ `accepted.json`, zapsat do deníku a **znovu nahrát celou QA aktuálním obrazem** (normalizace 3.3.0), aby staré i nové záznamy měly stejné tvary.
+6. **Prahy** projít znovu (`--sweep`), když obsah naroste o víc než pětinu.
+
+**Vyzkoušeno na simulaci:** přidání 65 záznamů z jiné školy (podobná témata, jiné odpovědi) zhoršilo skóre z 1 835 na 1 715 a jisté omyly z 31 na 61; kontrola našla 6 ukradených jistých odpovědí a uvedla záznamy, které cizí dotazy přitahují nejvíc. Simulace je záměrně nepříznivá (jde o věcné duplicity), ukazuje ale, že kontrola riziko opravdu odhalí. Změna prahů škodu nezachrání: při `t_answer` 0,55 až 0,65 a `m_margin` 0,04 až 0,12 vychází skóre 1 683 až 1 708 (dnešní nastavení 1 704), tedy hodnota 0,65 sníží jisté omyly (61 → 50), ale ztratí 113 jistých správných odpovědí. Řešit se musí obsahem (zpřesnit znění, sloučit duplicity), ne prahy.
+
