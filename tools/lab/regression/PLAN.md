@@ -263,6 +263,15 @@ Měří se, kolikrát uživatel uvidí správnou odpověď (jistě, nebo mezi ne
 - **Náklady:** 11 ms na dotaz, načtení modelu 8–10 s, špička paměti ~1,1 GB (celý proces s torch). To je pro stroj školy třeba ověřit.
 - **Práh na obou půlkách N (τ = 0,88, `lex2`):** trénovací 24,5 %, zadržená 17,6 %, takže se na zadržené půlce nechová hůř. Nižší τ = 0,87 dá na `D:train` 65,4 % místo 60,3 %, ale model by pak přidal tlačítko 44 % mimoobsahových otázek.
 
+**Přeměřeno se 3 a 4 tlačítky (29. 10., původní počet je 3):** politika `lex2` (první dvě slovní tlačítka zůstanou, zbytek podle významu), práh τ = 0,88; „dnes“ je dnešní stav se 3 tlačítky:
+
+| Počet tlačítek | A (dnes 83,7 %) | B (dnes 74,0 %) | D:train (dnes 51,3 %) | L (dnes 40,0 %) | mimoobsahové otázky s tlačítkem od modelu |
+|---|---|---|---|---|---|
+| **3** (`lex2`; 2 slovní + 1 podle významu) | **90,3 % (+6,6)** | **79,1 % (+5,1)** | **56,4 % (+5,1)** | **61,2 % (+21,2)** | ~23 % |
+| 4 (`lex2`) | 92,3 % (+8,6) | 81,5 % (+7,5) | 57,7 % (+6,4) | 64,7 % (+24,7) | ~23 % |
+
+Přínos se **3 tlačítky je skoro stejný jako s 5** (A +6,6 proti +7, B +5,1 proti +6, D:train +5,1 proti +6,5), protože dnešní slovní tlačítka na 3. až 5. místě stejně bývají slabá. Na zadržené půlce N je práh 0,88 stabilní (25 % trénovací, 18 % zadržená). Sémantická nabídka tedy **i s původními 3 tlačítky přináší zhruba +5 až +7 bodů** a na skutečných zněních z logu (L) +21.
+
 **Porovnání se druhým modelem (28. 10.):** `paraphrase-multilingual-MiniLM-L12-v2` (471 MB) má jinou škálu podobnosti (τ 0,30–0,70), proto se porovnává při stejné míře tlačítek u otázek mimo obsah (kolem 20 %, politika `lex2`):
 
 | Model | sám v top 5 (A / B / D:train) | A | B | D:train | čas na dotaz | špička paměti |

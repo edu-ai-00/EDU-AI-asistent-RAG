@@ -31,7 +31,7 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 CONFIDENT = ("exact", "A")
 TAUS = [0.78, 0.80, 0.82, 0.84, 0.86, 0.88, 0.90, 0.92]
 CHIPS = 5
-VARIANTS = ("fill", "lex2", "rrf")
+VARIANTS = ("fill", "lex1", "lex2", "rrf")
 
 
 def merge(variant, base, model_ranked, tau):
@@ -41,6 +41,11 @@ def merge(variant, base, model_ranked, tau):
     base = base[:CHIPS]
     if variant == "fill":
         final = base + [k for k in mod if k not in base][:CHIPS - len(base)]
+    elif variant == "lex1":          # the first slovní chip stays, the model's best chips follow
+        head = base[:1]
+        final = head + [k for k in mod if k not in head][:CHIPS - 1]
+        final += [k for k in base if k not in final][:CHIPS - len(final)]
+        final += [k for k in mod if k not in final][:CHIPS - len(final)]
     elif variant == "lex2":          # the model's best chips go right after the first two slovní chips
         head = base[:2]
         mid = [k for k in mod if k not in head][:3]
@@ -169,7 +174,7 @@ def main() -> int:
             for v in VARIANTS:
                 print(f"{'N: model-chip ('+v+') %':<26}" + "".join(f"{out['sets']['N']['model_chip_among_final_%'][v][t]:>7}" for t in TAUS))
             for h in ("train", "holdout"):
-                print(f"{'   N:'+h+' (lex2) %':<26}" + "".join(f"{out['sets']['N']['by_half'][h]['lex2'][t]:>7}" for t in TAUS))
+                print(f"{'   N:'+h+' (lex1) %':<26}" + "".join(f"{out['sets']['N']['by_half'][h]['lex1'][t]:>7}" for t in TAUS))
             continue
         r = out["sets"][name]
         print(f"{name}: dnes uvidí {r['today_visible_%']} % | model sám top1/3/5: {r['model_alone_top1_%']}/{r['model_alone_top3_%']}/{r['model_alone_top5_%']} %")
