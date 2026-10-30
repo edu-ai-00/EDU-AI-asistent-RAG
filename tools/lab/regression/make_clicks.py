@@ -1,7 +1,7 @@
 """Set C: weak real labels from the query log — which offered answer the asker CLICKED.
 
   python3 make_clicks.py --container edu_ai_prodcopy --out clicks.json
-        [--entity ZS_KAVCI_HORY_ZS] [--packs faq-jpz faq-provoz]
+        [--entity CODE] [--packs faq-jpz faq-provoz]
 
 A click is not recorded (`selected_answer_key` is empty), but the chat sends the
 text of a clicked button as the NEXT question of the conversation. So: a logged

@@ -1,6 +1,6 @@
 """Gap report for the curator: which topics do real users ask about that the school's QA does not cover?
 
-  python3 make_gap_report.py --queue fronta_ZS_KAVCI_HORY_ZS.json --topics temata_ZS_KAVCI_HORY_ZS.json \
+  python3 make_gap_report.py --queue queue_ENTITY.json --topics topics_ENTITY.json \
         --replay pkg.jsonl --lookup log_lookup.json --total-asks 2739 --out mezery_v_obsahu.xlsx
 
 Inputs: the queue of logged questions without a confident curated answer, grouped by wording

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Measure rule-based question variants against the curated-QA path.
 #
-#   tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx [--limit 5]
+#   tools/lab/variants/run.sh path/to/qa_pack.xlsx [--limit 5]
 #
 # Runs in the RUNNING edu_ai_search container (it needs the database), inside
 # one transaction that is rolled back: nothing stays in the database.

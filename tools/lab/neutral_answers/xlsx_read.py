@@ -9,9 +9,9 @@ interpreted.
 Two workbook layouts are recognised by their header row:
 
   * QA pack   canonical_q | answer | sources | Alternativa 1..n
-              (faq_jpz_*.xlsx — the shape the QA pack upload expects)
+              (a QA pack workbook — the shape the QA pack upload expects)
   * loose     question in column A, answer in column G
-              (the "Přijímačkymaturita" sheet of Otázky EDU.xlsx)
+              (a free sheet of questions and answers)
 
 A .csv is read as the application reads a QA pack (the QAJsonReader component
 of langflow_flows/ingestion/EDU_AI_QA.json, contracts/qa-portal/CONTRACT.md

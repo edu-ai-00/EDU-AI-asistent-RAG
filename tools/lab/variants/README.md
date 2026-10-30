@@ -24,10 +24,10 @@ OpenAI key and documents. The rules are data in [`generators.py`](generators.py)
 ## Run
 
 ```bash
-tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx
-tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx --limit 5 --debug
+tools/lab/variants/run.sh path/to/qa_pack.xlsx
+tools/lab/variants/run.sh path/to/qa_pack.xlsx --limit 5 --debug
 # the effect of a new migration, without applying it
-tools/lab/variants/run.sh ~/Downloads/faq_jpz_9-26.xlsx --with-sql postgres/migrations/217_synonyms_meeting_groups.sql
+tools/lab/variants/run.sh path/to/qa_pack.xlsx --with-sql postgres/migrations/217_synonyms_meeting_groups.sql
 ```
 
 `--with-sql FILE` (repeatable) runs the SQL inside the measuring transaction
@@ -42,7 +42,7 @@ read-only, so the rows go in as the QA ingest role (`POSTGRES_DB_USER` /
 never printed). Options: `--sheet NAME`, `--limit N`, `--entity CODE`
 (default `SVOBODNA_SKOLA_PRAHA`), `--debug`.
 
-Outputs in `$EDU_AI_STATE_DIR/variants/` (default `~/edu-ai/state/variants/`):
+Outputs in `$EDU_AI_STATE_DIR/variants/` (default `variants/` in the state directory):
 
 - `<workbook>.variants.csv` — one row per variant: technique, rule, the
   variant, outcome, decision, coverage, margin, the question found and the

@@ -1,6 +1,6 @@
 """Set N: questions the school's curated answers do NOT cover (expected: no confident answer).
 
-  python3 make_negatives.py --xlsx "Otázky EDU.xlsx" --out negatives.json [--per-source 150] [--seed 11]
+  python3 make_negatives.py --xlsx public_questions.xlsx --out negatives.json [--per-source 150] [--seed 11]
 
 Source: publicly collected questions — mathematics (sheet "Mat", column A), Czech
 language ("ČJ", A), teachers' questions ("Učitelé", C). Sheet "Brainly" is left out

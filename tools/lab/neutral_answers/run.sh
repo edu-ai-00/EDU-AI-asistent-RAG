@@ -2,10 +2,10 @@
 # Start the neutral answers lab inside the edu_ai_search image, so the machine
 # view runs the real normalizer (eduai_normalize + simplemma) — no new dependency.
 #
-#   tools/lab/neutral_answers/run.sh ~/Downloads/faq_jpz_9-26.xlsx
-#   tools/lab/neutral_answers/run.sh "~/Downloads/Otázky EDU.xlsx" --sheet Přijímačkymaturita
-#   tools/lab/neutral_answers/run.sh pack.csv --queue ~/edu-ai/state/replay/fronta.json \
-#       --topics ~/edu-ai/state/replay/temata_ZS.json     (topics.py; optional)
+#   tools/lab/neutral_answers/run.sh path/to/qa_pack.xlsx
+#   tools/lab/neutral_answers/run.sh path/to/workbook.xlsx --sheet NAME
+#   tools/lab/neutral_answers/run.sh pack.csv --queue path/to/queue.json \
+#       --topics path/to/topics.json     (topics.py; optional)
 #
 # Then open http://127.0.0.1:8770/ (published on localhost only).
 # Decisions: $EDU_AI_STATE_DIR/neutral_answers/<workbook>.decisions.json — outside

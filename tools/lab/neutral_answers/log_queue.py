@@ -7,7 +7,7 @@ per distinct question (same school, same lemmas), most frequent first, with
 every wording and the curated entries the search offered ("myslel jste…?").
 
 Standard library only; the review app imports it, `python log_queue.py` writes
-the CSV of step 1 (PLAN.md, chapter 7).
+the CSV of step 1 (DESIGN.md, section 6).
 
   python3 log_queue.py REPLAY.jsonl LOOKUP.json --out queue.csv
 """

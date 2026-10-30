@@ -5,7 +5,7 @@
 > is already uploaded; the exported CSV goes through the normal QA pack upload.
 
 Status, inputs/outputs still to build and the plan for questions that need a
-manual answer: [PLAN.md](PLAN.md) (Czech).
+manual answer: [DESIGN.md](DESIGN.md).
 
 A curated answer must fit **any** phrasing of its question and **any** asker
 (pupil, parent, teacher). The app proposes a neutral rewrite of each answer by
@@ -15,9 +15,9 @@ differences highlighted, and lets a curator approve, reject or edit it.
 ## Run
 
 ```bash
-tools/lab/neutral_answers/run.sh ~/Downloads/faq_jpz_9-26.xlsx
-tools/lab/neutral_answers/run.sh "$HOME/Downloads/Otázky EDU.xlsx" --sheet Přijímačkymaturita
-tools/lab/neutral_answers/run.sh ~/Downloads/pack.csv        # a QA pack CSV (portal, /v1/qa-export)
+tools/lab/neutral_answers/run.sh path/to/qa_pack.xlsx
+tools/lab/neutral_answers/run.sh path/to/workbook.xlsx --sheet NAME
+tools/lab/neutral_answers/run.sh path/to/pack.csv       # a QA pack CSV (portal, /v1/qa-export)
 ```
 
 A `.csv` is read as the application reads a QA pack: delimiter `,` or `;`, the

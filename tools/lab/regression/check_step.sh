@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check after a step: does everything still work? (the automatic half of PLAN.md §4)
+# Check after a step: does everything still work? (the automatic half of METHOD.md §4)
 #
 #   tools/lab/regression/check_step.sh [--regression]
 #
