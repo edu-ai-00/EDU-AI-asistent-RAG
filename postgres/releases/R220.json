@@ -8,7 +8,7 @@
     {
       "id": "217_synonyms_meeting_groups",
       "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
-      "sha256": "a1051592e150cdfd024c3d0bfcdb2f565116d6935da2cd2f61ed2c3779d03df1"
+      "sha256": "98cea91e61c60d19359aa8404f45bdf464f80e62df9268b7029b17bb581c9d22"
     },
     {
       "id": "218_coverage_stop_politeness",
@@ -29,7 +29,7 @@
   "postgres": {
     "base_image": "pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
     "extensions": {
-      "pg_search": "0.26.2",
+      "pg_search": "0.26.3",
       "pg_trgm": "1.6",
       "plpgsql": "1.0",
       "unaccent": "1.1",
