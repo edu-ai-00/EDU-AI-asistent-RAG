@@ -217,7 +217,9 @@ Reference values below are not a substitute for the resolved organisation profil
 
 | Parameter | Reference | Meaning |
 |---|---|---|
-| `form` | `norm, lemma, stem` | Token forms matched against, in that order. |
+| `form` | `norm, lemma` | Token forms matched against, in that order. The curated-QA steps (`qa_exact`, `qa_lexical`) match on the lemma only since migration 219: a shared stem matched by accident ("pořadí" → "dohled") and was measured to cost more wrong answers than the right ones it found. The stored stem columns stay; the document steps keep `lemma, stem`. |
+| `query_repair` | `["typo"]` | Repair the query before the match: a word the lemmatizer leaves as it is and the dictionary does not know becomes the ONE word of the curated questions within edit distance 1 (2 from 8 letters); a tie or nothing near leaves it alone. Off when absent. Switched on by migration 220 (set B: +35 confident right answers on top of lemma only + 218, no new wrong). |
+| `coverage_reverse` | off | Experiment, off. Also scores how much of a curated wording the query holds. Measured and not adopted: confident right answers up, but confident wrong answers up with them. |
 | `fetch_k` | `50` | Candidate QA entries pulled before ranking. |
 | `synonyms` | `true` | Expand the query through `edu_ai.qa_synonym` groups (abbreviations, local names). |
 | `suggest_top_n` | `3` | How many near misses are offered as "did you mean". |

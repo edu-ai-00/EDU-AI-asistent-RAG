@@ -11,6 +11,7 @@ import logging
 
 from .. import config
 from .. import scope
+from ..text_norm import NEGATION_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -504,6 +505,51 @@ def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> li
     if items and all(i.get("score") is not None for i in items):
         items.sort(key=lambda i: -float(i["score"]))
     return items[:top_n]
+
+
+def negation_conflict(query_lemmas, entry_tokens: set[str], lang: str | None) -> list[str]:
+    """Words the query and an entry hold with OPPOSITE polarity ("nepřijít" vs "přijít").
+
+    Since eduai_normalize 3.1.0 a Czech lemma keeps its negation, so "Co když
+    pozvánka nepřijde?" reduces to `neprijit` while the curated "…přijde?" holds
+    `prijit`. Lemmas alone do not stop a curated answer: the other words of the
+    question still cover 0.65–0.75 of the query and pass t_answer — measured
+    2026-10-21 with tools/lab/variants, 37 of 39 flipped JPZ questions still got
+    the original answer. A conflict therefore withholds the CONFIDENT answer;
+    offering the entry as a suggestion stays allowed, the user sees the wording.
+
+    The entry's negation is not excused by a positive form elsewhere in it: the
+    variant "Co mám vzít, když ještě nemám občanku?" holds both `mit` and
+    `nemit`, and exempting that let "Co když uchazeč má občanský průkaz?" get
+    the answer for having NO ID card (measured 2026-10-21). A negated query
+    against such an entry still matches — the negation is the marked side.
+    `lang` None (undecided query) checks every language's prefix. Returns the
+    conflicting query-side words, for the trace.
+    """
+    prefixes = (NEGATION_PREFIX.get(lang, ()) if lang
+                else tuple({p for ps in NEGATION_PREFIX.values() for p in ps}))
+    query = {t for t in (query_lemmas or ()) if t}
+    out: list[str] = []
+    for p in prefixes:
+        n = len(p) + 2                     # a base of at least 3 letters
+        for t in sorted(query):
+            if len(t) > n and t.startswith(p) and t[len(p):] in entry_tokens \
+                    and t not in entry_tokens:
+                out.append(t)
+        for t in sorted(entry_tokens):
+            base = t[len(p):]
+            if len(t) > n and t.startswith(p) and base in query \
+                    and t not in query:
+                out.append(base)
+    return out
+
+
+def entry_form_tokens(cur, entry_id: str) -> set[str]:
+    """All norm/lemma/stem tokens of an entry's active variants."""
+    cur.execute(
+        f"SELECT concat_ws(' ', norm_text, lemma_text, stem_text) "
+        f"FROM {config.QA_VARIANTS_TABLE} WHERE entry_id = %s AND is_active", (entry_id,))
+    return {t for (txt,) in cur.fetchall() for t in (txt or "").split() if t}
 
 
 def fetch_answer(cur, entry_id: str):
