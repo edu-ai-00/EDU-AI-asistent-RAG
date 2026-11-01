@@ -27,14 +27,18 @@
 
 An offer with 5 buttons (migration 221) was tried and withdrawn: the number of buttons stays at the original **3**.
 
-### Regression set (QA only; written queries, not real ones)
+### Regression set (QA only; written queries and logged wordings, not real traffic)
 
-| Set | Score today → after the migrations | Confident errors | The user sees the right answer |
+State with migrations 218–220 and the original 3 buttons. "Sees" = confident, in the offer, or in the fallback (the nearest questions that the chat shows at a dead end). Percentages for D count the 174 questions that have an answer.
+
+| Set | The user sees the right answer: before → after | Score after | Confident errors after |
 |---|---|---|---|
-| A (1,470 paraphrases) | 742 → 840.5 | 11 → 10 | 84 → 87 % |
-| B (1,240, independent) | 400.5 → 469.5 | 13 → 9 | 74 → 77 % |
+| A (1,470 paraphrases) | 84 → 83.7 % | 834.0 | 10 |
+| B (1,240, independent authors) | 73 → 74 % | 469.5 | 8 |
+| D (independent, written from the answers) | 44 → 45 % | 77.5 | 5 |
+| L (85 logged wordings, weak label) | 39 → 40 % | −5.5 | 7 |
 
-"Sees" = confident, in the offer, or in the fallback (the nearest questions that the chat shows at a dead end).
+Confidently right answers grew by about 4 points. The written sets A and B do not show a gain in "sees"; the gain is small and only visible on D and in the replay of the log.
 
 ### What was tried and does not help
 
@@ -57,7 +61,7 @@ On set B: 21 % confidently right, another ~56 % in the offer or fallback, **abou
 
 Model `intfloat/multilingual-e5-small` (471 MB, `sentence-transformers` is already in the repository). Vectors of 1,063 wordings and 2,710 queries in 33 s on CPU.
 
-| Set | Right from the model alone: 1st place / top 5 | Today (sees) | Today + 3 from the model | Today + 5 from the model |
+| Set | Right from the model alone: 1st place / top 5 | Today (sees; 5-button stage) | Today + 3 from the model | Today + 5 from the model |
 |---|---|---|---|---|
 | B | 50 % / 71 % | 77 % | 85 % | 87 % |
 | A | 67 % / 85 % | 86 % | 95 % | 96 % |
@@ -110,12 +114,12 @@ The independent set D (written by a person from the answers) showed that the wri
 
 | Indicator | A (training) | B (validation) | **D (independent)** |
 |---|---|---|---|
-| the user sees the right answer (confident, in the offer, in the fallback) | 86 % | 77 % | **49 %** |
+| the user sees the right answer (confident, in the offer, in the fallback) | 84 % | 74 % | **45 %** |
 | confidently right | 41 % | 21 % | **13 %** |
 | confidently wrong | 0.7 % | 0.7 % | **2.9 %** |
 | out-of-content questions that get a confident answer | N: 1 of 444 | | BEZ: 0 of 47 |
 
-Reason for the difference: the questions in D do not copy words from the answer, so they are closer to how people really ask. For short, colloquial questions (`otazka_2`) the user sees the right answer in only **39 %**, for normal sentences 58 %.
+Reason for the difference: the questions in D do not copy words from the answer, so they are closer to how people really ask. For short, colloquial questions (`otazka_2`) the user saw the right answer in only **39 %** and for normal sentences in 58 % (measured with the 5-button offer of the withdrawn migration 221; with 3 buttons both are lower).
 
 ### 5.2 The basis of measurement
 
@@ -137,16 +141,16 @@ Reason for the difference: the questions in D do not copy words from the answer,
 
 **Set L from the real log:** queries that production resolved by search by meaning through OpenAI, with its choice as a *weak label* (`make_log_set.py`; 85 distinct wordings, asked 262×; 30 with a strong match ≥ 0.75, 55 borderline). **Selection bias:** a query gets into this set only if the word search failed, so L is by nature hard queries and does not represent all traffic. The label is not the truth: of the 7 "confident errors", about half differ only by a nearby question.
 
-| L (85 wordings) | Today | with the local model (lex2, τ 0.88) |
+| L (85 wordings), 5-button offer | Today | with the local model (lex2, τ 0.88) |
 |---|---|---|
 | the user sees the right answer | **48 %** | **66 %** (+18 points) |
 | confidently right | 5 % | unchanged |
 | confidently wrong | 8 % (7), about half a nearby question | unchanged |
 | the model alone: right in top 3 / top 5 | 62 % / 74 % | |
 
-On real wordings the gain from the model is **larger than on the written sets** (+18 against +7). It is a small set of weak labels, so it shows a direction, not an exact number.
+On real wordings the gain from the model is **larger than on the written sets** (+18 against +7). With the original 3 buttons the same set gives 40 % today and 61 % with the model (see 5.4). It is a small set of weak labels, so it shows a direction, not an exact number.
 
-**Replay of the real log with migrations 218–221 (4,442 queries, production copy, no key):**
+**Replay of the real log with migrations 218–221 (4,442 queries, production copy, no key), measured with the 5-button offer of the withdrawn migration 221:**
 
 It is evaluated against the **production choice** as a weak label (queries that production resolved from QA, 3,403 rows). The label is biased: the old code agrees with itself, so a *change* of behaviour looks like a disagreement. Log rows are weighted by the number of repetitions, so the distinct wordings are given as well.
 
@@ -164,7 +168,7 @@ It is evaluated against the **production choice** as a weak label (queries that 
 
 ### 5.3 Error analysis
 
-The tool `analyze_errors.py` puts every case where the user **does not see the right answer** (neither in the offer nor in the fallback), or gets a **confidently wrong** one, into one group. Only **A, B and D:train** are analysed; `D:holdout` is not used. A word is "topical" when it is not general (a lemma in more than 5 % of questions, e.g. "škola", "žák", "dítě"). Result (521 cases):
+The tool `analyze_errors.py` puts every case where the user **does not see the right answer** (neither in the offer nor in the fallback), or gets a **confidently wrong** one, into one group. Only **A, B and D:train** are analysed; `D:holdout` is not used. A word is "topical" when it is not general (a lemma in more than 5 % of questions, e.g. "škola", "žák", "dítě"). Result (521 cases, measured with the 5-button offer of the withdrawn migration 221, so with 3 buttons somewhat more cases fall into the groups):
 
 | Group | A | B | D:train | Total | Share | Right in the local model's top 5 |
 |---|---|---|---|---|---|---|
