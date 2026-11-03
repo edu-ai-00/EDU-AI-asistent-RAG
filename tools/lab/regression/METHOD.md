@@ -243,7 +243,7 @@ e5-small is better on all three sets (by ~2.5 points at the same rate of buttons
 New or changed answers can **steal a confident answer** from old records (sibling questions, similar topics) and they change word weights. The sets can measure that:
 
 1. **Prepare packs.** A directory with the school's CSV packs **as they will be after the change** (old QA + new or changed), in the format of the QA portal export.
-2. **Lint the alternatives** (`alt_lint.sh PACKS_DIR`): an alternative that brings no new lemma to its entry changes nothing for `qa_lexical`, which covers a query against the union of the entry's lemmas.
+2. **Lint the alternatives** (`alt_lint.sh PACKS_DIR`): an alternative that brings no new lemma to its entry changes nothing for `qa_lexical`, which covers a query against the union of the entry's lemmas. The flag `union_cross` shows where the growing union newly covers a variant of another entry; it only sorts what to look at (it ranks the entries that later stole answers with AUC 0.66–0.71), the decision is the regression set below. Adding many alternatives to existing entries raised the confident errors (LEDGER, 3 Nov): write few, and measure every batch.
 3. **Run the check:**
    ```bash
    python3 tools/lab/regression/content_check.py --packs-dir DIR [--sweep]

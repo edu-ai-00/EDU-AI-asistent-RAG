@@ -18,6 +18,13 @@ a rare lemma helps more than a common one. Per alternative this reports:
                              (the entry it could take a confident answer from); the coverage is
                              the IDF-weighted share, a heuristic: look at the flagged ones, do not trust it blindly
 
+  union_cross    the entry's union, WITH this alternative, covers at >= t_cross (0.6, `t_answer`) a
+                 variant of ANOTHER entry (its question, alternatives or extra probes) that the union
+                 did not cover before: the alternative has not stolen anything yet, but a query worded
+                 like that variant now reaches the answer bar here. The coverage of a query is against
+                 the UNION, so this is the failure of adding alternatives (see LEDGER, 3 Nov): it does
+                 not show on one alternative, only on the growing union.
+
 Per answer: `ano_ne` (starts with yes/no) and `hard:<kind>` (a phone number, e-mail, date,
 time or amount: a WARNING, because a fact that differs from school to school does not belong
 in a text that is written for all of them).
@@ -66,6 +73,30 @@ def weighted_cover(lemmas: set, union: set, w: dict[str, float]) -> float:
     return sum(w.get(x, 1.0) for x in lemmas if x in union) / tot if tot else 0.0
 
 
+def crossings(union_before: set, union_after: set, probes: list, w: dict, t: float, own: int) -> list[int]:
+    """Owners (indexes) of the probes that `union_after` covers at >= t and `union_before` did not.
+    `probes`: [(owner_index, lemma_set)]; the entry's own probes (owner == own) are skipped."""
+    out = []
+    for owner, lem in probes:
+        if owner == own or owner in out:
+            continue
+        if weighted_cover(lem, union_after, w) >= t and weighted_cover(lem, union_before, w) < t:
+            out.append(owner)
+    return out
+
+
+def build_probes(entries: list[dict], lemmatize, extra: dict | None = None) -> list:
+    """Lemma sets of every question and alternative of every entry, plus `extra[(pack, key)]`
+    texts (for example paraphrases that are not alternatives yet): [(entry_index, lemma_set)]."""
+    probes = []
+    for i, e in enumerate(entries):
+        for text in [e["q"], *e["alts"], *((extra or {}).get((e["pack"], e["entry_key"])) or [])]:
+            lem = set(lemmatize(text))
+            if lem:
+                probes.append((i, lem))
+    return probes
+
+
 def answer_flags(answer: str) -> list[str]:
     out = []
     if ANO_NE.search(answer or ""):
@@ -76,7 +107,8 @@ def answer_flags(answer: str) -> list[str]:
     return out
 
 
-def lint_entries(entries: list[dict], lemmatize, t_collision: float = 0.9) -> list[dict]:
+def lint_entries(entries: list[dict], lemmatize, t_collision: float = 0.9, t_cross: float | None = 0.6,
+                 extra_probes: dict | None = None) -> list[dict]:
     """One row per alternative. `entries`: {pack, entry_key, q, alts, answer};
     `lemmatize(text) -> set[str]`. Every alternative is judged against the canonical question
     and the alternatives BEFORE it, and (as a query) against the union of every other entry."""
@@ -85,8 +117,9 @@ def lint_entries(entries: list[dict], lemmatize, t_collision: float = 0.9) -> li
         e["_alts"] = [lemmatize(a) for a in e["alts"]]
         e["_union"] = set(e["_canon"]).union(*e["_alts"]) if e["_alts"] else set(e["_canon"])
     w = idf_weights([e["_union"] for e in entries])
+    probes = build_probes(entries, lemmatize, extra_probes) if t_cross is not None else []
     rows = []
-    for e in entries:
+    for ei, e in enumerate(entries):
         union = set(e["_canon"])
         seen_sets = [frozenset(e["_canon"])]
         for alt_text, lem in zip(e["alts"], e["_alts"]):
@@ -106,6 +139,9 @@ def lint_entries(entries: list[dict], lemmatize, t_collision: float = 0.9) -> li
                         best = (o["entry_key"], cov)
                 if best[1] >= t_collision:
                     flags.append(f"overlaps:{best[0]}@{best[1]:.2f}")
+            cross = crossings(union, union | lem, probes, w, t_cross, ei) if (probes and new) else []
+            if cross:
+                flags.append(f"union_cross:{len(cross)}")
             rows.append({"pack": e["pack"], "entry_key": e["entry_key"], "alternative": alt_text,
                          "new_lemmas": sorted(new), "delta": round(sum(w.get(x, 1.0) for x in new), 3),
                          "best_other": best[0], "best_other_cov": round(best[1], 3), "flags": flags})
@@ -149,6 +185,8 @@ def main() -> int:
                          "Calibrated on the existing curated packs of one school: at 0.60 a third of their "
                          "alternatives would be flagged (39 % / 16 %), at 0.90 about 7 % / 2 % — a review list, "
                          "not a verdict")
+    ap.add_argument("--t-cross", type=float, default=0.6,
+                    help="coverage of another entry's variant that the growing union may not newly reach (default t_answer 0.60); 1.1 turns the check off")
     ap.add_argument("--only", nargs="*", help="report only these entry keys (the rest still count for IDF and collisions)")
     ap.add_argument("--out", help="CSV of every alternative (contains the question texts: keep it private)")
     a = ap.parse_args()
@@ -163,7 +201,7 @@ def main() -> int:
         return set((machine.analyse(text) or {}).get("lemma") or [])
 
     entries = load_entries(a.packs_dir)
-    rows = lint_entries(entries, lemmatize, a.t_collision)
+    rows = lint_entries(entries, lemmatize, a.t_collision, a.t_cross if a.t_cross <= 1.0 else None)
     if a.only:
         keep = set(a.only)
         rows = [r for r in rows if r["entry_key"] in keep]
@@ -178,7 +216,8 @@ def main() -> int:
         cnt = lambda f: sum(1 for r in rp if any(x == f or x.startswith(f + ":") for x in r["flags"]))   # noqa: E731
         af = sum(1 for e in ep if ans[(pack, e["entry_key"])])
         print(f"{pack}: záznamů {len(ep)}, alternativ {n_alt} | bez nového lemmatu {cnt('no_new_lemma')}, "
-              f"duplicit {cnt('duplicate')}, překryv s cizím záznamem {cnt('overlaps')} | odpovědí k prohlídce {af}")
+              f"duplicit {cnt('duplicate')}, překryv s cizím záznamem {cnt('overlaps')}, "
+              f"unie nově pokrývá cizí variantu {cnt('union_cross')} | odpovědí k prohlídce {af}")
     if a.out:
         with open(a.out, "w", newline="", encoding="utf-8-sig") as fh:
             w = csv.writer(fh, delimiter=";")

@@ -54,5 +54,36 @@ class Negation(unittest.TestCase):
         self.assertEqual(gen.negation("Musím, nebo můžu?")[0][2], "Nemusím, nebo můžu?")
 
 
+
+class Spelling(unittest.TestCase):
+    def _by(self, q):
+        return {lbl: v for _t, lbl, v in gen.spelling(q)}
+
+    def test_every_y_as_i_and_no_variant_when_nothing_changes(self):
+        self.assertEqual(self._by("Kdy je výjimka?")["všechna y jako i"], "Kdi je víjimka?")
+        self.assertEqual(gen.spelling("Kdo je tam?"), [])
+
+    def test_me_mne_both_ways_and_case(self):
+        self.assertEqual(self._by("Co mě čeká?")["mě ↔ mně"], "Co mně čeká?")
+        self.assertEqual(self._by("Mně to nevadí.")["mě ↔ mně"], "Mě to nevadí.")
+
+    def test_s_z_at_the_start_of_a_word_changes_the_first_word_only(self):
+        self.assertEqual(self._by("Kdy je shoda a zhoda?")["s ↔ z na začátku slova"], "Kdy je zhoda a zhoda?")
+        self.assertNotIn("s ↔ z na začátku slova", self._by("Kdy se sejdeme?"))        # 'se': no consonant after s
+
+    def test_u_acute_ring_swap_doubled_consonant_and_bje(self):
+        self.assertEqual(self._by("Účet je v domě")["ú ↔ ů"], "Ůčet je v domě")
+        self.assertEqual(self._by("Dům je tam")["ú ↔ ů"], "Dúm je tam")
+        self.assertEqual(self._by("Ranní kolo")["zdvojená hláska jednou"], "Raní kolo")
+        self.assertEqual(self._by("Co dělat při věci?")["bě/pě/vě jako bje/pje/vje"], "Co dělat při vjeci?")
+
+    def test_combined_no_diacritics_and_y_as_i(self):
+        self.assertEqual(self._by("Výjimka z přijímaček")["bez diakritiky a y jako i"], "Vijimka z prijimacek")
+
+    def test_all_variants_include_b5_and_stay_deterministic(self):
+        a = gen.all_variants("Kdy začíná výjimka v domě?", "001")
+        self.assertIn("B5", {t for t, _l, _v in a})
+        self.assertEqual(a, gen.all_variants("Kdy začíná výjimka v domě?", "001"))
+
 if __name__ == "__main__":
     unittest.main()

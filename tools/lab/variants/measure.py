@@ -178,14 +178,6 @@ def main() -> int:
     items = load_items(a.input, a.sheet)
     if a.limit:
         items = items[:a.limit]
-    setting = get_active_setting(a.entity)
-    cfg = setting["config"]
-    p_exact, on_exact = _step_params(cfg, "qa_exact")
-    p_lex, on_lex = _step_params(cfg, "qa_lexical")
-    thresholds = (float(p_lex.get("t_answer", config.QA_T_ANSWER)),
-                  float(p_lex.get("t_suggest", config.QA_T_SUGGEST)),
-                  float(p_lex.get("m_margin", config.QA_M_MARGIN)))
-
     global _conn
     # The search role is read-only (correctly); the rows go in as the role the
     # QA ingest itself writes with. Credentials come from the environment only.
@@ -205,6 +197,15 @@ def main() -> int:
                 with open(path, encoding="utf-8") as fh:
                     cur.execute(fh.read())
                 print(f"[measure] provedeno v transakci: {os.path.basename(path)}", file=sys.stderr)
+            # the settings are read AFTER the SQL: a migration that changes them (219, 220, 221) is
+            # measured as written. force=True because the same transaction holds the change.
+            setting = get_active_setting(a.entity, force=True)
+            cfg = setting["config"]
+            p_exact, on_exact = _step_params(cfg, "qa_exact")
+            p_lex, on_lex = _step_params(cfg, "qa_lexical")
+            thresholds = (float(p_lex.get("t_answer", config.QA_T_ANSWER)),
+                          float(p_lex.get("t_suggest", config.QA_T_SUGGEST)),
+                          float(p_lex.get("m_margin", config.QA_M_MARGIN)))
             ids, n_var = _insert_pack(cur, items, a.entity, cfg, thresholds)
         print(f"[measure] {len(items)} otázek, {n_var} uložených formulací "
               f"(dočasně, ROLLBACK na konci); setting {setting['setting_id']}; "
@@ -254,7 +255,8 @@ def main() -> int:
                   fh, ensure_ascii=False, indent=2)
 
     names = {"B0": "B0 původní otázka (kontrola)", "B1": "B1 synonyma",
-             "B2": "B2 bez diakritiky", "B3": "B3 překlepy", "B4": "B4 otočený zápor (negativní test)"}
+             "B2": "B2 bez diakritiky", "B3": "B3 překlepy", "B4": "B4 otočený zápor (negativní test)",
+             "B5": "B5 pravopisné chyby"}
     for tech in sorted(summary):
         c = summary[tech]
         tot = sum(c.values())
@@ -262,9 +264,9 @@ def main() -> int:
         for k in (ORDER_NEG if tech == "B4" else ORDER_POS):
             if c.get(k):
                 print(f"  {k:<28} {c[k]:>4}  {100 * c[k] / tot:5.1f} %")
-    print("\nPodle pravidel (B1, B3):")
+    print("\nPodle pravidel (B1, B3, B5):")
     for (tech, label), c in sorted(by_rule.items()):
-        if tech not in ("B1", "B3"):
+        if tech not in ("B1", "B3", "B5"):
             continue
         tot = sum(c.values())
         good = c.get("přesná shoda", 0) + c.get("odpověď", 0)

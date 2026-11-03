@@ -8,6 +8,9 @@ variants, and measure.py says so instead of guessing.
   B1 synonyms      synonym word groups (syn/dcera/dítě/žák, přijímačky…)
   B2 no diacritics the whole question typed without háčky a čárky
   B3 typos         one deterministic typo per variant (i/y, dropped, swapped)
+  B5 spelling      orthographic mistakes of a careless writer: every y typed as i, mě ↔ mně,
+                   s ↔ z at the start of a word, ú ↔ ů, a doubled consonant typed once, bě/pě/vě
+                   typed as bje/pje/vje, and "no diacritics + every y as i" together
   B4 negation      smím ↔ nesmím … — a NEGATIVE test: the same curated answer
                    must not come back as confidently as for the original
 """
@@ -184,5 +187,42 @@ def negation(q: str) -> list[tuple[str, str, str]]:
     return [("B4", label, q[:m.start()] + dst + q[m.end():])]
 
 
+# ── B5: spelling mistakes ────────────────────────────────────────────────────
+def _sub_ci(text: str, pattern: str, repl) -> str:
+    return re.sub(pattern, repl, text, flags=re.I)
+
+
+def _keep_case(src: str, dst: str) -> str:
+    return dst.capitalize() if src[:1].isupper() else dst
+
+
+def spelling(q: str) -> list[tuple[str, str, str]]:
+    """Deterministic orthographic variants, one rule per variant, only when the rule changes the text.
+
+    Unlike B3 (one typo) these are the mistakes a person makes systematically: the same
+    confusion in every word it applies to."""
+    out = []
+
+    def add(label: str, v: str) -> None:
+        if v != q:
+            out.append(("B5", label, v))
+
+    add("všechna y jako i", q.translate(str.maketrans({"y": "i", "Y": "I", "ý": "í", "Ý": "Í"})))
+    add("mě ↔ mně", _sub_ci(q, r"\b(mě|mně)\b",
+                            lambda m: _keep_case(m.group(0), "mně" if m.group(0).lower() == "mě" else "mě")))
+    # s ↔ z at the start of a word before a consonant (shoda ↔ zhoda); the first such word only
+    m = re.search(r"\b([sSzZ])([bcčdďfghjklmnňpqrřsštťvwxzž]\w{3,})", q)
+    if m:
+        swap = {"s": "z", "z": "s", "S": "Z", "Z": "S"}[m.group(1)]
+        add("s ↔ z na začátku slova", q[:m.start(1)] + swap + q[m.end(1):])
+    add("ú ↔ ů", re.sub(r"[úůÚŮ]", lambda mm: {"ú": "ů", "ů": "ú", "Ú": "Ů", "Ů": "Ú"}[mm.group(0)], q))
+    m = re.search(r"([bcčdďfghjklmnňpqrřsštťvwxzž])\1", q, flags=re.I)
+    if m:
+        add("zdvojená hláska jednou", q[:m.start()] + m.group(1) + q[m.end():])
+    add("bě/pě/vě jako bje/pje/vje", _sub_ci(q, r"([bpvf])ě", lambda mm: mm.group(1) + "je"))
+    add("bez diakritiky a y jako i", strip_diacritics(q.translate(str.maketrans({"y": "i", "Y": "I", "ý": "í", "Ý": "Í"}))))
+    return out
+
+
 def all_variants(q: str, seed: str) -> list[tuple[str, str, str]]:
-    return [*synonyms(q), *no_diacritics(q), *typos(q, seed), *negation(q)]
+    return [*synonyms(q), *no_diacritics(q), *typos(q, seed), *negation(q), *spelling(q)]

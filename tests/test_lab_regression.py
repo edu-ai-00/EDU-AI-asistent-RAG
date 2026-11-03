@@ -209,6 +209,21 @@ class AlternativeLint(unittest.TestCase):
         flags = rows["Kde zrušit stravu při nemoci"]["flags"]
         self.assertTrue(any(f.startswith("overlaps:c@") for f in flags), flags)     # entry c holds all of its lemmas
 
+    def test_union_cross_flags_the_alternative_that_completes_the_cover_of_another_entry(self):
+        ents = [{"pack": "p", "entry_key": "a", "q": "alfa beta", "answer": "",
+                 "alts": ["alfa gama", "alfa delta"]},          # gama, then delta: the union reaches {gama, delta}
+                {"pack": "p", "entry_key": "b", "q": "gama delta", "answer": "", "alts": []}]
+        rows = self.al.lint_entries(ents, lambda t: set(t.split()), t_collision=2.0, t_cross=0.6)
+        by = {r["alternative"]: r for r in rows}
+        self.assertFalse(any(f.startswith("union_cross") for f in by["alfa gama"]["flags"]))   # {gama} alone: 0.5 of b
+        self.assertIn("union_cross:1", by["alfa delta"]["flags"])                              # now the whole of b
+
+    def test_union_cross_off_and_not_counted_for_the_entry_itself(self):
+        ents = [{"pack": "p", "entry_key": "a", "q": "alfa beta", "answer": "", "alts": ["alfa gama"]}]
+        rows = self.al.lint_entries(ents, lambda t: set(t.split()), t_cross=0.6)
+        self.assertEqual([f for f in rows[0]["flags"] if f.startswith("union_cross")], [])
+        self.assertEqual(self.al.lint_entries(ents, lambda t: set(t.split()), t_cross=None)[0]["flags"].count("union_cross:1"), 0)
+
     def test_idf_weights_rare_lemma_weighs_more(self):
         w = self.al.idf_weights([{"skol", "obed"}, {"skol", "cip"}, {"skol"}])
         self.assertGreater(w["obed"], w["skol"])

@@ -17,6 +17,7 @@ often the right curated answer still comes back.
 | B2 | the whole question without diacritics | the right answer |
 | B3 | one typo per variant: i/y, a dropped letter, two letters swapped (seeded, reproducible) | the right answer |
 | B4 | negation flipped (smím ↔ nesmím, lze ↔ nelze, …) | **negative test**: the original answer must *not* come back as a confident answer |
+| B5 | spelling mistakes made systematically: every y as i, mě ↔ mně, s ↔ z at the start of a word, ú ↔ ů, a doubled consonant typed once, bě/pě/vě as bje/pje/vje, no diacritics + every y as i | the right answer |
 
 `qa_vector` (embeddings) and the document path are not measured: they need the
 OpenAI key and documents. The rules are data in [`generators.py`](generators.py).
@@ -31,7 +32,7 @@ tools/lab/variants/run.sh path/to/qa_pack.xlsx --with-sql postgres/migrations/21
 ```
 
 `--with-sql FILE` (repeatable) runs the SQL inside the measuring transaction
-before the questions are asked, so it is rolled back with everything else. It
+before the questions are asked, so it is rolled back with everything else; the active setting is read AFTER it, so a migration that changes the settings is measured as written. It
 connects as `edu_ai_migrator` (`POSTGRES_MIGRATOR_PASSWORD`) and acts as
 `edu_ai_owner` via `SET LOCAL ROLE`, the rights a migration runs with.
 
