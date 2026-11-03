@@ -83,6 +83,9 @@ def main() -> int:
             sugg = {key_of.get(s) for s in r.get("suggestions") or []}
             results[c["id"]] = {"verdict": scoring.verdict(c["entry_key"], r, found, sugg, c.get("accept") or ()),
                                 "found_key": found, "decision": r["decision"],
+                                # coverage of the top entry and its relative rank lead over the second
+                                # (match_margin); None where the step does not report one (exact, C)
+                                "score": r.get("score"), "margin": r.get("margin"),
                                 "suggestion_keys": [key_of.get(x) for x in (r.get("suggestions") or [])]}
             if n % 500 == 0:
                 print(f"[regression] {n}/{len(cases)}", file=sys.stderr)

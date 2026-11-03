@@ -26,6 +26,9 @@ def main() -> int:
     ap.add_argument("--now", required=True)
     ap.add_argument("--out", help="CSV of the changed cases (contains the query texts: keep it private)")
     ap.add_argument("--show", type=int, default=10, help="how many regressions to list (default 10)")
+    ap.add_argument("--margin-drop", type=float, default=0.03,
+                    help="a confident answer that stays right but loses at least this much lead "
+                         "over the second entry is listed as a silent erosion (default 0.03)")
     ap.add_argument("--by-split", action="store_true",
                     help="also the train / holdout halves of every set (hold-out = never tuned on)")
     a = ap.parse_args()
@@ -52,6 +55,18 @@ def main() -> int:
     print(f"\nzhoršeno {len(d['regressions'])}, zlepšeno {len(d['improvements'])}, "
           f"NOVÉ jisté špatné {len(d['new_confident_wrong'])}"
           + (f", jen teď {len(d['only_now'])}, jen dřív {len(d['only_before'])}" if d["only_now"] or d["only_before"] else ""))
+    sm = scoring.silent_margin_drops(cases, base["results"], now["results"], a.margin_drop)
+    if sm["compared"]:
+        print(f"tichá eroze náskoku (pokles ≥ {a.margin_drop}): {len(sm['drops'])} z {sm['compared']} "
+              f"jistých správných odpovědí s náskokem v obou během")
+        for r in sm["drops"][:a.show]:
+            c = by_id[r["id"]]
+            print(f"  {r['set']} [{c['category']}] náskok {r['margin_before']} → {r['margin_now']}   {c['query']!r}")
+    else:
+        print("tichá eroze náskoku: nelze určit (základ nebo běh nemá `margin`; spusť základ znovu)")
+    og = scoring.offer_growth(cases, base["results"], now["results"])
+    if og["cases"]:
+        print(f"otázky mimo obsah (N): nabídka přibyla u {len(og['gained'])}, ubyla u {len(og['lost'])} z {og['cases']}")
     for r in d["regressions"][:a.show]:
         c = by_id[r["id"]]
         print(f"  {r['set']} [{c['category']}] {r['before']} → {r['now']}   {c['query']!r}")

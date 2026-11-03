@@ -16,6 +16,7 @@ from collections import Counter, defaultdict
 SCORE = {"přesná shoda": 1.0, "odpověď": 1.0, "v nabídce": 0.5,
          "správně bez jisté odpovědi": 1.0, "ŠPATNÁ odpověď": -3.0}
 CONFIDENT = ("exact", "A")
+CONFIDENT_RIGHT = ("přesná shoda", "odpověď")
 
 
 def verdict(expect_key, r: dict, found_key=None, suggested_keys=(), accept=()) -> str:
@@ -86,6 +87,54 @@ def compare(cases: list[dict], baseline: dict, current: dict) -> dict:
     return {"regressions": regress, "improvements": improved,
             "new_confident_wrong": [r for r in regress if r["now"] == "ŠPATNÁ odpověď"],
             "only_now": only_now, "only_before": only_before}
+
+
+def silent_margin_drops(cases: list[dict], baseline: dict, current: dict, min_drop: float = 0.03) -> dict:
+    """Confident right answers that STAYED right with a smaller lead (`margin`).
+
+    The score does not see them: +1 before and +1 now. But the lead over the second
+    entry is the safety cushion against `m_margin`, and a new alternative on another
+    entry that moves the lead from 0.16 to 0.09 is one step from losing the answer.
+    Only cases where both runs report a margin and the same entry won are compared
+    (an older result file without `margin` gives `compared` = 0)."""
+    rows, compared = [], 0
+    for c in cases:
+        b, n = baseline.get(c["id"]), current.get(c["id"])
+        if not b or not n:
+            continue
+        if b["verdict"] not in CONFIDENT_RIGHT or n["verdict"] not in CONFIDENT_RIGHT:
+            continue
+        mb, mn = b.get("margin"), n.get("margin")
+        if mb is None or mn is None or b.get("found_key") != n.get("found_key"):
+            continue
+        compared += 1
+        if mb - mn >= min_drop:
+            rows.append({"id": c["id"], "set": c["set"], "margin_before": mb, "margin_now": mn,
+                         "drop": round(mb - mn, 4)})
+    rows.sort(key=lambda r: -r["drop"])
+    return {"drops": rows, "compared": compared, "min_drop": min_drop}
+
+
+def offer_growth(cases: list[dict], baseline: dict, current: dict, sets=("N",)) -> dict:
+    """Questions outside the content (set N) that gained or lost an OFFER (decision B*).
+
+    A confident answer there is already a −3 in the score; a new offer is not, but it
+    is the same kind of problem on a smaller scale: the assistant now suggests an
+    answer to a question that has none."""
+    gained, lost, total = [], [], 0
+    for c in cases:
+        if c["set"] not in sets:
+            continue
+        b, n = baseline.get(c["id"]), current.get(c["id"])
+        if not b or not n:
+            continue
+        total += 1
+        was, now = str(b.get("decision", "")).startswith("B"), str(n.get("decision", "")).startswith("B")
+        if now and not was:
+            gained.append(c["id"])
+        elif was and not now:
+            lost.append(c["id"])
+    return {"gained": gained, "lost": lost, "cases": total}
 
 
 def bootstrap_delta(cases: list[dict], baseline: dict, current: dict, n: int = 2000, seed: int = 7):

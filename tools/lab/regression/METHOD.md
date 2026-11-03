@@ -17,13 +17,14 @@
 
 ## 2. Measurements so far
 
-### Settings changes (migrations 218–220, manifest `R220`)
+### Settings changes (migrations 218–221, manifest `R221`)
 
 | Change | What it does |
 |---|---|
 | 218 | politeness and filler words do not count towards coverage (21 words) |
 | 219 | QA searches by lemma only, not by stem |
 | 220 | typo repair in the query (`query_repair: ["typo"]`) |
+| 221 | `qa_lexical` pulls 200 candidate variants before the aggregation to entries (`fetch_k` 50 → 200) |
 
 An offer with 5 buttons (migration 221) was tried and withdrawn: the number of buttons stays at the original **3**.
 
@@ -37,6 +38,17 @@ State with migrations 218–220 and the original 3 buttons. "Sees" = confident, 
 | B (1,240, independent authors) | 73 → 74 % | 469.5 | 8 |
 | D (independent, written from the answers) | 44 → 45 % | 77.5 | 5 |
 | L (85 logged wordings, weak label) | 39 → 40 % | −5.5 | 7 |
+
+State after migration 221 (`fetch_k` 200), the migration itself in the transaction:
+
+| Set | Sees the right answer | Score | Confident errors |
+|---|---|---|---|
+| A | 85.4 % | 847.0 | 10 |
+| B | 76.1 % | 487.0 | 8 |
+| D (174 with an answer) | 51.1 % | 79.0 | 5 |
+| L | 45.9 % | −3.0 | 7 |
+
+Overall 1,818.5 → 1,853.0 (interval +26 … +43.5), 72 cases better, 3 worse, no new confident wrong answer.
 
 Confidently right answers grew by about 4 points. The written sets A and B do not show a gain in "sees"; the gain is small and only visible on D and in the replay of the log.
 
@@ -95,7 +107,7 @@ tools/lab/regression/check_step.sh --regression # also after a change to search,
 | `make docs-check` | links, sources and headers of the documentation |
 | tests in the search image | negation lemmas, stop-words, diacritics, typo repair — on the code of this checkout, not of an old image |
 | normalization parity | `contracts/parity` (`AGENTS.md`: before and after a normalization change) |
-| regression set (`--regression`) | against the accepted baseline `accepted.json`, with migrations 218–220 in a transaction; fails on a new confident wrong case |
+| regression set (`--regression`) | against the accepted baseline `accepted.json`, with migrations 218–221 in a transaction; fails on a new confident wrong case |
 | git state | what is uncommitted and unpushed, containers left over after a measurement |
 
 The script ends with code 0 (`ALL CHECKS PASSED`) or prints what failed. The accepted baseline (`accepted.json`) is overwritten only after a change that was approved.
@@ -231,7 +243,8 @@ e5-small is better on all three sets (by ~2.5 points at the same rate of buttons
 New or changed answers can **steal a confident answer** from old records (sibling questions, similar topics) and they change word weights. The sets can measure that:
 
 1. **Prepare packs.** A directory with the school's CSV packs **as they will be after the change** (old QA + new or changed), in the format of the QA portal export.
-2. **Run the check:**
+2. **Lint the alternatives** (`alt_lint.sh PACKS_DIR`): an alternative that brings no new lemma to its entry changes nothing for `qa_lexical`, which covers a query against the union of the entry's lemmas.
+3. **Run the check:**
    ```bash
    python3 tools/lab/regression/content_check.py --packs-dir DIR [--sweep]
    ```
@@ -241,10 +254,10 @@ New or changed answers can **steal a confident answer** from old records (siblin
    - **which new records attracted the most foreign queries** (to rewrite or merge),
    - with `--sweep` also the thresholds `t_answer` and `m_margin` around today's values.
    It ends with code 1 when there is a stolen answer or a confident out-of-content answer (limits `--max-stolen`, `--max-n-confident`).
-3. **Decide on the attracting records:** make the wording of the question more precise, mark substantively identical pairs as equivalent (`build_cases.py --equiv-csv`), or accept the record if it really is the better answer.
-4. **Test questions for the new records.** The check prepares `testovaci_otazky_nove.xlsx` (a person writes questions from the answers as for set D); after it is filled in, `build_cases.py --d-csv … --d-map …` adds them to the sets.
-5. **After acceptance:** regenerate `otazky_idx.json` (`build_index.py --like`), a new baseline `accepted.json`, write it into the ledger and **upload the whole QA again with the current image** (normalization 3.3.0), so that old and new records have the same forms.
-6. **Go through the thresholds again** (`--sweep`) when the content grows by more than a fifth.
+4. **Decide on the attracting records:** make the wording of the question more precise, mark substantively identical pairs as equivalent (`build_cases.py --equiv-csv`), or accept the record if it really is the better answer.
+5. **Test questions for the new records.** The check prepares `testovaci_otazky_nove.xlsx` (a person writes questions from the answers as for set D); after it is filled in, `build_cases.py --d-csv … --d-map …` adds them to the sets.
+6. **After acceptance:** regenerate `otazky_idx.json` (`build_index.py --like`), a new baseline `accepted.json`, write it into the ledger and **upload the whole QA again with the current image** (normalization 3.3.0), so that old and new records have the same forms.
+7. **Go through the thresholds again** (`--sweep`) when the content grows by more than a fifth.
 
 **Tried on a simulation:** adding 65 records from another school (similar topics, different answers) worsened the score from 1,835 to 1,715 and the confident errors from 31 to 61; the check found 6 stolen confident answers and listed the records that attract foreign queries the most. The simulation is deliberately unfavourable (substantive duplicates), but it shows that the check does uncover the risk. Changing the thresholds does not save the damage: at `t_answer` 0.55 to 0.65 and `m_margin` 0.04 to 0.12 the score is 1,683 to 1,708 (today's setting 1,704), so 0.65 lowers the confident errors (61 → 50) but loses 113 confidently right answers. It has to be solved through content (make wordings more precise, merge duplicates), not thresholds.
 

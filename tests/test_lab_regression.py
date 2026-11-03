@@ -135,6 +135,179 @@ class AcceptAndSplit(unittest.TestCase):
                          (1.0, -3.0, -2.0, 2))
 
 
+class SilentErosion(unittest.TestCase):
+    def _res(self, verdict, margin, found="k", decision="A"):
+        return {"verdict": verdict, "found_key": found, "decision": decision, "margin": margin}
+
+    def test_lead_loss_on_a_still_right_answer_is_listed(self):
+        cases = [{"id": "1", "set": "D", "query": "q1", "category": "x"},
+                 {"id": "2", "set": "D", "query": "q2", "category": "x"}]
+        base = {"1": self._res("odpověď", 0.16), "2": self._res("odpověď", 0.20)}
+        now = {"1": self._res("odpověď", 0.09), "2": self._res("odpověď", 0.19)}
+        r = sc.silent_margin_drops(cases, base, now, 0.03)
+        self.assertEqual([x["id"] for x in r["drops"]], ["1"])
+        self.assertEqual(r["compared"], 2)
+        self.assertAlmostEqual(r["drops"][0]["drop"], 0.07)
+
+    def test_other_winner_wrong_verdict_or_missing_margin_are_not_compared(self):
+        cases = [{"id": str(i), "set": "D", "query": "q", "category": "x"} for i in range(4)]
+        base = {"0": self._res("odpověď", 0.2, "a"), "1": self._res("odpověď", 0.2),
+                "2": {"verdict": "odpověď", "found_key": "k", "decision": "A"},      # an old file: no margin
+                "3": self._res("v nabídce", 0.2, decision="B1")}
+        now = {"0": self._res("odpověď", 0.0, "b"), "1": self._res("ŠPATNÁ odpověď", 0.0),
+               "2": self._res("odpověď", 0.0), "3": self._res("v nabídce", 0.0, decision="B1")}
+        r = sc.silent_margin_drops(cases, base, now)
+        self.assertEqual((r["drops"], r["compared"]), ([], 0))      # the score covers the rest
+
+    def test_offer_growth_on_questions_outside_the_content(self):
+        cases = [{"id": "a", "set": "N", "query": "q", "category": "x"},
+                 {"id": "b", "set": "N", "query": "q", "category": "x"},
+                 {"id": "c", "set": "N", "query": "q", "category": "x"},
+                 {"id": "d", "set": "A", "query": "q", "category": "x"}]
+        base = {"a": {"decision": "C"}, "b": {"decision": "B1"}, "c": {"decision": "C"}, "d": {"decision": "C"}}
+        now = {"a": {"decision": "B"}, "b": {"decision": "C"}, "c": {"decision": "C"}, "d": {"decision": "B"}}
+        r = sc.offer_growth(cases, base, now)
+        self.assertEqual((r["gained"], r["lost"], r["cases"]), (["a"], ["b"], 3))      # set A is not counted
+
+
+def _lem(text):                       # a stand-in for the lemmatizer: lower case, a plural/case ending off
+    return {w.lower().rstrip("aeiyuů") for w in text.replace("?", " ").split() if len(w) > 2}
+
+
+class AlternativeLint(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.al = _load("alt_lint")
+
+    def _entries(self):
+        return [
+            {"pack": "p", "entry_key": "a", "q": "Jak odhlásit oběd", "answer": "Odhlásit lze v systému.",
+             "alts": ["Jak odhlásit obědy", "Kde zrušit stravu při nemoci", "Zapomněl čip doma oběd"]},
+            {"pack": "p", "entry_key": "b", "q": "Kdy začíná školní rok", "answer": "Ano, v září.",
+             "alts": ["Začátek školního roku"]},
+            {"pack": "p", "entry_key": "c", "q": "Kde zrušit stravu při nemoci dítěte", "answer": "Volejte 123 456 789.",
+             "alts": []},
+        ]
+
+    def test_new_lemmas_duplicates_and_no_new_lemma(self):
+        rows = {r["alternative"]: r for r in self.al.lint_entries(self._entries(), _lem)}
+        self.assertIn("no_new_lemma", rows["Jak odhlásit obědy"]["flags"])          # the same lemmas as the canonical
+        self.assertIn("duplicate", rows["Jak odhlásit obědy"]["flags"])
+        self.assertNotIn("no_new_lemma", rows["Kde zrušit stravu při nemoci"]["flags"])
+        self.assertIn("stravu".rstrip("aeiyuů"), rows["Kde zrušit stravu při nemoci"]["new_lemmas"])
+        self.assertGreater(rows["Kde zrušit stravu při nemoci"]["delta"], 0)
+
+    def test_the_later_alternative_only_counts_what_the_earlier_ones_lack(self):
+        ents = [{"pack": "p", "entry_key": "x", "q": "Jak odhlásit oběd", "answer": "",
+                 "alts": ["Odhlásit stravu nemoc", "Stravu nemoc odhlásit"]}]
+        rows = self.al.lint_entries(ents, _lem)
+        self.assertNotIn("no_new_lemma", rows[0]["flags"])
+        self.assertIn("no_new_lemma", rows[1]["flags"])                             # nothing the first one did not bring
+
+    def test_alternative_that_another_entry_covers_is_an_overlap(self):
+        rows = {r["alternative"]: r for r in self.al.lint_entries(self._entries(), _lem, t_collision=0.9)}
+        flags = rows["Kde zrušit stravu při nemoci"]["flags"]
+        self.assertTrue(any(f.startswith("overlaps:c@") for f in flags), flags)     # entry c holds all of its lemmas
+
+    def test_idf_weights_rare_lemma_weighs_more(self):
+        w = self.al.idf_weights([{"skol", "obed"}, {"skol", "cip"}, {"skol"}])
+        self.assertGreater(w["obed"], w["skol"])
+        self.assertAlmostEqual(self.al.weighted_cover({"skol", "obed"}, {"skol"}, w),
+                               w["skol"] / (w["skol"] + w["obed"]))
+
+    def test_answer_flags(self):
+        self.assertEqual(self.al.answer_flags("Ano, lze to."), ["ano_ne"])
+        self.assertEqual(self.al.answer_flags("Ne. Nelze."), ["ano_ne"])
+        self.assertEqual(self.al.answer_flags("Anotace je hotová."), [])             # not a yes/no opening
+        self.assertIn("hard:phone", self.al.answer_flags("Volejte 123 456 789."))
+        self.assertIn("hard:email", self.al.answer_flags("Pište na a.b@skola.cz"))
+        self.assertIn("hard:time", self.al.answer_flags("Otevřeno do 15:30"))
+        self.assertEqual(self.al.answer_flags("Řiďte se školním řádem."), [])
+
+
+class AltExperiment(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.ex = _load("make_alt_experiment")
+
+    def _data(self):
+        idx = [{"pack": "p", "entry_key": "e1", "q": "Jak odhlásit oběd", "alts": ["Odhlášení obědů"], "idx": 0},
+               {"pack": "p", "entry_key": "e2", "q": "Kdy je zápis", "alts": [], "idx": 1}]
+        cases = []
+        for key in ("e1", "e2"):
+            for i in range(4):
+                cases.append({"id": f"{key}-A{i}", "set": "A", "pack": "p", "entry_key": key,
+                              "query": f"{key} přepis {i}", "category": "x"})
+        cases += [{"id": "b1", "set": "B", "pack": "p", "entry_key": "e1", "query": "b dotaz", "category": "x"},
+                  {"id": "n1", "set": "N", "pack": None, "entry_key": None, "query": "n dotaz", "category": "x"}]
+        return idx, cases
+
+    def test_pool_is_removed_from_the_test_and_k_picks_the_first_of_it(self):
+        idx, cases = self._data()
+        new, test, info = self.ex.build(idx, cases, pool=3, ks=[0, 1, 3])
+        ids = {c["id"] for c in test}
+        self.assertEqual({i for i in ids if "-A" in i}, {"e1-A3", "e2-A3"})        # one paraphrase left per entry
+        self.assertIn("b1", ids)
+        self.assertIn("n1", ids)                                                    # the other sets are untouched
+        self.assertEqual(new[0][0]["alts"], ["Odhlášení obědů"])                    # k = 0: as it is
+        self.assertEqual(len(new[1][0]["alts"]), 2)
+        self.assertEqual(len(new[3][0]["alts"]), 4)
+        self.assertEqual(info["added"], {0: 0, 1: 2, 3: 6})
+
+    def test_a_wording_the_entry_already_has_is_not_added_twice(self):
+        idx, cases = self._data()
+        idx[0]["alts"].append("E1 přepis 0")                                        # the same wording, other case
+        new, _t, info = self.ex.build(idx, cases, pool=1, ks=[1])
+        self.assertEqual(new[1][0]["alts"].count("E1 přepis 0"), 1)
+        self.assertEqual(info["added"][1], 1)                                       # only e2 got one
+
+    def test_an_entry_with_few_paraphrases_keeps_one_to_test_on(self):
+        idx, cases = self._data()
+        cases = [c for c in cases if not c["id"].startswith("e2-A") or c["id"] == "e2-A0"]
+        _n, test, _i = self.ex.build(idx, cases, pool=5, ks=[5])
+        self.assertIn("e2-A0", {c["id"] for c in test})
+
+
+class AltSelection(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        sys.path.insert(0, os.path.join(_ROOT, "tools", "lab", "regression"))
+        cls.ex = _load("make_alt_experiment")
+
+    def _idx_cases(self):
+        idx = [{"pack": "p", "entry_key": "e1", "q": "alfa beta gama", "alts": [], "idx": 0},
+               {"pack": "p", "entry_key": "e2", "q": "delta epsilon zeta", "alts": [], "idx": 1},
+               {"pack": "p", "entry_key": "e3", "q": "eta theta iota", "alts": [], "idx": 2}]
+        mk = lambda i, k, q: {"id": f"{k}{i}", "set": "A", "pack": "p", "entry_key": k, "query": q, "category": "x"}   # noqa: E731
+        cases = [mk(0, "e1", "alfa beta gama"),            # nothing new: dropped
+                 mk(1, "e1", "alfa kappa lambda"),         # new lemmas, specific: kept
+                 mk(2, "e1", "delta epsilon zeta"),        # covered by e2: dropped (overlap)
+                 mk(0, "e2", "x"), mk(0, "e3", "y")]
+        return idx, cases
+
+    def _lem(self, t):
+        return set(t.split())
+
+    def test_f1_keeps_only_new_and_non_overlapping(self):
+        idx, cases = self._idx_cases()
+        out, st = self.ex.select_pool(idx, cases, 5, self._lem, "f1", t_collision=0.9)
+        self.assertEqual(out[0]["alts"], ["alfa kappa lambda"])
+        self.assertEqual(st["kept"], 1)
+
+    def test_f2_needs_a_specific_new_lemma(self):
+        idx, cases = self._idx_cases()
+        idx[1]["alts"] = ["kappa"]                         # "kappa" is now held by one entry (df 1)
+        cases = [c for c in cases if c["entry_key"] != "e1"] + [
+            {"id": "x1", "set": "A", "pack": "p", "entry_key": "e1", "query": "alfa kappa", "category": "x"},
+            {"id": "x2", "set": "A", "pack": "p", "entry_key": "e1", "query": "alfa lambda", "category": "x"},
+            {"id": "x3", "set": "A", "pack": "p", "entry_key": "e1", "query": "left for the test", "category": "x"}]
+        out, _ = self.ex.select_pool(idx, cases, 5, self._lem, "f2", df_max=0)
+        self.assertEqual(out[0]["alts"], ["alfa lambda"])      # "lambda" is held by nobody; "kappa" by one entry
+        out, _ = self.ex.select_pool(idx, cases, 5, self._lem, "f1")
+        self.assertEqual(sorted(out[0]["alts"]), ["alfa kappa", "alfa lambda"])
+
+
 class Bootstrap(unittest.TestCase):
     def test_clear_gain_is_significant_and_noise_is_not(self):
         cases = [{"id": str(i)} for i in range(200)]

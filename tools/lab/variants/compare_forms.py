@@ -359,7 +359,7 @@ def _ask_list(question, entity, cfg, p_exact, p_lex, packs):
              or res.get("fallback_suggestions") or [])]
     top = res.get("matched_entry_id") or (res.get("deferred_suggest") or {}).get("matched_entry_id")
     return {"decision": dec, "entry": top, "score": res.get("match_score"),
-            "suggestions": sugg, "tokens": toks}
+            "margin": res.get("match_margin"), "suggestions": sugg, "tokens": toks}
 
 
 def _write_csv(path, rows):
