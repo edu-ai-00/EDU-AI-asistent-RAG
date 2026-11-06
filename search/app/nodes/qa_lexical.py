@@ -288,6 +288,15 @@ def qa_lexical(state: SearchState, params: dict | None = None) -> dict:
     return out
 
 
+def _rank_key(kv, ties: bool = False):
+    """Order of the aggregated entries: tier, rank, coverage. With `ties` (the
+    rank_ties experiment) an exact tie on all three is settled by the question
+    text and the id instead of by the order the rows came back in."""
+    eid, e = kv
+    key = (e["tier"], -round(e["rank"], 6), -e["cov"])
+    return key + ((e.get("canonical_q") or "", str(eid)) if ties else ())
+
+
 def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict:
     """The A/B/C decision, plus the n-gram chip when `offer_ngram` is set."""
     out = _qa_lexical_ranked(state, params)
@@ -310,6 +319,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
     trgm_min = float(params.get("trgm_suggest_min", _TRGM_SUGGEST_MIN))
     use_synonyms = params.get("synonyms", True)
     form = resolve_form(params)
+    _rank_ties = bool(params.get("rank_ties"))  # EXPERIMENT, off by default (see the query)
     if params.get("query_repair"):              # EXPERIMENT, off by default (query_repair.py)
         from .query_repair import repair_state
         state = repair_state(state, params["query_repair"], state.get("pack_ids", []))
@@ -363,6 +373,12 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # pack_filter sits on the JOINED table and does not. Both the ts query
             # and the trgm fallback below carry it.
             entry_text = form_text_concat(form, "v")
+            # EXPERIMENT (2026-11-06), off by default: `rank_ties`. Without it a tie
+            # at the cut (variant fetch_k and fetch_k+1 with the SAME rank) is broken
+            # by the physical row order, so which variants are pulled — and the
+            # coverage of their union — can change after a re-upload of the packs.
+            # WITH TIES pulls every variant tied with the last one.
+            _limit = ("FETCH FIRST %s ROWS WITH TIES" if _rank_ties else "LIMIT %s")
             sql = f"""
                 SELECT v.entry_id, e.pack_id, e.canonical_q, {entry_text} AS entry_text,
                        ts_rank_cd({tsexpr}, to_tsquery('simple', %s)) AS rank,
@@ -371,7 +387,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                 JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
                 WHERE v.is_active AND {frag}{cand_cond} AND {tsexpr} @@ to_tsquery('simple', %s)
                 ORDER BY rank DESC
-                LIMIT %s
+                {_limit}
             """
             cur.execute(sql, [tsq, *pack_params, *cand_params, tsq, fetch_k])
             rows = cur.fetchall()
@@ -485,9 +501,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
 
             for _v in agg.values():
                 _v["tier"] = _tier(_v)
-            ranked = sorted(agg.items(),
-                            key=lambda kv: (kv[1]["tier"],
-                                            -round(kv[1]["rank"], 6), -kv[1]["cov"]))
+            ranked = sorted(agg.items(), key=lambda kv: _rank_key(kv, _rank_ties))
             top_id, top = ranked[0]
             top_cov = top["cov"]
             r1 = top["rank"]
