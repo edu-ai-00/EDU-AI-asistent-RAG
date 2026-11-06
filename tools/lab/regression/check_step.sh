@@ -44,7 +44,7 @@ if docker ps --format '{{.Names}}' | grep -qx "$CT"; then
   docker exec "$CT" mkdir -p $W $ROOT/contracts && docker cp -q search/app "$CT:$W/" && docker cp -q tests "$CT:$W/" \
     && docker cp -q contracts/parity "$CT:$ROOT/contracts/parity" && docker cp -q contracts/parity "$CT:$W/parity-src"
   step "Tests in the search image (the code of THIS checkout)"
-  for t in test_negation_lemma test_stopword_surface test_diacritics_restore test_query_repair; do
+  for t in test_negation_lemma test_stopword_surface test_diacritics_restore test_query_repair test_qa_ngram; do
     [ -f "tests/$t.py" ] || continue
     if docker exec -i -w $W -e PYTHONPATH=$W:/app "$CT" python - < "tests/$t.py" >/tmp/check_step.out 2>&1 \
        && tail -1 /tmp/check_step.out | grep -q '^OK'; then ok "$t"

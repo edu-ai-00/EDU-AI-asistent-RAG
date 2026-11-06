@@ -96,7 +96,7 @@ def main() -> int:
 
     meta = {"created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "setting_id": setting["setting_id"], "entity": a.entity, "config_override": override,
-            "qa_lexical": {k: v for k, v in p_lex.items() if k in ("form", "t_answer", "t_suggest", "m_margin", "suggest_top_n", "query_repair")},
+            "qa_lexical": {k: v for k, v in p_lex.items() if k in ("form", "t_answer", "t_suggest", "m_margin", "suggest_top_n", "query_repair", "offer_ngram")},
             "with_sql": [os.path.basename(p) for p in a.with_sql], "skipped": skipped}
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump({"meta": meta, "results": results}, fh, ensure_ascii=False)

@@ -289,6 +289,21 @@ def qa_lexical(state: SearchState, params: dict | None = None) -> dict:
 
 
 def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict:
+    """The A/B/C decision, plus the n-gram chip when `offer_ngram` is set."""
+    out = _qa_lexical_ranked(state, params)
+    params = params or {}
+    if not params.get("offer_ngram"):           # EXPERIMENT, off by default (qa_ngram.py)
+        return out
+    from .qa_ngram import with_ngram_chip
+    try:
+        with get_cursor() as cur:
+            return with_ngram_chip(out, state, params, cur)
+    except Exception as e:
+        logger.warning("qa_lexical: n-gram chip failed (%s) — offer unchanged", e)
+        return out
+
+
+def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
     params = params or {}
     fetch_k = int(params.get("fetch_k", config.QA_LEXICAL_FETCH_K))
     suggest_top_n = int(params.get("suggest_top_n", config.QA_SUGGEST_TOP_N))
