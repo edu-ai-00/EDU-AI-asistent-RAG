@@ -73,6 +73,17 @@ if [ "${1:-}" = "--regression" ]; then
     if python3 tools/lab/regression/compare.py --cases "$R/cases.json" --baseline "$R/accepted.json" \
          --now "$R/check_now.json" --show 5 --by-split; then ok "regression: no new confident wrong answer"
     else fail "regression: a case turned into a confident wrong answer (listed above)"; fi
+    # the gold set from the curator's decisions about logged questions (build_gold.py): the confirmed
+    # cases (gold_verified.json) if there are any, else the weak topic-level labels (gold_cases.json)
+    G=gold_cases; [ -f "$R/gold_verified.json" ] && G=gold_verified
+    if [ -f "$R/$G.json" ] && [ -f "$R/${G}_accepted.json" ]; then
+      tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/$G.json" "$R/${G}_now.json" \
+        --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
+        --with-sql $M/220_qa_lexical_query_repair.sql --with-sql $M/221_qa_lexical_fetch_k.sql 2>&1 | grep -E '^G '
+      if python3 tools/lab/regression/compare.py --cases "$R/$G.json" --baseline "$R/${G}_accepted.json" \
+           --now "$R/${G}_now.json" --show 5 --by-split; then ok "gold set ($G): no new confident wrong answer"
+      else fail "gold set ($G): a case turned into a confident wrong answer (listed above)"; fi
+    fi
   fi
 fi
 

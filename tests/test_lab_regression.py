@@ -23,6 +23,7 @@ bc = _load("build_cases")
 mn = _load("make_negatives")
 xw = _load("xlsx_write")
 bi = _load("build_index")
+bg = _load("build_gold")
 _rspec = importlib.util.spec_from_file_location(
     "lab_neutral_xlsx_read", os.path.join(_ROOT, "tools", "lab", "neutral_answers", "xlsx_read.py"))
 xr = importlib.util.module_from_spec(_rspec)
@@ -471,6 +472,53 @@ class Xlsx(unittest.TestCase):
         eq = self._tmp()
         xw.write_xlsx(eq, [["klic_A", "klic_B", "shodne (ano/ne)"], ["a", "b", "ano"], ["c", "d", "ne"]])
         self.assertEqual(bc.read_equiv_csv(eq), [["a", "b"]])
+
+
+class GoldFromDecisions(unittest.TestCase):
+    GROUPS = [{"key": "s|a", "count": 7, "wordings": ["Kdy končí škola?", "kdy konci skola"]},
+              {"key": "s|b", "count": 2, "wordings": ["ahoj"]},
+              {"key": "s|c", "count": 3, "wordings": ["něco chybí"]},
+              {"key": "s|d", "count": 1, "wordings": ["bez tématu"]}]
+    ASSIGN = {"s|a": "T|konec", "s|b": "T|pozdrav", "s|c": "T|chybi"}
+    DEC = {"T|konec": {"status": "alternative", "entry_key": "kdy-konci-vyuka", "pack": "faq-provoz"},
+           "T|pozdrav": {"status": "skip"},
+           "T|chybi": {"status": "missing"}}
+
+    def test_alternative_and_skip_become_cases_others_are_left_out(self):
+        cs = bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC)
+        self.assertEqual([(c["query"], c["entry_key"], c["label"]) for c in cs],
+                         [("Kdy končí škola?", "kdy-konci-vyuka", "topic"),
+                          ("kdy konci skola", "kdy-konci-vyuka", "topic"), ("ahoj", None, "topic")])
+        self.assertTrue(all(c["set"] == "G" and c["n"] in (7, 2) for c in cs))
+
+    def test_a_group_is_always_on_one_side_of_the_split(self):
+        cs = bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC)
+        self.assertEqual({c["split"] for c in cs if c["entry_key"]}, {cs[0]["split"]})
+        self.assertEqual(cs, bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC))      # deterministic
+
+    def test_verification_confirms_rejects_and_relabels(self):
+        cs = bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC)
+        ids = [c["id"] for c in cs]
+        out = bg.apply_verification(cs, {ids[0]: "ano", ids[1]: "ne", ids[2]: "jina-odpoved"})
+        self.assertEqual([(c["query"], c["entry_key"], c["label"]) for c in out],
+                         [("Kdy končí škola?", "kdy-konci-vyuka", "verified"), ("ahoj", "jina-odpoved", "verified")])
+
+    def test_a_note_after_ano_or_ne_is_not_taken_for_an_entry_key(self):
+        cs = bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC)
+        ids = [c["id"] for c in cs]
+        out = bg.apply_verification(cs, {ids[0]: "Ano, ale ne úplně", ids[1]: "ne, patří k absenci", ids[2]: "neomluvene-hodiny"})
+        self.assertEqual([(c["query"], c["entry_key"], c["label"]) for c in out],
+                         [("Kdy končí škola?", "kdy-konci-vyuka", "verified"), ("ahoj", "neomluvene-hodiny", "verified")])
+
+    def test_verdicts_are_read_from_free_text_and_blank_can_mean_ano(self):
+        rows = [["id", "t", "q", "n", "e", "a", "ok"], ["a", "", "", "", "", "", "Ne"], ["b", "", "", "", "", "", "divná otázka, ale ano"],
+                ["c", "", "", "", "", "", ""], ["d", "", "", "", "", "", "záleží, nevím"], ["e", "", "", "", "", "", "ne, patří k absenci"]]
+        self.assertEqual(bg.read_verdicts(rows), {"a": "ne", "b": "ano", "e": "ne"})
+        self.assertEqual(bg.read_verdicts(rows, "ano"), {"a": "ne", "b": "ano", "c": "ano", "e": "ne"})
+
+    def test_sample_takes_the_most_frequent_wordings_of_topics_with_an_entry(self):
+        cs = bg.build_gold(self.GROUPS, self.ASSIGN, self.DEC)
+        self.assertEqual([c["query"] for c in bg.sample_for_sheet(cs, 1)], ["Kdy končí škola?"])
 
 
 if __name__ == "__main__":
