@@ -29,7 +29,7 @@ from .qa_common import (
     concept_idf_weights, weighted_coverage,
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
-    content_tokens, form_text_concat, negation_conflict, _COVERAGE_STOP,
+    content_tokens, form_text_concat, negation_conflict,
 )
 
 logger = logging.getLogger(__name__)
@@ -382,7 +382,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             sql = f"""
                 SELECT v.entry_id, e.pack_id, e.canonical_q, {entry_text} AS entry_text,
                        ts_rank_cd({tsexpr}, to_tsquery('simple', %s)) AS rank,
-                       v.legal_entity_code, v.school_grade_ids, v.lemma_text
+                       v.legal_entity_code, v.school_grade_ids
                 FROM {config.QA_VARIANTS_TABLE} v
                 JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
                 WHERE v.is_active AND {frag}{cand_cond} AND {tsexpr} @@ to_tsquery('simple', %s)
@@ -423,13 +423,12 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
 
             # ── aggregate candidate variants to entries ──
             agg: dict[str, dict] = {}
-            for entry_id, pack_id, canonical_q, entry_text, rank, _lec, _sg, _vlem in rows:
+            for entry_id, pack_id, canonical_q, entry_text, rank, _lec, _sg in rows:
                 eid = str(entry_id)
                 e = agg.setdefault(eid, {"canonical_q": canonical_q,
                                          "pack_id": pack_id, "entity": _lec,
                                          "grades": set(_sg or ()),
-                                         "rank": 0.0, "tokens": set(), "variants": []})
-                e["variants"].append(_tokens(_vlem))
+                                         "rank": 0.0, "tokens": set()})
                 e["rank"] = max(e["rank"], float(rank))
                 e["tokens"] |= _tokens(entry_text)
 
@@ -444,34 +443,6 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             idf_w = concept_idf_weights(cur, concept_sets, frag, pack_params)
             for e in agg.values():
                 e["cov"] = weighted_coverage(concept_sets, e["tokens"], idf_w)
-            # EXPERIMENT (2026-10-26), off by default: `coverage_reverse` — also
-            # how much of a curated WORDING the query holds. A parent's long
-            # question ("syn je od pondělí nemocný a kašle, jak to mám škole
-            # oznámit…") can contain the whole curated question and still cover
-            # little of ITSELF with it. Only wordings with >= min_terms content
-            # words (a one-word question would swallow every query naming that
-            # word) and only once the usual coverage reaches t_suggest.
-            _rev = params.get("coverage_reverse")
-            if _rev:
-                _min_terms = int((_rev or {}).get("min_terms", 2)) if isinstance(_rev, dict) else 2
-                _floor = float((_rev or {}).get("floor", 0.3)) if isinstance(_rev, dict) else 0.3
-                _stop_r = set(coverage_stopwords().get(lang or "") or _COVERAGE_STOP)
-                for gid, toks in groups.items():
-                    if kind_of.get(gid) == "interrogative":
-                        _stop_r |= toks
-                _qset = set(all_terms) | set(query_tokens)
-                for e in agg.values():
-                    if e["cov"] < _floor:
-                        continue
-                    best = 0.0
-                    for vt in e["variants"]:
-                        content = {t for t in vt if t not in _stop_r and not t.isdigit()}
-                        if len(content) >= _min_terms:
-                            best = max(best, len(content & _qset) / len(content))
-                    if isinstance(_rev, dict) and _rev.get("full") and best < 0.999:
-                        best = 0.0                   # only a query holding the WHOLE wording
-                    e["rcov"] = best
-                    e["cov"] = max(e["cov"], best)
             # TIER before relevance (Martin, 2026-08-18) — the same two axes the
             # document side now uses, because QA had no notion of them at all: an
             # organisation-wide pack outranked the school's own entry purely on

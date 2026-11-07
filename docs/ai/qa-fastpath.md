@@ -7,13 +7,15 @@ sources:
   - search/app/nodes/qa_lexical.py
   - search/app/nodes/qa_vector.py
   - search/app/nodes/qa_common.py
+  - search/app/nodes/qa_ngram.py
+  - search/app/nodes/query_repair.py
   - search/app/nodes/route.py
   - search/app/scope.py
   - search/app/domain_scope.py
   - search/app/config.py
   - postgres/init/140_qa_pack_school_grades_domains.sql
   - postgres/init/144_qa_scan_surface_parity.sql
-last_verified: 2026-09-06
+last_verified: 2026-11-07
 ---
 
 # QA fast-path (curated answers)
@@ -119,6 +121,30 @@ BM25-style ranking with synonym expansion, then an A/B/C decision:
   passage applies to. Other-grade suggestions can also accompany an answer, not only an empty own-year result, so a rule for ninth-graders is never presented to a
   second-grader as if it were theirs.
 
+### Additions for operation without a key (`evaluated`)
+
+Without an OpenAI key `qa_vector` and the document vectors stay idle, so the
+lexical stage carries the curated answers alone. These additions are parameters
+of the `qa_lexical` step, documented in
+[../SETTINGS_REFERENCE.md](../SETTINGS_REFERENCE.md) §3.3; each is off until a
+setting (a migration) turns it on, and each was measured with the regression set
+in `tools/lab/regression` (method: `METHOD.md`, numbers: `LEDGER.md` there).
+
+| Parameter | What it changes | Migration |
+|---|---|---|
+| `form: [norm, lemma]` | matches the lemma only, not the stem | 219 |
+| `query_repair: ["typo"]` | a query word nobody knows becomes the one curated word within edit distance 1 | 220 |
+| `fetch_k: 200` | more candidate variants before the aggregation, so an entry's union is complete | 221 |
+| `offer_ngram` | the LAST offered question (offer or fallback) by character 3-5-grams, for derived and colloquial forms; confident answers and the chips beside an answer never change | 222, not applied |
+| `rank_ties` | ties in the ranking settled by the question text instead of the row order, so a re-upload of the packs cannot move them | none |
+
+A negation check (`negation_conflict`) withholds the confident answer when the
+query and the entry hold a word with opposite polarity; it is always on.
+
+Known interaction: with a key, `qa_vector` and the generated answer reuse the
+offer parked by `qa_lexical` as related questions, so `offer_ngram` can show its
+chip beside those answers too. That is not measured (no key in the lab).
+
 ### qa_vector (`enforced`)
 
 Runs after `qa_lexical` fell through and the document steps have gathered — the
@@ -220,3 +246,9 @@ steps; a vector score below the floor continues to the document vectors and
 generation. If nothing curated or generated resolves the question, the executor's
 safety net returns `no_answer` — which is the correct outcome for a question the
 corpus does not answer, not a failure.
+
+Without a key the `no_answer` result still carries the offered questions parked
+by `qa_lexical` (verified through the whole cascade). When documents are in
+scope, the document steps may gather passages and the generation then fails:
+the result is `llm_unavailable` ("Dočasný technický problém" in the chat) with
+the same offered questions.

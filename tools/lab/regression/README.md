@@ -19,13 +19,6 @@ same cases are run before and after, and the cases that got worse are listed.
 | `make_log_set.py` | host | set L: real wordings from the log with a weak label (the OpenAI choice) |
 | [`build_gold.py`](build_gold.py) | host | **gold set G** from the curator's decisions about the logged questions: real wordings with the entry the curator chose for their topic (weak, topic-level label; `--sheet` writes a worksheet in which a person confirms a sample = strong labels), split by group into train and holdout |
 | `build_index.py`, `content_check.py` | host | **check of new content**: turns CSV packs into a list of questions, runs the whole regression set against the baseline, prints stolen answers and attracting records, prepares a table for test questions (see [METHOD.md](METHOD.md) §6) |
-| `make_gap_report.py` | host | overview of content gaps for the curator (Excel): topics, counts of queries without an answer, keywords and the nearest answer offered today; **without whole user queries** |
-| `eval_semantic_variants.py` | search container | the model's ranking: score from the question only × with the answer text × without nearly identical buttons, hit@1/3/4 without thresholds; rejects `D:holdout` |
-| `eval_first.py` | search container | success of the FIRST answer (confident answer, otherwise the first button): today, the model alone, the ceiling, re-ranking of candidates by the model, a rule with a threshold; rejects `D:holdout` |
-| `eval_rank.py` | search container | offline estimate: what ranking the offer by the sum of weights of shared words would give (policies fill / lex2 / replace, threshold) and how many extra buttons out-of-content questions would get |
-| `mine_word_pairs.py` | search container | mines candidates for one-word synonyms from the training questions (unknown word → word of the school's question) and writes a what-if SQL; verified on the held-out ones |
-| `analyze_errors.py` | search container | error analysis: sorts unseen and confidently wrong cases into groups (A, B, D:train only), with the share the local model would find |
-| `eval_semantic.py` | search container | phase 3: tests how many right answers a local model would add to the offer (policies fill / lex2 / rrf, threshold τ) and how many buttons it adds to out-of-content questions; rejects `D:holdout` |
 | [`scoring.py`](scoring.py) | both | verdict and score (stdlib only, unit-tested in `tests/test_lab_regression.py`) |
 
 ## Case
@@ -62,8 +55,16 @@ settings is measured exactly as written; `meta.qa_lexical` in the result file
 holds the values the run used. `--config` overrides `qa_lexical` params on top,
 for the run only.
 
-Method and measurements of the search-quality work (goal, principles, rule for accepting a change, findings):
-[METHOD.md](METHOD.md).
+**Ties are settled in the lab.** `run.py` sets `rank_ties` on for every run, so two
+runs of the same configuration agree case for case and one run against the
+accepted baseline is exact; without it, candidates with an equal rank come back
+in an order the database chooses and the small sets move by up to ±2.4 points
+between identical runs. `--config '{"rank_ties": false}'` measures the deployed
+behaviour instead. The accepted baselines are made with it on.
+
+Method (goal, principles, rule for accepting a change, check after a step): [METHOD.md](METHOD.md).
+Every attempt with its numbers, also the rejected ones and the analysis scripts
+that were removed after their result was recorded: [LEDGER.md](LEDGER.md).
 
 ## Sets and principles (training × test)
 
