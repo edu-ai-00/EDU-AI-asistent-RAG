@@ -10,16 +10,16 @@
 -- never change. It catches derived and colloquial forms the lemma misses ("třídnické" →
 -- "třídní", "matika" → "matematika"); it cannot help where the words differ completely.
 --
--- Measured on 2026-11-06 with the regression set (tools/lab/regression), on top of 218-221,
--- QA only, PAIRED (both variants asked in one transaction; separate runs of the same
--- configuration differ by up to ±2.4 points on the small sets, cause not found, see LEDGER):
+-- Measured on 2026-11-07 with the regression set (tools/lab/regression), on top of 218-221,
+-- QA only, the lab run with rank_ties on (ties in the ranking settled, so runs are reproducible;
+-- see LEDGER), against the accepted baseline:
 --   sees the right answer (confident, offer or fallback), better / worse cases:
---   A:train 86.2 -> 89.6 % (+47/-10)   A:holdout 82.6 -> 83.7 % (+9/-5)
---   B:train 77.1 -> 79.7 % (+30/-6)    B:holdout 73.0 -> 75.7 % (+14/-6)
---   D:train 53.8 -> 59.0 % (+4/-0)     L:train 44.8 -> 55.2 % (+6/-0)   L:holdout 48.1 -> 51.9 % (+2/-1)
---   gold set of verified logged questions G:train 56.1 -> 65.2 % (+7/-1)
+--   A:train 86.5 -> 89.9 % (+46/-8)    A:holdout 82.9 -> 84.3 % (+9/-4)
+--   B:train 77.4 -> 79.6 % (+27/-7)    B:holdout 73.3 -> 76.4 % (+15/-6)
+--   D:train 53.8 -> 57.7 % (+4/-1)     D:holdout 46.9 -> 54.2 % (+8/-1, looked at once, after the choice)
+--   L 42.4 -> 51.8 %                   gold set of verified logged questions G 60.5 -> 69.1 %
 --   out-of-content questions that get an extra chip: 4.7 % (train) / 4.8 % (holdout)
---   decisions changed 0, confident answers changed 0, score +22.5
+--   decisions changed 0, confident answers changed 0, confident wrong 34 -> 34, score +22.5
 -- min_sim 0.25 adds one case on D:train and doubles the extra chips for out-of-content
 -- questions (10 %); 0.35 loses a third of the gain. A log replay of 2,446 real queries:
 -- decisions changed 0, 389 of the 947 queries without a confident answer get a new third chip.

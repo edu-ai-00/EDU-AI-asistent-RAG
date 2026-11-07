@@ -33,7 +33,7 @@
     {
       "id": "222_qa_lexical_offer_ngram",
       "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
-      "sha256": "c35a42433cf79ce62c96c724a3f118a6ce85c552eda7cc71875be6591db3c205"
+      "sha256": "791ecaeb1cc51cb62826bc68787c33e0a084da569c9bf4a8983d6f026fbb7e23"
     }
   ],
   "postgres": {
