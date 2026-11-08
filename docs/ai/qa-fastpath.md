@@ -137,6 +137,7 @@ in `tools/lab/regression` (method: `METHOD.md`, numbers: `LEDGER.md` there).
 | `fetch_k: 200` | more candidate variants before the aggregation, so an entry's union is complete | 221 |
 | `offer_ngram` | the LAST offered question (offer or fallback) by character 3-5-grams, for derived and colloquial forms; confident answers and the chips beside an answer never change | 222, not applied |
 | `rank_ties` | ties in the ranking settled by the question text instead of the row order, so a re-upload of the packs cannot move them | none |
+| `skip_without_key` (answer step) | without a key the generation is not tried; the question ends with the parked offer or `no_answer` instead of `llm_unavailable` | 223 |
 
 A negation check (`negation_conflict`) withholds the confident answer when the
 query and the entry hold a word with opposite polarity; it is always on.
@@ -251,4 +252,7 @@ Without a key the `no_answer` result still carries the offered questions parked
 by `qa_lexical` (verified through the whole cascade). When documents are in
 scope, the document steps may gather passages and the generation then fails:
 the result is `llm_unavailable` ("Dočasný technický problém" in the chat) with
-the same offered questions.
+the same offered questions. Measured on a replay of a production log with its
+documents: about a quarter of all questions end that way without a key
+(`tools/lab/regression/LEDGER.md`, 8 Nov 2026). With `skip_without_key` on the answer step
+(migration 223) they end in `no_answer` with the same offered questions instead.

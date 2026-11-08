@@ -18,7 +18,7 @@ from . import config
 from . import domain_scope
 from . import idempotency
 from .executor import run_search
-from .llm import get_chat
+from .llm import get_chat, chat_configured
 from .log import log_search
 from .nodes.answer import (prepare_generation, parse_no_answer, variant_chips,
                            merge_suggestions, without_clarify,
@@ -1684,7 +1684,9 @@ def search_stream(req: SearchRequest):
         if result.pop("_stopped_before", None):
             step_params = result.pop("_stopped_params", {}) or {}
             prep = prepare_generation(result, step_params)
-            if prep is None:
+            # same rule as the answer step (`skip_without_key`, off by default)
+            if prep is None or (step_params.get("skip_without_key")
+                                and not chat_configured()):
                 result.update(resolve_unanswered(result))
             else:
                 yield _sse("meta", {

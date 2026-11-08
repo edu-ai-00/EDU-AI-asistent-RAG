@@ -312,6 +312,12 @@ Disabled in the reference configuration.
 The largest section: it fuses the pools, orders them, decides what reaches the
 model, and constrains what the model may write.
 
+**Without a model**
+
+| Parameter | Reference | Meaning |
+|---|---|---|
+| `skip_without_key` | off (migration 223 sets `true`) | When `OPENAI_API_KEY` is absent or still the installer's placeholder (`CHANGE_ME…`), do not try the generation: end as if no passage had been found (the parked offer, else `no_answer` with the fallback questions) instead of `llm_unavailable`. With a real key it does nothing. Applies to `/v1/ask` and the streaming path. Measured: without a key about a quarter of the logged questions used to end in `llm_unavailable`; see `tools/lab/regression/LEDGER.md`. |
+
 **Fusion and weighting**
 
 | Parameter | Reference | Meaning |

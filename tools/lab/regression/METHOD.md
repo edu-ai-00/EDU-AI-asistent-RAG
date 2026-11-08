@@ -25,6 +25,7 @@
 | 221 | `fetch_k` 200: more candidate variants before the aggregation to entries | applied |
 | 222 | `offer_ngram`: the last offered question by character n-grams | prepared, not applied |
 | — | `rank_ties`: ties in the ranking settled instead of left to the row order | parameter, off in operation; always on in the lab |
+| 223 | `skip_without_key` (answer step): without a key no generation is tried, the honest no-answer instead of `llm_unavailable` | prepared, not applied |
 
 Accepted baseline (state 218–221, the lab with `rank_ties`), the asker sees the right answer: A 85.6 %, B 76.5 %, D 50.0 % (174 questions with an answer), L 42.4 %, G 60.5 %; score 1,856.0; confident wrong 31. With 222: D 55.7 %, L 51.8 %, G 69.1 %, confident wrong unchanged.
 
@@ -100,6 +101,6 @@ New or changed answers can **steal a confident answer** from old records (siblin
 |---|---|
 | Most figures come from written queries | the gold set G and the log replay carry real wordings; G is small (81 cases), so differences below 5–10 points are noise there |
 | The lab measures with `rank_ties` on | operation without it may settle a few ties differently after the packs are uploaded again |
-| No documents in the measurement | with documents in scope the cascade without a key may reach the generation, which fails and returns `llm_unavailable` with the same offered questions; how often is not measured |
+| No documents in the measurement | the regression set covers the curated answers only; with documents in scope the cascade without a key reaches the generation, which fails and returns `llm_unavailable` (about a quarter of the logged questions, see the ledger, 8 Nov) unless migration 223 is applied |
 | Production lemmatizes with an older simplemma | after normalization 3.3.0 is deployed all lemmas change and the data must be uploaded again (see the deployment note) |
 | Other languages | measured for Czech only |
