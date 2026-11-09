@@ -62,6 +62,23 @@ in an order the database chooses and the small sets move by up to ±2.4 points
 between identical runs. `--config '{"rank_ties": false}'` measures the deployed
 behaviour instead. The accepted baselines are made with it on.
 
+**Packs split between chats.** When a school serves its packs through separate
+chats (for example one for the admission exams and one for school life), each
+chat searches its own packs only:
+
+```bash
+tools/lab/regression/run.sh IDX.json CASES.json OUT.json \
+    --chats '{"admissions":["faq-jpz"],"school":["faq-provoz"]}' \
+    --redirect '{"school":["faq-provoz","<key>"],"admissions":["faq-jpz","<key>"]}'
+```
+
+A case is asked in the chat that holds its pack; a case with no curated answer
+(set N) is asked in every chat as `<id>@<chat>`. `--redirect` names the entry that
+sends the asker to the other chat; every case with an answer is then also asked in
+the other chat, in set `<set>→`, where that entry is the right answer. A case asked
+in its own chat keeps its id, so `compare.py` sets it against an unsplit run; the
+`@` cases exist only in split runs and need a split baseline (`scoring.split_by_chat`).
+
 Method (goal, principles, rule for accepting a change, check after a step): [METHOD.md](METHOD.md).
 Every attempt with its numbers, also the rejected ones and the analysis scripts
 that were removed after their result was recorded: [LEDGER.md](LEDGER.md).

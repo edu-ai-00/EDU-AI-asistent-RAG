@@ -35,12 +35,19 @@ def main() -> int:
     ap.add_argument("--entity", default="SVOBODNA_SKOLA_PRAHA")
     ap.add_argument("--config", default="{}", help="JSON of qa_lexical params overriding the active setting")
     ap.add_argument("--with-sql", action="append", default=[], metavar="FILE")
+    ap.add_argument("--chats", help='JSON {chat: [pack, ...]}: ask each case over its chat\'s packs only '
+                                    '(scoring.split_by_chat); without it every case sees all packs')
+    ap.add_argument("--redirect", help='JSON {chat: [pack, entry_key]}: the entry sending the asker to the '
+                                       'other chat; with --chats each case is also asked in the other chats')
     a = ap.parse_args()
     import logging
     logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 
     questions = json.load(open(a.questions, encoding="utf-8"))
     cases = json.load(open(a.cases, encoding="utf-8"))
+    chats = json.loads(a.chats) if a.chats else None
+    if chats:
+        cases = scoring.split_by_chat(cases, chats, json.loads(a.redirect) if a.redirect else None)
     override = json.loads(a.config)
     import psycopg2
     measure._conn = psycopg2.connect(host=config.PG_HOST, port=config.PG_PORT, dbname=config.PG_DATABASE,
@@ -80,8 +87,9 @@ def main() -> int:
             if c["entry_key"] is not None and (c["pack"], c["entry_key"]) not in id_of:
                 skipped += 1                     # the curated answer is not in this question set
                 continue
+            case_packs = [pack_ids[p] for p in chats[c["chat"]] if p in pack_ids] if chats else packs
             r = cf._ask_list(c["query"], a.entity, cfg, {**p_exact, "form": form},
-                             {**p_lex, "form": form}, packs)
+                             {**p_lex, "form": form}, case_packs)
             found = key_of.get(r.get("entry"))
             sugg = {key_of.get(s) for s in r.get("suggestions") or []}
             results[c["id"]] = {"verdict": scoring.verdict(c["entry_key"], r, found, sugg, c.get("accept") or ()),
@@ -100,7 +108,8 @@ def main() -> int:
     meta = {"created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "setting_id": setting["setting_id"], "entity": a.entity, "config_override": override,
             "qa_lexical": {k: v for k, v in p_lex.items() if k in ("form", "t_answer", "t_suggest", "m_margin", "suggest_top_n", "query_repair", "offer_ngram", "rank_ties")},
-            "with_sql": [os.path.basename(p) for p in a.with_sql], "skipped": skipped}
+            "with_sql": [os.path.basename(p) for p in a.with_sql], "skipped": skipped,
+            "chats": chats, "redirect": json.loads(a.redirect) if a.redirect else None}
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump({"meta": meta, "results": results}, fh, ensure_ascii=False)
     for name, s in scoring.summarize(cases, results).items():

@@ -54,6 +54,28 @@ class Score(unittest.TestCase):
         self.assertEqual(sc.score_of(["v nabídce", "nic (C)"]), 0.5)
 
 
+class SplitByChat(unittest.TestCase):
+    CHATS = {"admissions": ["faq-jpz"], "school": ["faq-provoz"]}
+    CASES = [{"id": "1", "set": "A", "pack": "faq-jpz", "entry_key": "k1", "query": "q1"},
+             {"id": "2", "set": "N", "pack": "", "entry_key": None, "query": "q2"},
+             {"id": "3", "set": "A", "pack": "other", "entry_key": "k3", "query": "q3"}]
+
+    def test_own_chat_and_unanswerable_in_every_chat(self):
+        out = {c["id"]: c for c in sc.split_by_chat(self.CASES, self.CHATS)}
+        self.assertEqual(out["1"]["chat"], "admissions")
+        self.assertEqual({out["2@admissions"]["chat"], out["2@school"]["chat"]}, {"admissions", "school"})
+        self.assertNotIn("3", out)                      # a pack no chat serves is dropped
+        self.assertEqual(len(out), 3)
+
+    def test_redirect_asked_in_the_other_chat(self):
+        out = {c["id"]: c for c in sc.split_by_chat(
+            self.CASES, self.CHATS, {"school": ["faq-provoz", "go-admissions"], "admissions": ["faq-jpz", "go-school"]})}
+        x = out["1@school"]
+        self.assertEqual((x["set"], x["chat"], x["pack"], x["entry_key"]), ("A→", "school", "faq-provoz", "go-admissions"))
+        self.assertNotIn("1@admissions", out)             # never redirected inside its own chat
+        self.assertEqual(sc.verdict(x["entry_key"], {"decision": "A"}, "go-admissions"), "odpověď")
+
+
 def _cases():
     return [{"id": str(i), "set": "A" if i < 3 else "B", "query": f"q{i}", "category": "x"} for i in range(5)]
 

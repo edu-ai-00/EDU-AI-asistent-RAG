@@ -40,6 +40,34 @@ def score_of(verdicts) -> float:
     return round(sum(SCORE.get(v, 0.0) for v in verdicts), 1)
 
 
+def split_by_chat(cases: list[dict], chats: dict, redirect: dict | None = None) -> list[dict]:
+    """The cases as asked when the school's packs are split between separate chats.
+
+    `chats` is {chat: [pack, ...]}; every case gets a "chat" and is asked over that
+    chat's packs only. A case whose pack belongs to a chat keeps its id. A case with
+    no curated answer (no pack: set N, unanswerable D) is asked in EVERY chat, as
+    "<id>@<chat>". With `redirect` = {chat: [pack, entry_key]} — the entry that sends
+    the asker to the other chat — every case with an answer is also asked in each
+    other chat that has a redirect, as "<id>@<chat>" in set "<set>→", and the
+    redirect entry is the right answer there. A case whose pack is in no chat is
+    dropped (the chats do not serve it)."""
+    chat_of = {p: ch for ch, packs in chats.items() for p in packs}
+    out = []
+    for c in cases:
+        own = chat_of.get(c.get("pack") or "")
+        if not c.get("pack") or c.get("entry_key") is None:
+            out.extend({**c, "id": f"{c['id']}@{ch}", "chat": ch} for ch in chats)
+            continue
+        if own is None:
+            continue
+        out.append({**c, "chat": own})
+        for ch, (pack, key) in (redirect or {}).items():
+            if ch != own:
+                out.append({**c, "id": f"{c['id']}@{ch}", "set": c["set"] + "→", "chat": ch,
+                            "pack": pack, "entry_key": key, "accept": ()})
+    return out
+
+
 def summarize(cases: list[dict], results: dict, by_split: bool = False) -> dict:
     """{set: {"cases", "score", "confident_right", "offered", "confident_wrong", "by_verdict"}}
     `by_split`: also "SET:train" / "SET:holdout" (the split of the curated entry)."""
