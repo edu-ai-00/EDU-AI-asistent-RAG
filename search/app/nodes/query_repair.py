@@ -5,7 +5,8 @@ school's curated questions actually use (the vocabulary of the packs in scope),
 so a repair can only lead to a word some entry has:
 
   typo        a word the lemmatizer leaves as it is AND the dictionary does not
-              know ("abesnce") becomes the ONE vocabulary word within edit
+              know ("abesnce"; the query's language, or the school's languages
+              when it is undecided) becomes the ONE vocabulary word within edit
               distance 1 (2 from 8 letters); a tie or nothing near → unchanged
 
 Stemming matched typos by accident (a shared stem) and paid for it with false
@@ -62,12 +63,31 @@ def _dist(a: str, b: str, cap: int) -> int:
     return prev[-1]
 
 
-def _known(word: str) -> bool:
+def _known(word: str, langs) -> bool:
+    """Whether the dictionary of ANY of `langs` knows the word. A word no language
+    can judge counts as known: the repair is a help, never a guess."""
     try:
         from simplemma import is_known
-        return is_known(word, lang="cs")
     except Exception:
         return True
+    judged = False
+    for lang in langs or ():
+        try:
+            if is_known(word, lang=lang):
+                return True
+            judged = True
+        except Exception:
+            continue                       # a language simplemma has no dictionary for
+    return not judged
+
+
+def _repair_languages(state: dict) -> tuple:
+    """The query's language when it was decided, else the school's languages: the
+    same set prepare() built the query forms from (never a language in code)."""
+    if state.get("query_language"):
+        return (state["query_language"],)
+    from ..languages import languages_for_entity
+    return tuple(languages_for_entity(state.get("legal_entity")))
 
 
 def repair_state(state: dict, modes, pack_ids) -> dict:
@@ -79,12 +99,13 @@ def repair_state(state: dict, modes, pack_ids) -> dict:
     vocab = _vocab(pack_ids)
     if not vocab:
         return state
+    langs = _repair_languages(state)
     changed = []
     for i, (n, lm) in enumerate(zip(norm, lemma)):
         if lm in vocab or len(n) < 4 or n.isdigit():
             continue
         new = None
-        if "typo" in modes and lm == n and not _known(n):
+        if "typo" in modes and lm == n and not _known(n, langs):
             cap = 2 if len(n) >= 8 else 1
             best, ties = None, 0
             d_best = cap + 1

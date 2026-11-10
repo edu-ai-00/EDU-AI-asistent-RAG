@@ -20,17 +20,21 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.nodes import query_repair as qr  # noqa: E402
+import app.languages as languages  # noqa: E402
+
+_REAL_KNOWN = qr._known
 
 VOCAB = {"absence", "omluvit", "prijimaci", "zkouska", "termin", "ctvrtleti", "tridni", "ucitel"}
 
 
 def _state(norm, lemma=None):
-    return {"query_norm_tokens": list(norm), "query_lemma_tokens": list(lemma or norm), "pack_ids": ["p"]}
+    return {"query_norm_tokens": list(norm), "query_lemma_tokens": list(lemma or norm), "pack_ids": ["p"],
+            "query_language": "cs"}
 
 
 def _repair(norm, lemma=None, known=False, vocab=VOCAB):
     qr._vocab = lambda pack_ids: set(vocab)
-    qr._known = lambda word: known
+    qr._known = lambda word, langs: known
     return qr.repair_state(_state(norm, lemma), ["typo"], ["p"])
 
 
@@ -57,7 +61,7 @@ def test_long_word_allows_two_edits():
 def test_word_in_the_vocabulary_or_known_to_the_dictionary_is_left_alone():
     s = _state(["termin"])
     qr._vocab = lambda pack_ids: set(VOCAB)
-    qr._known = lambda word: False
+    qr._known = lambda word, langs: False
     assert qr.repair_state(s, ["typo"], ["p"]) is s                              # nothing changed
     assert _repair(["tridnim"], known=True) == _state(["tridnim"])               # a real word, not a typo
 
@@ -90,7 +94,7 @@ def test_misaligned_tokens_or_empty_vocabulary_leave_the_query_alone():
 
 def test_unknown_mode_does_nothing():
     qr._vocab = lambda pack_ids: set(VOCAB)
-    qr._known = lambda word: False
+    qr._known = lambda word, langs: False
     s = _state(["abesnce"])
     assert qr.repair_state(s, ["colloquial"], ["p"]) is s
 
@@ -98,7 +102,7 @@ def test_unknown_mode_does_nothing():
 def test_the_input_state_is_not_mutated():
     s = _state(["abesnce"])
     qr._vocab = lambda pack_ids: set(VOCAB)
-    qr._known = lambda word: False
+    qr._known = lambda word, langs: False
     out = qr.repair_state(s, ["typo"], ["p"])
     assert out is not s and s["query_lemma_tokens"] == ["abesnce"]
 
@@ -118,6 +122,36 @@ def test_the_log_holds_no_words_of_the_question():
     finally:
         qr.logger.removeHandler(h)
     assert records and all("abesnce" not in m and "absence" not in m for m in records), records
+
+
+def _real_repair(norm, language, school=("cs",), vocab=VOCAB):
+    """The real dictionary check (simplemma in the image), stubbed vocabulary."""
+    qr._vocab = lambda pack_ids: set(vocab)
+    qr._known = _REAL_KNOWN
+    languages.languages_for_entity = lambda entity: tuple(school)
+    st = {**_state(norm), "query_language": language}
+    return qr.repair_state(st, ["typo"], ["p"])
+
+
+def test_the_query_language_picks_the_dictionary():
+    # "late" is an English word: an English query keeps it, a Czech one does not know it
+    assert "query_repair" not in _real_repair(["late"], "en", vocab={"date"})
+    assert _real_repair(["late"], "cs", vocab={"date"})["query_norm_tokens"] == ["date"]
+    assert _real_repair(["abesnce"], "cs")["query_norm_tokens"] == ["absence"]
+
+
+def test_an_undecided_query_is_judged_by_the_schools_languages():
+    # no language decided: a cs-only school repairs as before, a school that also
+    # teaches English leaves a word that English knows
+    assert _real_repair(["abesnce"], None, school=("cs",))["query_norm_tokens"] == ["absence"]
+    assert _real_repair(["late"], None, school=("cs",), vocab={"date"})["query_norm_tokens"] == ["date"]
+    assert "query_repair" not in _real_repair(["late"], None, school=("cs", "en"), vocab={"date"})
+
+
+def test_a_word_no_language_can_judge_counts_as_known():
+    assert _REAL_KNOWN("abesnce", ()) is True
+    assert _REAL_KNOWN("abesnce", ("xx",)) is True      # no dictionary for it
+    assert _REAL_KNOWN("abesnce", ("cs",)) is False
 
 
 if __name__ == "__main__":
