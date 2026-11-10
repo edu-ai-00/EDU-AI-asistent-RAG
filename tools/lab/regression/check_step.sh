@@ -42,7 +42,8 @@ if docker ps --format '{{.Names}}' | grep -qx "$CT"; then
   ROOT=/tmp/check_step; W=$ROOT/run
   docker exec "$CT" rm -rf "${ROOT:?}" >/dev/null 2>&1
   docker exec "$CT" mkdir -p $W $ROOT/contracts && docker cp -q search/app "$CT:$W/" && docker cp -q tests "$CT:$W/" \
-    && docker cp -q contracts/parity "$CT:$ROOT/contracts/parity" && docker cp -q contracts/parity "$CT:$W/parity-src"
+    && docker cp -q contracts/parity "$CT:$ROOT/contracts/parity" && docker cp -q contracts/parity "$CT:$W/parity-src" \
+    && docker cp -q search/eduai_normalize/eduai_normalize "$CT:$W/"
   step "Tests in the search image (the code of THIS checkout)"
   for t in test_negation_lemma test_stopword_surface test_diacritics_restore test_query_repair test_qa_ngram test_qa_rank_ties test_answer_without_key; do
     [ -f "tests/$t.py" ] || continue
@@ -54,6 +55,10 @@ if docker ps --format '{{.Names}}' | grep -qx "$CT"; then
   if docker exec -i -w $W/parity-src -e PYTHONPATH=$W:/app "$CT" python - $W/parity-src \
        < contracts/parity/check_vectors.py >/tmp/check_step.out 2>&1; then ok "parity vectors"
   else fail "parity vectors"; tail -6 /tmp/check_step.out; fi
+  # the negation set is generated over the lemmatizer's dictionary (eduai_normalize 3.4.0)
+  if docker exec -w $W -e PYTHONPATH=$W "$CT" python -m eduai_normalize.negation --check \
+       >/tmp/check_step.out 2>&1; then ok "negated lemmas up to date"
+  else fail "negated lemmas stale: python -m eduai_normalize.negation --write"; tail -3 /tmp/check_step.out; fi
   docker exec "$CT" rm -rf "${ROOT:?}" >/dev/null 2>&1
 else
   step "Search image"
@@ -71,7 +76,7 @@ if [ "${1:-}" = "--regression" ]; then
     tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/cases.json" "$R/check_now.json" \
       --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
       --with-sql $M/220_qa_lexical_query_repair.sql \
-      --with-sql $M/221_qa_lexical_fetch_k.sql 2>&1 | grep -E '^(A|B|ALL) '
+      --with-sql $M/221_qa_lexical_fetch_k.sql --with-sql $M/224_qa_negation_conflict.sql 2>&1 | grep -E '^(A|B|ALL) '
     if python3 tools/lab/regression/compare.py --cases "$R/cases.json" --baseline "$R/accepted.json" \
          --now "$R/check_now.json" --show 5 --by-split; then ok "regression: no new confident wrong answer"
     else fail "regression: a case turned into a confident wrong answer (listed above)"; fi
@@ -81,7 +86,8 @@ if [ "${1:-}" = "--regression" ]; then
     if [ -f "$R/$G.json" ] && [ -f "$R/${G}_accepted.json" ]; then
       tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/$G.json" "$R/${G}_now.json" \
         --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
-        --with-sql $M/220_qa_lexical_query_repair.sql --with-sql $M/221_qa_lexical_fetch_k.sql 2>&1 | grep -E '^G '
+        --with-sql $M/220_qa_lexical_query_repair.sql --with-sql $M/221_qa_lexical_fetch_k.sql \
+        --with-sql $M/224_qa_negation_conflict.sql 2>&1 | grep -E '^G '
       if python3 tools/lab/regression/compare.py --cases "$R/$G.json" --baseline "$R/${G}_accepted.json" \
            --now "$R/${G}_now.json" --show 5 --by-split; then ok "gold set ($G): no new confident wrong answer"
       else fail "gold set ($G): a case turned into a confident wrong answer (listed above)"; fi

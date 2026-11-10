@@ -19,7 +19,7 @@ from .. import config
 from .. import scope
 from .qa_common import (pack_filter, domain_filter, sources_json,
                         finalize_chips, resolve_form, negation_conflict,
-                        entry_form_tokens)
+                        entry_lemma_tokens, polarity_tokens)
 
 logger = logging.getLogger(__name__)
 
@@ -152,11 +152,15 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
     # next to each other in vector space, so the cosine bar cannot catch what
     # qa_lexical's polarity check does. Same check, same verdict: no curated
     # answer, the cascade continues to the generated one, which reads the text.
+    # Off unless the step has `negation_conflict` (migration 224).
     try:
-        with get_cursor() as cur:
-            _neg = negation_conflict(state.get("query_lemma_tokens"),
-                                     entry_form_tokens(cur, entry_id),
-                                     state.get("query_language"))
+        if params.get("negation_conflict"):
+            with get_cursor() as cur:
+                _neg = negation_conflict(polarity_tokens(state),
+                                         entry_lemma_tokens(cur, entry_id),
+                                         state.get("query_language"))
+        else:
+            _neg = []
     except Exception as e:
         # Fail closed, like the guard in route.py: an answer whose polarity
         # could not be checked is not given as a curated one.

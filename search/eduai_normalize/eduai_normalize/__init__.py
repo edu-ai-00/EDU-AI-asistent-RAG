@@ -28,6 +28,7 @@ from .normalize import (  # noqa: F401
 )
 from .stemmer import stem_tokens, cz_stem_light, stem_word  # noqa: F401
 from .lemmatizer import lemma_tokens, lemma_word, NEGATION_PREFIX  # noqa: F401
+from .negation import is_negation, negated_lemmas  # noqa: F401
 
 # In step with pyproject on purpose. This said 1.5.0 while pyproject said
 # 2.2.0, so the one number a RUNNING process can read was three releases
@@ -54,7 +55,12 @@ from .lemmatizer import lemma_tokens, lemma_word, NEGATION_PREFIX  # noqa: F401
 #   ("zacina" → začínat; its spellings with diacritics are generated and looked
 #   up in the dictionary), and the dictionary vote of detect_lang counts it.
 #   Lemmas of such words change, on the index side too (re-ingest).
-__version__ = "3.3.0"
+# 3.4.0 (2026-11-10): negation.is_negation — whether a folded lemma is a
+#   negation the lemmatizer made ("nesmím" → `nesmet`), from a set generated
+#   over the dictionary (_negated_lemmas.py, `python -m eduai_normalize.negation`).
+#   The folded token alone cannot tell "někdy" (`nekdy`) or "nemoc" from a
+#   negation. Lemmas, stems and norms do not change: no re-ingest.
+__version__ = "3.4.0"
 
 
 def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dict[str, list[str]]:

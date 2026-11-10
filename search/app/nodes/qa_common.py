@@ -11,7 +11,7 @@ import logging
 
 from .. import config
 from .. import scope
-from ..text_norm import NEGATION_PREFIX
+from ..text_norm import NEGATION_PREFIX, is_negation
 
 logger = logging.getLogger(__name__)
 
@@ -518,12 +518,18 @@ def negation_conflict(query_lemmas, entry_tokens: set[str], lang: str | None) ->
     the original answer. A conflict therefore withholds the CONFIDENT answer;
     offering the entry as a suggestion stays allowed, the user sees the wording.
 
+    A token is a negation only when the LEMMATIZER made it one (eduai_normalize
+    is_negation, 3.4.0). The folded token alone cannot tell: "někdy" folds to
+    `nekdy`, "nemoc" to `nemoc`, and a bare prefix test read them as the negation
+    of "kdy" and "moc" — "Kdy můžu odejít dřív?" lost the confident answer to
+    "Můžu někdy odejít dřív?" (found 2026-11-10 in a code review).
+
     The entry's negation is not excused by a positive form elsewhere in it: the
     variant "Co mám vzít, když ještě nemám občanku?" holds both `mit` and
     `nemit`, and exempting that let "Co když uchazeč má občanský průkaz?" get
     the answer for having NO ID card (measured 2026-10-21). A negated query
     against such an entry still matches — the negation is the marked side.
-    `lang` None (undecided query) checks every language's prefix. Returns the
+    `lang` None (undecided query) checks every language. Returns the
     conflicting query-side words, for the trace.
     """
     prefixes = (NEGATION_PREFIX.get(lang, ()) if lang
@@ -531,24 +537,35 @@ def negation_conflict(query_lemmas, entry_tokens: set[str], lang: str | None) ->
     query = {t for t in (query_lemmas or ()) if t}
     out: list[str] = []
     for p in prefixes:
-        n = len(p) + 2                     # a base of at least 3 letters
         for t in sorted(query):
-            if len(t) > n and t.startswith(p) and t[len(p):] in entry_tokens \
+            if t.startswith(p) and is_negation(t, lang) and t[len(p):] in entry_tokens \
                     and t not in entry_tokens:
                 out.append(t)
         for t in sorted(entry_tokens):
             base = t[len(p):]
-            if len(t) > n and t.startswith(p) and base in query \
+            if t.startswith(p) and is_negation(t, lang) and base in query \
                     and t not in query:
                 out.append(base)
     return out
 
 
-def entry_form_tokens(cur, entry_id: str) -> set[str]:
-    """All norm/lemma/stem tokens of an entry's active variants."""
+def polarity_tokens(state) -> list[str]:
+    """The query's lemma tokens that may carry a polarity: those the asker typed.
+    A word query_repair put in is a guess, so it carries none — "nemoxi" repaired
+    to the vocabulary word "nemoci" (illnesses) must not read as the negated lemma
+    of "moci" (measured 2026-11-10: a right confident answer was withheld)."""
+    repaired = {c.split("→", 1)[-1] for c in state.get("query_repair") or ()}
+    return [t for t in state.get("query_lemma_tokens") or () if t not in repaired]
+
+
+def entry_lemma_tokens(cur, entry_id: str) -> set[str]:
+    """The LEMMA tokens of an entry's active variants — the side negation_conflict
+    compares: a negation is a property of the lemma. A surface form can coincide
+    with a negated lemma once folded ("nemoci", illnesses, reads like `nemoci`,
+    the lemma of "nemůžu"), so the norm and stem tokens are left out."""
     cur.execute(
-        f"SELECT concat_ws(' ', norm_text, lemma_text, stem_text) "
-        f"FROM {config.QA_VARIANTS_TABLE} WHERE entry_id = %s AND is_active", (entry_id,))
+        f"SELECT lemma_text FROM {config.QA_VARIANTS_TABLE} WHERE entry_id = %s AND is_active",
+        (entry_id,))
     return {t for (txt,) in cur.fetchall() for t in (txt or "").split() if t}
 
 

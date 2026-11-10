@@ -25,7 +25,8 @@
 | 221 | `fetch_k` 200: more candidate variants before the aggregation to entries | applied |
 | 222 | `offer_ngram`: the last offered question by character n-grams | applied (local installation, 10 Nov) |
 | — | `rank_ties`: ties in the ranking settled instead of left to the row order | parameter, off in operation; always on in the lab |
-| 223 | `skip_without_key` (answer step): without a key no generation is tried, the honest no-answer instead of `llm_unavailable` | prepared, not applied |
+| 223 | `skip_without_key` (answer step): without a key no generation is tried, the honest no-answer instead of `llm_unavailable` | applied (local installation, 10 Nov) |
+| 224 | `negation_conflict` (qa_lexical, qa_vector): no confident answer across opposite polarity, a negation being what the lemmatizer made one (eduai_normalize 3.4.0) | prepared, measured; the check_step run applies it in the transaction |
 
 Accepted baseline (state 218–221, the lab with `rank_ties`, labels as corrected on 9 Nov), the asker sees the right answer: A 85.6 %, B 76.6 %, D 50.0 % (174 questions with an answer), L 43.5 %, G 61.7 %; score 1,857.5; confident wrong 31. With 222: A 88.6 %, B 79.0 %, D 55.7 %, L 52.9 %, G 70.4 %; score 1,877.5; confident wrong unchanged.
 

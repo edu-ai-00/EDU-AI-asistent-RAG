@@ -20,8 +20,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from eduai_normalize import fold, lemma_word  # noqa: E402
-from app.nodes.qa_common import negation_conflict  # noqa: E402
+from eduai_normalize import fold, lemma_word, is_negation, negated_lemmas  # noqa: E402
+from app.nodes.qa_common import negation_conflict, polarity_tokens  # noqa: E402
 
 
 def _lem(word: str) -> str:
@@ -81,6 +81,41 @@ def test_entry_with_both_polarities():
 def test_no_prefix_language_no_conflict():
     assert negation_conflict(["nesmet"], {"smet"}, "en") == []
     assert negation_conflict(["nesmet"], {"smet"}, None) == ["nesmet"]   # undecided: every prefix
+
+
+def test_words_that_only_look_negated_are_no_conflict():
+    # folded, "někdy" reads `nekdy` and "nemoc" `nemoc`: neither is a negation
+    # the lemmatizer made, so neither may withhold the answer (code review 2026-11-10)
+    assert negation_conflict(["kdy", "moci", "odejit", "brzy", "skola"],
+                             {"moci", "nekdy", "odejit", "brzy", "skola"}, "cs") == []
+    assert negation_conflict(["kde", "najit", "rozvrh"], {"najit", "nekde", "rozvrh"}, "cs") == []
+    assert negation_conflict(["moc", "ukol"], {"co", "delat", "nemoc"}, "cs") == []
+    for w in ("nekdo", "nekolik", "nejak", "nedele", "nemocny", "nejlepsi"):
+        assert negation_conflict([w[2:]], {w}, "cs") == [], w
+
+
+def test_negations_the_lemmatizer_makes_still_conflict():
+    for neg, pos in (("nesmet", "smet"), ("neprijit", "prijit"), ("nemit", "mit"),
+                     ("nemoci", "moci"), ("nebyt", "byt"), ("nedostat", "dostat")):
+        assert negation_conflict([neg], {pos}, "cs") == [neg], neg
+        assert negation_conflict([pos], {neg}, "cs") == [pos], pos
+    # the set is the lemmatizer's own: every lemma it negates is in it
+    for w in ("nesmím", "nepřijde", "nemám", "nemůžu", "není", "nedostane"):
+        assert is_negation(fold(lemma_word(w, "cs")), "cs"), w
+    for w in ("nemoc", "někdy", "několik", "neděle", "nemocný"):
+        assert not is_negation(fold(lemma_word(w, "cs")), "cs"), w
+
+
+def test_no_negation_set_for_a_language_without_a_prefix():
+    for lang in ("en", "de", "es"):
+        assert negated_lemmas(lang) == frozenset(), lang
+
+
+def test_a_repaired_word_carries_no_polarity():
+    st = {"query_lemma_tokens": ["moci", "zkouset", "nemoci"], "query_repair": ["nemoxi→nemoci"]}
+    assert polarity_tokens(st) == ["moci", "zkouset"]
+    assert negation_conflict(polarity_tokens(st), {"moci", "zkouset"}, "cs") == []
+    assert polarity_tokens({"query_lemma_tokens": ["nesmet"]}) == ["nesmet"]
 
 
 def test_short_base_ignored():

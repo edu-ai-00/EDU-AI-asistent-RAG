@@ -9,6 +9,7 @@ sources:
   - search/app/nodes/qa_common.py
   - search/app/nodes/qa_ngram.py
   - search/app/nodes/query_repair.py
+  - search/eduai_normalize/eduai_normalize/negation.py
   - search/app/nodes/route.py
   - search/app/scope.py
   - search/app/domain_scope.py
@@ -136,11 +137,15 @@ in `tools/lab/regression` (method: `METHOD.md`, numbers: `LEDGER.md` there).
 | `query_repair: ["typo"]` | a query word the dictionary of its language does not know (undecided query: the school's languages) becomes the one curated word within edit distance 1 | 220 |
 | `fetch_k: 200` | more candidate variants before the aggregation, so an entry's union is complete | 221 |
 | `offer_ngram` | the LAST offered question (offer or fallback) by character 3-5-grams, for derived and colloquial forms; confident answers and the chips beside an answer never change | 222, not applied |
+| `negation_conflict` (also on `qa_vector`) | no confident answer across opposite polarity ("nepřijde" × "přijde"); a negation is what the lemmatizer made one (eduai_normalize 3.4.0), compared on the entry's lemmas | 224 |
 | `rank_ties` | ties in the ranking settled by the question text instead of the row order, so a re-upload of the packs cannot move them | none |
 | `skip_without_key` (answer step) | without a key the generation is not tried; the question ends with the parked offer or `no_answer` instead of `llm_unavailable` | 223 |
 
-A negation check (`negation_conflict`) withholds the confident answer when the
-query and the entry hold a word with opposite polarity; it is always on.
+The negation check (`negation_conflict`, row above) withholds the confident answer
+when the query and the entry hold a word with opposite polarity. Until 10 Nov 2026
+it was always on and read every folded word starting with "ne" as a negation;
+it is now a parameter (migration 224) and counts only the negations the lemmatizer
+made.
 
 Known interaction: with a key, `qa_vector` and the generated answer reuse the
 offer parked by `qa_lexical` as related questions, so `offer_ngram` can show its

@@ -29,7 +29,7 @@ from .qa_common import (
     concept_idf_weights, weighted_coverage,
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
-    content_tokens, form_text_concat, negation_conflict,
+    content_tokens, form_text_concat, negation_conflict, entry_lemma_tokens, polarity_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -633,7 +633,10 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # OPPOSITE POLARITY withholds the answer, never the suggestion:
             # "Co když pozvánka nepřijde?" must not get the curated answer to
             # "…přijde?" however well its other words cover (negation_conflict).
-            _neg = negation_conflict(state.get("query_lemma_tokens"), top["tokens"], lang)
+            # Off unless the step has `negation_conflict` (migration 224).
+            _neg = (negation_conflict(polarity_tokens(state),
+                                      entry_lemma_tokens(cur, top_id), lang)
+                    if params.get("negation_conflict") else [])
             if _neg:
                 _detail["negation_conflict"] = _neg
                 logger.info("qa_lexical: negation conflict (%d word(s)) — no curated answer", len(_neg))
