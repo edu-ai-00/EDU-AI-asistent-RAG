@@ -23,11 +23,13 @@
 | 219 | QA matches the lemma only, not the stem | applied |
 | 220 | `query_repair`: a typo in the query becomes the one word of the curated questions within edit distance 1 | applied |
 | 221 | `fetch_k` 200: more candidate variants before the aggregation to entries | applied |
-| 222 | `offer_ngram`: the last offered question by character n-grams | prepared, not applied |
+| 222 | `offer_ngram`: the last offered question by character n-grams | applied (local installation, 10 Nov) |
 | — | `rank_ties`: ties in the ranking settled instead of left to the row order | parameter, off in operation; always on in the lab |
 | 223 | `skip_without_key` (answer step): without a key no generation is tried, the honest no-answer instead of `llm_unavailable` | prepared, not applied |
 
-Accepted baseline (state 218–221, the lab with `rank_ties`), the asker sees the right answer: A 85.6 %, B 76.5 %, D 50.0 % (174 questions with an answer), L 42.4 %, G 60.5 %; score 1,856.0; confident wrong 31. With 222: D 55.7 %, L 51.8 %, G 69.1 %, confident wrong unchanged.
+Accepted baseline (state 218–221, the lab with `rank_ties`, labels as corrected on 9 Nov), the asker sees the right answer: A 85.6 %, B 76.6 %, D 50.0 % (174 questions with an answer), L 43.5 %, G 61.7 %; score 1,857.5; confident wrong 31. With 222: A 88.6 %, B 79.0 %, D 55.7 %, L 52.9 %, G 70.4 %; score 1,877.5; confident wrong unchanged.
+
+**Packs split between chats** (`run.py --chats`, see the README): with the content uploaded for testing and each chat searching its own pack, A 86.6 %, B 79.4 %, D 53.4 %, L 50.6 %, G 61.7 %, confident wrong 34; with 222 on top A 89.9 %, B 81.5 %, D 56.3 %, L 54.1 %, G 67.9 %, confident wrong unchanged. A question asked in the other chat is sent there by one redirect entry in 16–26 % of cases (LEDGER, 9 Nov).
 
 ## 3. Rule for accepting a change
 
