@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 _VOCAB: dict[tuple, tuple[float, set[str]]] = {}
 _TTL = 300.0
-_VOCAB_MAX = 64        # scopes kept (a school × role × area mix is small)
+# Scopes kept. The key is the whole scope, and scope.where carries the signed-in user
+# for the private clause, so it is an entry per school, role and area mix and, once a
+# user is signed in, per user; a miss only costs one read.
+_VOCAB_MAX = 64
 
 def _vocab(state: dict, pack_ids) -> set[str]:
     """The words of the curated questions the ASKER may get: the packs in scope,
@@ -58,7 +61,10 @@ def _vocab(state: dict, pack_ids) -> set[str]:
             words.update((lem or "").split())
             words.update((norm or "").split())
     if len(_VOCAB) >= _VOCAB_MAX:
-        _VOCAB.pop(next(iter(_VOCAB)))
+        try:                               # oldest out; a concurrent eviction is harmless
+            _VOCAB.pop(next(iter(_VOCAB)), None)
+        except (StopIteration, RuntimeError):
+            pass
     _VOCAB[key] = (time.time(), words)
     return words
 

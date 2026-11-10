@@ -44,6 +44,14 @@ docker exec -i -w /tmp/parity -e PYTHONPATH=/app edu_ai_search python - \
   < contracts/parity/gen_vectors.py \
   > contracts/parity/cs-normalization-vectors.json
 
+# negated lemmas (eduai_normalize 3.4.0): check, and regenerate after a lemmatizer change.
+# The generator writes next to itself, so run it on a COPY of the source package, then copy back.
+docker exec edu_ai_search mkdir -p /tmp/neg
+docker cp search/eduai_normalize/eduai_normalize edu_ai_search:/tmp/neg/
+docker exec -w /tmp/neg -e PYTHONPATH=/tmp/neg edu_ai_search python -m eduai_normalize.negation_build --check
+docker exec -w /tmp/neg -e PYTHONPATH=/tmp/neg edu_ai_search python -m eduai_normalize.negation_build --write
+docker cp edu_ai_search:/tmp/neg/eduai_normalize/_negated_lemmas.py search/eduai_normalize/eduai_normalize/
+
 # migration registry and runner (isolated synthetic databases only; spec.migration-registry)
 # No published release manifest: plan/apply need an operator-generated synthetic release.
 python3 scripts/migrate.py status --container <name> --user edu_ai_admin --db edu_ai        # read-only; plan likewise
@@ -118,8 +126,8 @@ EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py
 - Copy executable prompt text into documentation. Prompts live versioned in
   `prompt_registry` and are fetched by key.
 - Bypass the scope or active-document filters to make a test pass.
-- Edit generated files (the parity vectors, the clean-install dumps, the baseline
-  and release manifests) by hand — regenerate them.
+- Edit generated files (the parity vectors, the negated lemmas, the clean-install
+  dumps, the baseline and release manifests) by hand — regenerate them.
 - Put transaction control (`BEGIN`, `COMMIT`, `END`, `ROLLBACK`), `CONCURRENTLY`,
   `VACUUM` or psql `\` commands in a migration from 217 on: the runner owns the
   transaction. A migration that changes data carries its own self-check.

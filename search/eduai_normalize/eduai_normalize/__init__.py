@@ -57,7 +57,7 @@ from .negation import is_negation, negated_lemmas  # noqa: F401
 #   Lemmas of such words change, on the index side too (re-ingest).
 # 3.4.0 (2026-11-10): negation.is_negation — whether a folded lemma is a
 #   negation the lemmatizer made ("nesmím" → `nesmet`), from a set generated
-#   over the dictionary (_negated_lemmas.py, `python -m eduai_normalize.negation`).
+#   over the dictionary (_negated_lemmas.py, `python -m eduai_normalize.negation_build`).
 #   The folded token alone cannot tell "někdy" (`nekdy`) or "nemoc" from a
 #   negation. Lemmas, stems and norms do not change: no re-ingest.
 __version__ = "3.4.0"

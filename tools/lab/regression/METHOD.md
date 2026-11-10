@@ -26,7 +26,7 @@
 | 222 | `offer_ngram`: the last offered question by character n-grams | applied (local installation, 10 Nov) |
 | — | `rank_ties`: ties in the ranking settled instead of left to the row order | parameter, off in operation; always on in the lab |
 | 223 | `skip_without_key` (answer step): without a key no generation is tried, the honest no-answer instead of `llm_unavailable` | applied (local installation, 10 Nov) |
-| 224 | `negation_conflict` (qa_lexical, qa_vector): no confident answer across opposite polarity, a negation being what the lemmatizer made one (eduai_normalize 3.4.0) | prepared, measured; the check_step run applies it in the transaction |
+| 224 | `negation_conflict` (qa_lexical, qa_vector): no confident answer across opposite polarity, a negation being what the lemmatizer made one (eduai_normalize 3.4.0) | applied (local installation, 10 Nov); `check_step` applies it in the transaction |
 
 Accepted baseline (state 218–221, the lab with `rank_ties`, labels as corrected on 9 Nov), the asker sees the right answer: A 85.6 %, B 76.6 %, D 50.0 % (174 questions with an answer), L 43.5 %, G 61.7 %; score 1,857.5; confident wrong 31. With 222: A 88.6 %, B 79.0 %, D 55.7 %, L 52.9 %, G 70.4 %; score 1,877.5; confident wrong unchanged.
 
@@ -49,7 +49,7 @@ After every step (migration, code change, measurement, new tool) run:
 
 ```bash
 tools/lab/regression/check_step.sh              # after any step
-tools/lab/regression/check_step.sh --regression # also after a change to search, settings or data (~2 min)
+EDU_AI_LAB_ENTITY=<ENTITY_CODE> tools/lab/regression/check_step.sh --regression  # also after a change to search, settings or data (~10 min)
 ```
 
 | Check | What it guards |
@@ -57,9 +57,9 @@ tools/lab/regression/check_step.sh --regression # also after a change to search,
 | Python compilation | no syntax error in the code, tools, tests |
 | tests on the host | regression set, variants, neutral answers, lint and fingerprint of migrations |
 | `make docs-check` | links, sources and headers of the documentation |
-| tests in the search image | negation lemmas, stop-words, diacritics, typo repair, the n-gram chip, the order of tied entries — on the code of this checkout, not of an old image |
-| normalization parity | `contracts/parity` (`AGENTS.md`: before and after a normalization change) |
-| regression set (`--regression`) | the regression set and the gold set G against their accepted baselines, with migrations 218–221 in a transaction and `rank_ties` on; fails on a new confident wrong case |
+| tests in the search image | negation lemmas, stop-words, diacritics, typo repair, the n-gram chip, the order of tied entries, the step without a key — on the code (search and normalization) of this checkout, not of an old image |
+| normalization parity | `contracts/parity` (`AGENTS.md`: before and after a normalization change) and that the generated negated lemmas match the dictionary |
+| regression set (`--regression`) | the regression set and the gold set G against their accepted baselines, with migrations 218–222 and 224 in a transaction (223 concerns the answer step, outside the curated-QA cascade the lab runs) and `rank_ties` on; fails on a new confident wrong case |
 | git state | what is uncommitted and unpushed, containers left over after a measurement |
 
 The script ends with code 0 (`ALL CHECKS PASSED`) or prints what failed. The accepted baseline (`accepted.json`) is overwritten only after a change that was approved.
@@ -105,5 +105,5 @@ New or changed answers can **steal a confident answer** from old records (siblin
 | Most figures come from written queries | the gold set G and the log replay carry real wordings; G is small (81 cases), so differences below 5–10 points are noise there |
 | The lab measures with `rank_ties` on | operation without it may settle a few ties differently after the packs are uploaded again |
 | No documents in the measurement | the regression set covers the curated answers only; with documents in scope the cascade without a key reaches the generation, which fails and returns `llm_unavailable` (about a quarter of the logged questions, see the ledger, 8 Nov) unless migration 223 is applied |
-| Production lemmatizes with an older simplemma | after normalization 3.3.0 is deployed all lemmas change and the data must be uploaded again (see the deployment note) |
+| Production lemmatizes with an older simplemma | after normalization 3.4.0 (3.1.0–3.3.0 change lemmas) is deployed all lemmas change and the data must be uploaded again (see the deployment note) |
 | Other languages | measured for Czech only |

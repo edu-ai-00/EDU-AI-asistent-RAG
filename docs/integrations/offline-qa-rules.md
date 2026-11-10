@@ -91,12 +91,14 @@ Before the QA steps the backend may rewrite a follow-up query based on the conve
 languages of the organization. When detection is inconclusive it builds the union of the forms of the permitted languages. An offline
 client needs the chosen language and context policy; the stored index form alone is not enough.
 
-The normalization library in the source has version **3.3.0**. It uses Unicode NFC; lemmatization and stemming
+The normalization library in the source has version **3.4.0**. It uses Unicode NFC; lemmatization and stemming
 run on the word with diacritics and folding only afterwards. Since 3.1.0 a Czech lemma keeps its negation
 (`nesmím` → `nesmet`, not `smet`; `není` → `nebyt`); since 3.2.0 the lemma and stem branches drop a stop-word
 by its surface form before reducing it (`jsou` no longer leaks as the stem `jso`); since 3.3.0 a Czech word typed
 without diacritics is lemmatized through its spellings with them when they agree on the lemma (`zacina` → `zacinat`),
-and language detection counts such words. The parity vectors pin the cases. `lowercase`, `strip_diacritics` and
+and language detection counts such words; since 3.4.0 `is_negation` tells whether a folded lemma is a negation the
+lemmatizer made (a set generated over its dictionary, `_negated_lemmas.py`), which the polarity check of decision A
+(`negation_conflict`, migration 224) reads — an offline engine needs that set too. The parity vectors pin the cases. `lowercase`, `strip_diacritics` and
 `drop_stopwords` have a source default of `true`. A missing `stopwords_by_lang` is an error; a present
 map without the given language means an empty stoplist for it. The stemmer depends on `engines`, the language,
 the algorithm and `min_len` with a source default of `3`. Query lemmatization uses `simplemma`; on

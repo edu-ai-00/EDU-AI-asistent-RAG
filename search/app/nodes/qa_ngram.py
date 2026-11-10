@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULTS = {"min_sim": 0.30, "max_df_share": 0.10, "min_len": 3}
 _INDEX: dict[tuple, tuple[float, "NgramIndex"]] = {}
+# Scopes kept. The key is the whole scope, which includes the signed-in user (the private
+# clause of scope.where): with many signed-in users the index is rebuilt more often
+# (0.13 s per school, measured 7 Nov), never shared across scopes.
 _INDEX_MAX = 16
 _TTL = 300.0          # like query_repair's vocabulary: a pack edit shows within 5 min
 
@@ -206,7 +209,10 @@ def ranked_for(cur, state: dict, opts: dict) -> list[tuple]:
         index = NgramIndex(rows, _stop_words(cur, lang), float(opts["max_df_share"]),
                            int(opts["min_len"]))
         if len(_INDEX) >= _INDEX_MAX:
-            _INDEX.pop(next(iter(_INDEX)))
+            try:                           # oldest out; a concurrent eviction is harmless
+                _INDEX.pop(next(iter(_INDEX)), None)
+            except (StopIteration, RuntimeError):
+                pass
         _INDEX[key] = (time.time(), index)
     return index.rank(state.get("query_norm_tokens") or [], float(opts["min_sim"]))
 

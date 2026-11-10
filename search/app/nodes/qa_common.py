@@ -8,6 +8,7 @@ the union of {norm, lemma, synonym} tokens matches against either surface.
 
 import json
 import logging
+from collections import Counter
 
 from .. import config
 from .. import scope
@@ -553,9 +554,17 @@ def polarity_tokens(state) -> list[str]:
     """The query's lemma tokens that may carry a polarity: those the asker typed.
     A word query_repair put in is a guess, so it carries none — "nemoxi" repaired
     to the vocabulary word "nemoci" (illnesses) must not read as the negated lemma
-    of "moci" (measured 2026-11-10: a right confident answer was withheld)."""
-    repaired = {c.split("→", 1)[-1] for c in state.get("query_repair") or ()}
-    return [t for t in state.get("query_lemma_tokens") or () if t not in repaired]
+    of "moci" (measured 2026-11-10: a right confident answer was withheld). Only
+    as many occurrences are dropped as repairs were made, so the same word typed
+    correctly elsewhere in the question keeps its polarity."""
+    left = Counter(c.split("→", 1)[-1] for c in state.get("query_repair") or ())
+    out = []
+    for t in state.get("query_lemma_tokens") or ():
+        if left.get(t):
+            left[t] -= 1
+            continue
+        out.append(t)
+    return out
 
 
 def entry_lemma_tokens(cur, entry_id: str) -> set[str]:

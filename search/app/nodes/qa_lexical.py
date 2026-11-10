@@ -641,15 +641,26 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # OPPOSITE POLARITY withholds the answer, never the suggestion:
             # "Co když pozvánka nepřijde?" must not get the curated answer to
             # "…přijde?" however well its other words cover (negation_conflict).
-            # Off unless the step has `negation_conflict` (migration 224).
-            _neg = (negation_conflict(polarity_tokens(state),
-                                      entry_lemma_tokens(cur, top_id), lang)
-                    if params.get("negation_conflict") else [])
+            # Off unless the step has `negation_conflict` (migration 224). Checked
+            # only when the answer would otherwise be given, on a cursor of its own:
+            # a failing check withholds the answer (fail closed, as qa_vector) but
+            # must not abort this transaction and with it the offer below.
+            _can_answer = (top_cov >= t_answer and margin >= m_margin
+                           and _rare_hit is not False)
+            _neg = []
+            if _can_answer and params.get("negation_conflict"):
+                try:
+                    with get_cursor() as _ncur:
+                        _neg = negation_conflict(polarity_tokens(state),
+                                                 entry_lemma_tokens(_ncur, top_id), lang)
+                except Exception as e:
+                    logger.warning("qa_lexical: negation check failed (%s) — no curated answer", e)
+                    _detail["negation_check"] = "failed"
+                    _can_answer = False
             if _neg:
                 _detail["negation_conflict"] = _neg
                 logger.info("qa_lexical: negation conflict (%d word(s)) — no curated answer", len(_neg))
-            if (top_cov >= t_answer and margin >= m_margin
-                    and _rare_hit is not False and not _neg):
+            if _can_answer and not _neg:
                 _q, answer_md, _tags, _refs = fetch_answer(cur, top_id)
                 _rel_items = _qa_items(_related, suggest_top_n)
                 # Nothing cleared the bar → what a curator filed alongside this

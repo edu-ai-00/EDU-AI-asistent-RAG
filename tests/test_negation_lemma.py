@@ -13,7 +13,9 @@ a question asked in the negative got the curated answer to the positive one —
 measured 2026-10-21 with tools/lab/variants on the JPZ set, 39 of 39 flipped
 questions. eduai_normalize 3.1.0 keeps the negation in the lemma, and
 qa_common.negation_conflict stops the lexical and vector QA steps from
-answering across opposite polarity (the other words still cover 0.65–0.75).
+answering across opposite polarity (the other words still cover 0.65–0.75)
+when the step has `negation_conflict` (migration 224). Since 3.4.0 a word is
+a negation only when the lemmatizer made it one (eduai_normalize.is_negation).
 """
 
 import os
@@ -116,6 +118,21 @@ def test_a_repaired_word_carries_no_polarity():
     assert polarity_tokens(st) == ["moci", "zkouset"]
     assert negation_conflict(polarity_tokens(st), {"moci", "zkouset"}, "cs") == []
     assert polarity_tokens({"query_lemma_tokens": ["nesmet"]}) == ["nesmet"]
+
+
+def test_a_typed_word_keeps_its_polarity_beside_the_same_repaired_word():
+    # "nemit" typed, and the typo "nemti" repaired to "nemit": only one goes
+    st = {"query_lemma_tokens": ["nemit", "obcanka", "nemit"], "query_repair": ["nemti→nemit"]}
+    assert polarity_tokens(st) == ["obcanka", "nemit"]
+    assert negation_conflict(polarity_tokens(st), {"mit", "obcanka"}, "cs") == ["nemit"]
+
+
+def test_tokens_with_diacritics_are_judged_too():
+    # normalization.strip_diacritics false keeps diacritics in the tokens
+    assert is_negation("nesmět", "cs") and is_negation("Nemít", "cs")
+    assert not is_negation("někdy", "cs") and not is_negation("nemoc", "cs")
+    assert negation_conflict(["nesmět", "mít"], {"smět", "mít"}, "cs") == ["nesmět"]
+    assert negation_conflict(["kdy"], {"někdy"}, "cs") == []
 
 
 def test_short_base_ignored():

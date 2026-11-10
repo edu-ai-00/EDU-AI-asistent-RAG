@@ -49,6 +49,7 @@ docker cp -q "$SRC/tools/lab/neutral_answers" "$CT:$WORK/lab/"
 # the search code of THIS checkout (an experiment may not be in the image yet)
 docker exec "$CT" mkdir -p "$WORK/code"
 docker cp -q "$SRC/search/app" "$CT:$WORK/code/"
+docker cp -q "$SRC/search/eduai_normalize/eduai_normalize" "$CT:$WORK/code/"   # and its normalization
 docker cp -q "$Q" "$CT:$WORK/data/questions.json"
 docker cp -q "$P" "$CT:$WORK/data/paraphrases.json"
 docker exec -w /app -e PYTHONPATH=$WORK/code:/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE -e EDU_AI_LAB_ENTITY "$CT" python "$WORK/lab/variants/compare_forms.py" \
