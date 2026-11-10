@@ -66,6 +66,15 @@ def _tx_cursor():
         cur.execute("RELEASE SAVEPOINT lab")
 
 
+def search_path_as_search_role(cur):
+    """After `SET LOCAL ROLE` (what-if SQL as the owner) the queries must resolve names as
+    the search role does: its search_path holds the schema with pg_trgm, the owner's does
+    not, and the trigram fallback then fails with "operator does not exist: text <-> unknown"
+    (the dead-end chips silently vanish). A no-op for a run without a role switch."""
+    if os.environ.get("LAB_PG_ROLE"):
+        cur.execute(f"SET LOCAL search_path TO {config.PG_SCHEMA}, public")
+
+
 def _patch_cursors():
     orig = db.get_cursor          # captured first: app.db itself is in the loop
     for name, mod in list(sys.modules.items()):
@@ -197,6 +206,7 @@ def main() -> int:
                 with open(path, encoding="utf-8") as fh:
                     cur.execute(fh.read())
                 print(f"[measure] provedeno v transakci: {os.path.basename(path)}", file=sys.stderr)
+            search_path_as_search_role(cur)
             # the settings are read AFTER the SQL: a migration that changes them (219, 220, 221) is
             # measured as written. force=True because the same transaction holds the change.
             setting = get_active_setting(a.entity, force=True)

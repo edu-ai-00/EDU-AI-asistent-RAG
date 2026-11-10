@@ -65,6 +65,7 @@ def main() -> int:
             for path in a.with_sql:
                 with open(path, encoding="utf-8") as fh:
                     cur.execute(fh.read())
+            measure.search_path_as_search_role(cur)
         setting = get_active_setting(a.entity, force=True)   # sees the transaction
         cfg = setting["config"]
         p_exact, _ = measure._step_params(cfg, "qa_exact")

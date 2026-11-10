@@ -184,6 +184,7 @@ def main() -> int:
                 with open(path, encoding="utf-8") as fh:
                     cur.execute(fh.read())
                 print(f"[forms] provedeno v transakci: {os.path.basename(path)}", file=sys.stderr)
+            measure.search_path_as_search_role(cur)
             ids, pack_ids = _insert(cur, questions, a.entity, cfg, thresholds)
             words = Words(cfg, cur)
         q_of_eid = {ids[i]: q_by_idx[i]["q"] for i in ids}
