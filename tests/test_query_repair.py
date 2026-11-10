@@ -23,6 +23,7 @@ from app.nodes import query_repair as qr  # noqa: E402
 import app.languages as languages  # noqa: E402
 
 _REAL_KNOWN = qr._known
+_REAL_VOCAB = qr._vocab
 
 VOCAB = {"absence", "omluvit", "prijimaci", "zkouska", "termin", "ctvrtleti", "tridni", "ucitel"}
 
@@ -33,7 +34,7 @@ def _state(norm, lemma=None):
 
 
 def _repair(norm, lemma=None, known=False, vocab=VOCAB):
-    qr._vocab = lambda pack_ids: set(vocab)
+    qr._vocab = lambda state, pack_ids: set(vocab)
     qr._known = lambda word, langs: known
     return qr.repair_state(_state(norm, lemma), ["typo"], ["p"])
 
@@ -60,7 +61,7 @@ def test_long_word_allows_two_edits():
 
 def test_word_in_the_vocabulary_or_known_to_the_dictionary_is_left_alone():
     s = _state(["termin"])
-    qr._vocab = lambda pack_ids: set(VOCAB)
+    qr._vocab = lambda state, pack_ids: set(VOCAB)
     qr._known = lambda word, langs: False
     assert qr.repair_state(s, ["typo"], ["p"]) is s                              # nothing changed
     assert _repair(["tridnim"], known=True) == _state(["tridnim"])               # a real word, not a typo
@@ -93,7 +94,7 @@ def test_misaligned_tokens_or_empty_vocabulary_leave_the_query_alone():
 
 
 def test_unknown_mode_does_nothing():
-    qr._vocab = lambda pack_ids: set(VOCAB)
+    qr._vocab = lambda state, pack_ids: set(VOCAB)
     qr._known = lambda word, langs: False
     s = _state(["abesnce"])
     assert qr.repair_state(s, ["colloquial"], ["p"]) is s
@@ -101,7 +102,7 @@ def test_unknown_mode_does_nothing():
 
 def test_the_input_state_is_not_mutated():
     s = _state(["abesnce"])
-    qr._vocab = lambda pack_ids: set(VOCAB)
+    qr._vocab = lambda state, pack_ids: set(VOCAB)
     qr._known = lambda word, langs: False
     out = qr.repair_state(s, ["typo"], ["p"])
     assert out is not s and s["query_lemma_tokens"] == ["abesnce"]
@@ -126,7 +127,7 @@ def test_the_log_holds_no_words_of_the_question():
 
 def _real_repair(norm, language, school=("cs",), vocab=VOCAB):
     """The real dictionary check (simplemma in the image), stubbed vocabulary."""
-    qr._vocab = lambda pack_ids: set(vocab)
+    qr._vocab = lambda state, pack_ids: set(vocab)
     qr._known = _REAL_KNOWN
     languages.languages_for_entity = lambda entity: tuple(school)
     st = {**_state(norm), "query_language": language}
@@ -146,6 +147,60 @@ def test_an_undecided_query_is_judged_by_the_schools_languages():
     assert _real_repair(["abesnce"], None, school=("cs",))["query_norm_tokens"] == ["absence"]
     assert _real_repair(["late"], None, school=("cs",), vocab={"date"})["query_norm_tokens"] == ["date"]
     assert "query_repair" not in _real_repair(["late"], None, school=("cs", "en"), vocab={"date"})
+
+
+class _Cur:
+    """Records the vocabulary query; returns one row."""
+    def __init__(self, rows):
+        self.rows, self.sql, self.params = rows, [], []
+
+    def execute(self, sql, params=None):
+        self.sql.append(sql)
+        self.params.append(params)
+
+    def fetchall(self):
+        return self.rows
+
+
+def _vocab_with(state, rows=(("absence", "absence"),)):
+    from contextlib import contextmanager
+    cur = _Cur(list(rows))
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+    qr.get_cursor = fake_cursor
+    qr._VOCAB.clear()
+    return _REAL_VOCAB(state, ["p"]), cur
+
+
+def test_the_vocabulary_is_read_through_scope_and_areas():
+    st = {"entity_scope": ["E"], "organization_entities": ["E"], "user_role": "STUDENT",
+          "domain_ids": [7]}
+    words, cur = _vocab_with(st)
+    assert words == {"absence"}
+    sql, params = cur.sql[0], cur.params[0]
+    assert "legal_entity_code" in sql and "visibility" in sql    # scope.where
+    assert "valid_" in sql                                       # validity
+    assert "domain_ids" in sql                                   # the chosen areas
+    assert ["E"] in params and ["STUDENT"] in params
+
+
+def test_two_scopes_never_share_a_cached_vocabulary():
+    a = {"entity_scope": ["E"], "organization_entities": ["E"], "user_role": "STUDENT"}
+    b = {**a, "user_role": "TEACHER"}
+    _, cur = _vocab_with(a)
+    _REAL_VOCAB(a, ["p"])                                        # cached: no new query
+    _REAL_VOCAB(b, ["p"])                                        # another scope: a query
+    assert len(cur.sql) == 2, cur.sql
+
+
+def test_a_failing_vocabulary_leaves_the_query_alone():
+    def boom(state, pack_ids):
+        raise RuntimeError("db down")
+    qr._vocab = boom
+    st = _state(["abesnce"])
+    assert qr.repair_state(st, ["typo"], ["p"]) is st
 
 
 def test_a_word_no_language_can_judge_counts_as_known():

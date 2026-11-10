@@ -1,7 +1,8 @@
 """EXPERIMENT (2026-10-26), off unless a qa_lexical step has `query_repair`.
 
 Repair of the QUERY before the curated-QA match, bound to the words the
-school's curated questions actually use (the vocabulary of the packs in scope),
+school's curated questions actually use (the vocabulary of the entries the asker
+may get: packs in scope, scope.where with validity, the chosen areas),
 so a repair can only lead to a word some entry has:
 
   typo        a word the lemmatizer leaves as it is AND the dictionary does not
@@ -27,9 +28,22 @@ logger = logging.getLogger(__name__)
 
 _VOCAB: dict[tuple, tuple[float, set[str]]] = {}
 _TTL = 300.0
+_VOCAB_MAX = 64        # scopes kept (a school × role × area mix is small)
 
-def _vocab(pack_ids) -> set[str]:
-    key = tuple(sorted(pack_ids or ()))
+def _vocab(state: dict, pack_ids) -> set[str]:
+    """The words of the curated questions the ASKER may get: the packs in scope,
+    the school, visibility, role and validity (scope.where, the single enforcement
+    point) and the chosen areas (domain_filter) — the same scope qa_ngram reads.
+    A word of an entry the asker cannot get is never a repair target. Cached per
+    scope for _TTL seconds."""
+    from .. import scope
+    from .qa_common import pack_filter, domain_filter
+    frag, pack_params = pack_filter(pack_ids, alias="e", language=state.get("language_filter"))
+    scope_cond, scope_params = scope.where(
+        "v", state.get("entity_scope") or [], state.get("organization_entities") or [],
+        state.get("user_id"), state.get("user_role"), validity=True)
+    dom_cond, dom_params = domain_filter(state, "v")
+    key = (frag, scope_cond, dom_cond, repr(pack_params), repr(scope_params), repr(dom_params))
     hit = _VOCAB.get(key)
     if hit and time.time() - hit[0] < _TTL:
         return hit[1]
@@ -38,10 +52,13 @@ def _vocab(pack_ids) -> set[str]:
         cur.execute(
             f"SELECT v.lemma_text, v.norm_text FROM {config.QA_VARIANTS_TABLE} v"
             f" JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id"
-            f" WHERE v.is_active AND e.is_active AND e.pack_id = ANY(%s)", (list(key),))
+            f" WHERE v.is_active AND {frag}{scope_cond}{dom_cond}",
+            [*pack_params, *scope_params, *dom_params])
         for lem, norm in cur.fetchall():
             words.update((lem or "").split())
             words.update((norm or "").split())
+    if len(_VOCAB) >= _VOCAB_MAX:
+        _VOCAB.pop(next(iter(_VOCAB)))
     _VOCAB[key] = (time.time(), words)
     return words
 
@@ -96,7 +113,11 @@ def repair_state(state: dict, modes, pack_ids) -> dict:
     lemma = list(state.get("query_lemma_tokens") or [])
     if not norm or len(norm) != len(lemma):
         return state                       # not aligned: leave the query alone
-    vocab = _vocab(pack_ids)
+    try:
+        vocab = _vocab(state, pack_ids)
+    except Exception as e:                 # a repair is a help: never fail the step
+        logger.warning("query_repair: vocabulary failed (%s) — query unchanged", e)
+        return state
     if not vocab:
         return state
     langs = _repair_languages(state)
