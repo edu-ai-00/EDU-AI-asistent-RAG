@@ -6,14 +6,15 @@ Pure, no DB. Run inside the search image:
 
 What it protects: without `rank_ties` the order is the one before the experiment
 (tier, rank, coverage; an exact tie keeps the order the rows came in); with it an
-exact tie is settled by the question text and then the id, whatever the input order.
+exact tie is settled by the question text and then the id, whatever the input order;
+the same for the order of the typo fallback (pg_trgm distance).
 """
 
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app.nodes.qa_lexical import _rank_key  # noqa: E402
+from app.nodes.qa_lexical import _rank_key, _trgm_order  # noqa: E402
 
 
 def _e(q, rank=0.5, cov=0.6, tier=(0, 0)):
@@ -33,6 +34,12 @@ def test_on_settles_a_tie_by_text_whatever_the_input_order():
 def test_same_text_settled_by_id():
     items = [("2", _e("Q")), ("1", _e("Q"))]
     assert [k for k, _ in sorted(items, key=lambda kv: _rank_key(kv, True))] == ["1", "2"]
+
+
+def test_the_typo_fallback_order_is_settled_only_with_rank_ties():
+    assert _trgm_order(False) == "v.norm_text <-> %s"              # as before
+    assert _trgm_order(True) == "v.norm_text <-> %s, e.canonical_q, v.entry_id"
+    assert _trgm_order(True).count("%s") == 1                       # same parameters
 
 
 def test_rank_coverage_and_tier_still_come_first():

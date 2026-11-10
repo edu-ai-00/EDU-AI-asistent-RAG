@@ -297,6 +297,14 @@ def _rank_key(kv, ties: bool = False):
     return key + ((e.get("canonical_q") or "", str(eid)) if ties else ())
 
 
+def _trgm_order(ties: bool) -> str:
+    """ORDER BY of the typo fallback. With `rank_ties` an exact tie of trigram
+    distance is settled by the question text, then the id; without it the
+    database picks, as before the experiment (two identical lab runs differed in
+    the fallback chips of 8 dead-end questions, 2026-11-10)."""
+    return "v.norm_text <-> %s" + (", e.canonical_q, v.entry_id" if ties else "")
+
+
 def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict:
     """The A/B/C decision, plus the n-gram chip when `offer_ngram` is set."""
     out = _qa_lexical_ranked(state, params)
@@ -401,7 +409,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                     FROM {config.QA_VARIANTS_TABLE} v
                     JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
                     WHERE v.is_active AND {frag}{cand_cond}
-                    ORDER BY v.norm_text <-> %s
+                    ORDER BY {_trgm_order(_rank_ties)}
                     LIMIT %s
                 """
                 cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params,
