@@ -1,5 +1,5 @@
 """Debug one question in a replay container: the QA steps' decision details."""
-import sys, json
+import sys
 import replay as R
 import app.server as server
 R._patch_models()
