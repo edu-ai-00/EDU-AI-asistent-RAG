@@ -39,6 +39,9 @@ like "Nechtěl ses zeptat…?", the asker takes it for the answer).
 python3 tools/lab/regression/build_cases.py --questions otazky_idx.json \
     --set A=prepisy.json --set B=heldout.json --out cases.json
 
+# the school whose settings the lab reads (never hard-coded in the tools)
+export EDU_AI_LAB_ENTITY=<ENTITY_CODE>
+
 # 2. the baseline of the code as it is now
 tools/lab/regression/run.sh otazky_idx.json cases.json base.json
 

@@ -173,7 +173,8 @@ def main() -> int:
     ap.add_argument("--input", required=True)
     ap.add_argument("--sheet")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--entity", default="SVOBODNA_SKOLA_PRAHA")
+    ap.add_argument("--entity", default=os.environ.get("EDU_AI_LAB_ENTITY"), required=not os.environ.get("EDU_AI_LAB_ENTITY"),
+                    help="school whose settings the lab reads (or EDU_AI_LAB_ENTITY); never hard-coded")
     ap.add_argument("--limit", type=int, default=0, help="first N questions only")
     ap.add_argument("--with-sql", action="append", default=[], metavar="FILE",
                     help="run this SQL (e.g. a new migration) inside the measuring "

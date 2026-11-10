@@ -139,7 +139,8 @@ def main() -> int:
     ap.add_argument("--questions", required=True)
     ap.add_argument("--paraphrases", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--entity", default="SVOBODNA_SKOLA_PRAHA")
+    ap.add_argument("--entity", default=os.environ.get("EDU_AI_LAB_ENTITY"), required=not os.environ.get("EDU_AI_LAB_ENTITY"),
+                    help="school whose settings the lab reads (or EDU_AI_LAB_ENTITY); never hard-coded")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--only-written", action="store_true",
                     help="no generated tests (original, without diacritics, typo): an independent set")

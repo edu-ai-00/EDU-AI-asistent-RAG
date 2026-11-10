@@ -51,7 +51,7 @@ docker exec "$CT" mkdir -p "$WORK/code"
 docker cp -q "$SRC/search/app" "$CT:$WORK/code/"
 docker cp -q "$Q" "$CT:$WORK/data/questions.json"
 docker cp -q "$P" "$CT:$WORK/data/paraphrases.json"
-docker exec -w /app -e PYTHONPATH=$WORK/code:/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE "$CT" python "$WORK/lab/variants/compare_forms.py" \
+docker exec -w /app -e PYTHONPATH=$WORK/code:/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE -e EDU_AI_LAB_ENTITY "$CT" python "$WORK/lab/variants/compare_forms.py" \
   --questions "$WORK/data/questions.json" --paraphrases "$WORK/data/paraphrases.json" --out "$WORK/out" "${ARGS[@]}"
 docker cp -q "$CT:$WORK/out/." "$OUT/"
 echo "uloženo do $OUT" >&2

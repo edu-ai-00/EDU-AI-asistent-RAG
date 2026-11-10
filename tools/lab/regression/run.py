@@ -32,7 +32,8 @@ def main() -> int:
     ap.add_argument("--questions", required=True)
     ap.add_argument("--cases", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--entity", default="SVOBODNA_SKOLA_PRAHA")
+    ap.add_argument("--entity", default=os.environ.get("EDU_AI_LAB_ENTITY"), required=not os.environ.get("EDU_AI_LAB_ENTITY"),
+                    help="school whose settings the lab reads (or EDU_AI_LAB_ENTITY); never hard-coded")
     ap.add_argument("--config", default="{}", help="JSON of qa_lexical params overriding the active setting")
     ap.add_argument("--with-sql", action="append", default=[], metavar="FILE")
     ap.add_argument("--chats", help='JSON {chat: [pack, ...]}: ask each case over its chat\'s packs only '

@@ -49,7 +49,7 @@ docker cp -q "$SRC/tools/lab/neutral_answers" "$CT:$WORK/lab/"
 docker cp -q "$SRC/search/app" "$CT:$WORK/code/"
 docker cp -q "$Q" "$CT:$WORK/data/questions.json"
 docker cp -q "$C" "$CT:$WORK/data/cases.json"
-docker exec -w /app -e PYTHONPATH=$WORK/code:/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE "$CT" \
+docker exec -w /app -e PYTHONPATH=$WORK/code:/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE -e EDU_AI_LAB_ENTITY "$CT" \
   python "$WORK/lab/regression/run.py" --questions "$WORK/data/questions.json" \
   --cases "$WORK/data/cases.json" --out "$WORK/results.json" "${ARGS[@]}"
 mkdir -p "$(dirname "$OUT")"

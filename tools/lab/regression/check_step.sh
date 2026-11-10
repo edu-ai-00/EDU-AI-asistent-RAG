@@ -63,7 +63,9 @@ fi
 if [ "${1:-}" = "--regression" ]; then
   step "Regression set against the accepted baseline"
   R=$STATE/regression; M=postgres/migrations
-  if [ ! -f "$R/accepted.json" ] || [ ! -f "$R/cases.json" ]; then
+  if [ -z "${EDU_AI_LAB_ENTITY:-}" ]; then
+    fail "EDU_AI_LAB_ENTITY is not set: the school whose settings the lab reads (see README.md, 'Use')"
+  elif [ ! -f "$R/accepted.json" ] || [ ! -f "$R/cases.json" ]; then
     fail "missing $R/accepted.json or cases.json (see README.md, 'Use')"
   else
     tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/cases.json" "$R/check_now.json" \

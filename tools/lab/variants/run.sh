@@ -50,7 +50,7 @@ for f in "${SQL[@]}"; do docker cp -q "$f" "$CT:$WORK/sql/"; done
 docker cp -q "$SRC/tools/lab/variants" "$CT:$WORK/lab/"
 docker cp -q "$SRC/tools/lab/neutral_answers" "$CT:$WORK/lab/"
 docker cp -q "$INPUT" "$CT:$WORK/data/"
-docker exec -w /app -e PYTHONPATH=/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE "$CT" python "$WORK/lab/variants/measure.py" \
+docker exec -w /app -e PYTHONPATH=/app -e LAB_PG_USER -e LAB_PG_PASSWORD -e LAB_PG_ROLE -e EDU_AI_LAB_ENTITY "$CT" python "$WORK/lab/variants/measure.py" \
   --input "$WORK/data/$(basename "$INPUT")" --out "$WORK/out" "${ARGS[@]}"
 docker cp -q "$CT:$WORK/out/." "$OUT/"
 echo "uloženo do $OUT" >&2

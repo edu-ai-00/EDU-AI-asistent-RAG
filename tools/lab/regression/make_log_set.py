@@ -1,7 +1,7 @@
 """Set L: real queries with a WEAK label from the production log.
 
   python3 make_log_set.py --container edu_ai_prodcopy --out log_L.json
-        [--entity CODE] [--packs faq-jpz faq-provoz]
+        --entity CODE [--packs faq-jpz faq-provoz]
 
 The production answered these queries through the semantic QA step (OpenAI vectors):
 the entry it chose is taken as a weak label. It is not the truth — the cosine of
@@ -39,7 +39,7 @@ def main() -> int:
     ap.add_argument("--container", default="edu_ai_prodcopy")
     ap.add_argument("--db", default="edu_ai")
     ap.add_argument("--user", default="edu_ai_admin")
-    ap.add_argument("--entity", default="ZS_KAVCI_HORY_ZS")
+    ap.add_argument("--entity", required=True, help="the school whose log is read")
     ap.add_argument("--packs", nargs="+", default=["faq-jpz", "faq-provoz"])
     ap.add_argument("--out", required=True)
     a = ap.parse_args()

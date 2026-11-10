@@ -40,8 +40,8 @@ connects as `edu_ai_migrator` (`POSTGRES_MIGRATOR_PASSWORD`) and acts as
 container and runs [`measure.py`](measure.py) there. The search role is
 read-only, so the rows go in as the QA ingest role (`POSTGRES_DB_USER` /
 `POSTGRES_PASSWORD` from `$EDU_AI_CONFIG_DIR/.env`, passed by environment,
-never printed). Options: `--sheet NAME`, `--limit N`, `--entity CODE`
-(default `SVOBODNA_SKOLA_PRAHA`), `--debug`.
+never printed). Options: `--sheet NAME`, `--limit N`, `--entity CODE` (the school whose settings
+are read; required unless `EDU_AI_LAB_ENTITY` is set), `--debug`.
 
 Outputs in `$EDU_AI_STATE_DIR/variants/` (default `variants/` in the state directory):
 
@@ -50,5 +50,14 @@ Outputs in `$EDU_AI_STATE_DIR/variants/` (default `variants/` in the state direc
   norm / lemma / stem tokens the query was reduced to (`;`-separated, UTF-8 BOM
   for Excel)
 - `<workbook>.summary.json` — counts per technique and per rule
+
+**Lemma or stem?** [`run_forms.sh`](run_forms.sh) runs [`compare_forms.py`](compare_forms.py) the same way:
+the school's packs as temporary packs, each paraphrase asked with the query reduced to the
+norm, the lemma or the stem, one rolled-back transaction. `compare_forms.py` also holds the
+pack insertion and the cascade call that the regression set (`tools/lab/regression/run.py`) reuses.
+
+```bash
+tools/lab/variants/run_forms.sh QUESTIONS.json PARAPHRASES.json OUT_DIR [--limit N] [--with-sql FILE]
+```
 
 Tests: `python3 tests/test_lab_variants.py` (generators only, stdlib).
