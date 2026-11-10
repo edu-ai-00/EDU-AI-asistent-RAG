@@ -78,6 +78,18 @@ def test_threshold_and_no_words():
     assert idx.rank(["12"], 0.0) == []
 
 
+def test_an_exact_tie_is_settled_by_the_question_not_the_row_order():
+    # two entries with the same wording score the same; whichever the database
+    # returns first must not decide the chip (ids change with every re-upload)
+    rows = [("z9", "Kde najdu pokyny?", "kde najdu pokyny jpz", True),
+            ("a1", "Kde pise uchazec?", "kde najdu pokyny jpz", True),
+            ("m5", "Jak omluvit absenci?", "omluvit absenci", True)]
+    for order in (rows, list(reversed(rows))):
+        idx = ng.NgramIndex(order, STOP, 0.9, 3)
+        got = [e for e, _q, _s in idx.rank(["najdu", "pokyny"], 0.1)]
+        assert got[:2] == ["z9", "a1"], got           # "Kde najdu…" < "Kde pise…"
+
+
 def _items(*ids):
     return [{"kind": "qa", "entry_id": i, "question": f"q{i}", "score": 0.5} for i in ids]
 

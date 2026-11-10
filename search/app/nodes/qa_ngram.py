@@ -17,7 +17,9 @@ question and each alternative) is a separate vector; an entry scores with its
 BEST variant, never with the union of them, so wordings of one entry do not add
 up. Words too generic to mean anything are left out on both sides: shorter than
 3 letters, numbers, the coverage stop-words and question words of the language,
-and any word held by more than `max_df_share` of the entries.
+and any word held by more than `max_df_share` of the entries. An exact tie of
+similarity goes to the question first by text, then by id: never the order the
+rows came in, which follows the entry ids and changes with every re-upload.
 
 Measured offline before this code (tools/lab/regression/LEDGER.md, 6 Nov 2026);
 the real cascade is measured with run.py before any setting turns it on.
@@ -129,7 +131,12 @@ class NgramIndex:
             eid = self.owner[i]
             if s > best.get(eid, -1.0):
                 best[eid] = s
-        out = sorted(((eid, s) for eid, s in best.items() if s >= min_sim), key=lambda t: -t[1])
+        # An exact tie is settled by the question text, then the id (as rank_ties does in
+        # qa_lexical): the insertion order follows the entry ids, which change with every
+        # re-upload, so it must never pick the chip. Rounding keeps float noise from
+        # deciding what is a tie.
+        out = sorted(((eid, s) for eid, s in best.items() if s >= min_sim),
+                     key=lambda t: (-round(t[1], 9), self.question.get(t[0]) or "", str(t[0])))
         return [(eid, self.question.get(eid), s) for eid, s in out[:limit]]
 
 
