@@ -133,6 +133,8 @@ EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py
   transaction. A migration that changes data carries its own self-check.
 - Use the migration runner on production or a school installation, or claim a
   supported upgrade: B03e-1 is approved for isolated synthetic databases only.
+  The one exception is bootstrap step 4b, which registers a clean install and
+  applies the latest release while the database holds no school data.
 - Hard-code a legal entity, a language or a threshold. All three are data.
 
 ## Expected patterns

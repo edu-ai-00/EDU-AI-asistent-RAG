@@ -3,7 +3,10 @@
 New installations start from baseline **B216** (`postgres/init_clean`); the
 numbered history before it stays in `postgres/init/` and is never run on them.
 Files here are applied by `scripts/migrate.py apply` and recorded one by one in
-`edu_ai.schema_migration`. Rules and behaviour: `specs/active/spec.migration-registry.md`.
+`edu_ai.schema_migration`. A clean install gets them from `scripts/bootstrap.py`
+step 4b (the release manifest with the highest number), while its database holds
+no school data; an installation with data gets them by hand
+(`docs/OPERATIONS_LINUX.md`, "Database migrations from 217 on"). Rules and behaviour: `specs/active/spec.migration-registry.md`.
 
 - Name: `NNN_short_name.sql`, number >= 217, ascending and unique.
 - **Never control the transaction.** No `BEGIN`, `COMMIT`, `END`, `ROLLBACK`,
@@ -13,4 +16,5 @@ Files here are applied by `scripts/migrate.py apply` and recorded one by one in
 - A migration that changes **data** needs its own `RAISE EXCEPTION` self-check;
   the schema fingerprint cannot see data.
 - After adding or changing a file, regenerate the release manifest on an isolated
-  reference: `migrate.py gen-release --release NAME` (never edit it by hand).
+  reference: `migrate.py gen-release --release NAME` (never edit it by hand). The new
+  release must list every file here: bootstrap applies the highest-numbered one.

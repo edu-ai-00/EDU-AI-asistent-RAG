@@ -815,6 +815,80 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
 
 
 # ───────────────────────────────────────────────────────────────
+#  4b. Database migrations (clean install only)
+# ───────────────────────────────────────────────────────────────
+
+# The runner (scripts/migrate.py) is approved for a database without school data
+# only. A database with data (production, a school) is never touched here: its
+# migrations from 217 on follow the manual procedure in docs/OPERATIONS_LINUX.md.
+MIGRATION_DUMPS = "db_migration_dumps"
+_MIGRATE_TIMEOUT = 900
+
+
+def _latest_release() -> str | None:
+    """The release manifest with the highest number (R224 > R99), or None."""
+    found = [p.stem for p in (ROOT / "postgres" / "releases").glob("R*.json") if p.stem[1:].isdigit()]
+    return max(found, key=lambda n: int(n[1:]), default=None)
+
+
+def _migration_facts() -> tuple[bool, int] | None:
+    """(registry exists, content rows) of the edu_ai database, or None when unreadable."""
+    from eduai_migrate.fingerprint import CONTENT_TABLES
+    rows = " + ".join(f"(SELECT count(*) FROM edu_ai.{t})" for t in CONTENT_TABLES)
+    result = _ext_psql(f"SELECT to_regclass('edu_ai.schema_migration') IS NOT NULL, {rows};\n")
+    parts = result.stdout.split() if result.returncode == 0 else []
+    if len(parts) != 2 or parts[0] not in ("t", "f") or not parts[1].isdigit():
+        return None
+    return parts[0] == "t", int(parts[1])
+
+
+def _migrate(command: str, container: str, *extra: str) -> int:
+    args = [sys.executable, str(ROOT / "scripts" / "migrate.py"), command,
+            "--container", container, "--repo-root", str(ROOT), "--confirm-isolated", *extra]
+    try:
+        result = run(args, timeout=_MIGRATE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        report("fail", f"migrate.py {command} timed out; its outcome is unknown")
+        return -1
+    relay(result.stdout + result.stderr)
+    return result.returncode
+
+
+def step_migrations() -> None:
+    phase("4b. database migrations")
+    release = _latest_release()
+    if release is None:
+        report("skip", "no release manifest in postgres/releases")
+        return
+    facts = _migration_facts()
+    if facts is None:
+        fail("could not read the migration registry state", "check that the postgres service is running")
+        return
+    registry, content = facts
+    if content:
+        report("skip", f"the database holds school data ({content} rows): migrations from 217 on are "
+                       "applied by the manual procedure in docs/OPERATIONS_LINUX.md, not by bootstrap")
+        return
+    ps = run(["docker", "compose", "ps", "-q", "postgres"], timeout=60)
+    container = ps.stdout.strip() if ps.returncode == 0 else ""
+    if not container or "\n" in container:
+        fail("could not find the postgres container")
+        return
+    if not registry and _migrate("init", container) != 0:
+        fail("the migration registry could not be created (migrate.py init)",
+             "this is not a clean B216 database; see the lines above")
+        return
+    dumps = STATE_DIR / MIGRATION_DUMPS
+    dumps.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if _migrate("apply", container, "--release", release, "--dump-dir", str(dumps)) != 0:
+        fail(f"migrations of release {release} were not applied (migrate.py apply)",
+             f"see the lines above; `python3 scripts/migrate.py status --container {container}` "
+             "shows the state")
+        return
+    report("ok", f"database at release {release}")
+
+
+# ───────────────────────────────────────────────────────────────
 #  5. Langflow API key
 # ───────────────────────────────────────────────────────────────
 
@@ -1291,6 +1365,11 @@ def main() -> int:
     # working internet to boot at all — it exits on its pricing fetch otherwise.
     if not step_up(["postgres", "bifrost", "edu_ai", "nginx"],
                    "4. start postgres + bifrost + langflow + nginx", build=args.build):
+        return 1
+    # Before the rest of the stack starts: nothing can have written school data yet,
+    # and search starts with the migrated settings.
+    step_migrations()
+    if _failed:
         return 1
 
     api_key = step_api_key(args.langflow_url, allow_prompt=not args.no_input)

@@ -45,11 +45,16 @@ The tests are **not** in the image. Tests that run in the image are copied or mo
 
 Operational files taken from the **source checkout** (not from the image) during installation and operation:
 `docker-compose.yml` and `.env.example` (the installer), `scripts/` (`setup.py`, `install.py`, `host_preflight.py`,
-`bootstrap.py`, `smoke.py`, `import_flows.py`, `create_api_key.py`, `db_roles.py`, `tunnel_subnet.py`, the shared modules
+`bootstrap.py`, `smoke.py`, `import_flows.py`, `create_api_key.py`, `db_roles.py`, `tunnel_subnet.py`, `migrate.py` with `eduai_migrate/`, the shared modules
 `eduai_layout.py`, `envfile.py`, `http_safe.py`, `prepare_ubuntu.sh`; `flow_rollout.py` serves the flow update, not the installation),
 `langflow_flows/ingestion` (flow import), `postgres/init_clean`, `postgres/role_contract` and `postgres/seed` (database
-initialisation, the roles contract, the approved organisation data), `nginx/conf` (bind mount) and the build contexts of the services. The list is completed according to the imports
+initialisation, the roles contract, the approved organisation data), `postgres/baseline`, `postgres/releases` and
+`postgres/migrations` (bootstrap step 4b), `nginx/conf` (bind mount) and the build contexts of the services. The list is completed according to the imports
 in `setup.py` and `host_preflight.py`; omitting any of them from the checkout breaks the installation.
+
+A new `Dockerfile.postgres` (server or extension version) needs a regenerated
+`postgres/baseline/B216.json` and release manifests from an isolated reference built
+with that image: `migrate.py init` checks them, and a clean install stops at bootstrap step 4b otherwise.
 
 ## Release verification
 

@@ -197,7 +197,7 @@ class Lifecycle(kr.Rotation):
                 stack.enter_context(patcher)
             argv = ["bootstrap.py", "--no-input", "--langflow-url", BASE]
             stack.enter_context(mock.patch.object(sys, "argv", argv))
-            for name in ("step_preflight", "step_env", "step_dirs"):
+            for name in ("step_preflight", "step_env", "step_dirs", "step_migrations"):
                 stack.enter_context(mock.patch.object(bootstrap, name))
             up = stack.enter_context(mock.patch.object(bootstrap, "step_up", return_value=True))
             later = [stack.enter_context(mock.patch.object(bootstrap, name))

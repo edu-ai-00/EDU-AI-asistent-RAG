@@ -1021,7 +1021,8 @@ class MainRunTests(Offline):
         self.stages = {}
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        for name in ("step_preflight", "step_dirs", "step_langflow_vars", "step_flows", "step_smoke"):
+        for name in ("step_preflight", "step_dirs", "step_migrations", "step_langflow_vars", "step_flows",
+                     "step_smoke"):
             self.stages[name] = stack.enter_context(mock.patch.object(bootstrap, name))
         self.stages["step_up"] = stack.enter_context(
             mock.patch.object(bootstrap, "step_up", return_value=True))

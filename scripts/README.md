@@ -24,7 +24,7 @@ Before running, check the specific mode in the docstring: for example, `bootstra
 
 ## Databases, migrations and flows (isolated synthetic databases)
 
-The migration runner is not used on production or on a school installation (see [AGENTS.md](../AGENTS.md)).
+The migration runner is not used on production or on a school installation (see [AGENTS.md](../AGENTS.md)); the one exception is `bootstrap.py` step 4b, which registers a clean installation and applies the latest release while its database holds no school data.
 
 | Script | Purpose |
 |---|---|

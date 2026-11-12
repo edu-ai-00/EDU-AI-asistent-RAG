@@ -47,6 +47,7 @@ class Base(unittest.TestCase):
         (self.root / "postgres" / "baseline").mkdir(parents=True)
         shutil.copy(ROOT / "postgres" / "baseline" / "B216.json", self.root / "postgres" / "baseline")
         shutil.copy(ROOT / "Dockerfile.postgres", self.root)
+        shutil.copytree(ROOT / "postgres" / "role_contract", self.root / "postgres" / "role_contract")
         self.migs = self.root / "postgres" / "migrations"
         self.migs.mkdir(parents=True)
         self.dumps = self.tmp / "dumps"
@@ -213,6 +214,16 @@ class RegistryTest(Base):
         self.assertEqual(self.baseline["fingerprint"]["schema"],
                          self.psql(db, "SELECT checksum FROM edu_ai.schema_migration;"))
         self.assertEqual(self.baseline["fingerprint"]["schema"], self.fp(db))
+
+    def test_init_gives_the_registry_to_the_contract_owner(self):
+        # like every edu_ai table (postgres/role_contract/matrix.json), so db_roles verify stays MATCH
+        db = self.initialised()
+        self.assertEqual("edu_ai_owner", self.psql(db, "SELECT pg_get_userbyid(relowner) FROM pg_class "
+                                                       "WHERE oid = 'edu_ai.schema_migration'::regclass;"))
+        for role in ("edu_ai_search", "edu_ai_ingest"):
+            self.assertEqual("t|f", self.psql(db, f"SELECT has_table_privilege('{role}', 'edu_ai.schema_migration', "
+                                                  f"'SELECT'), has_table_privilege('{role}', 'edu_ai.schema_migration', "
+                                                  "'INSERT');"))
         rc, out = self.migrate("status", db=db)
         self.assertEqual(0, rc, out)
         self.assertIn("schema fingerprint: matches", out)
