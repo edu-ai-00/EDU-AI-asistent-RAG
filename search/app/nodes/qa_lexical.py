@@ -309,7 +309,7 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
     """The A/B/C decision, plus the n-gram chip when `offer_ngram` is set."""
     out = _qa_lexical_ranked(state, params)
     params = params or {}
-    if not params.get("offer_ngram"):           # EXPERIMENT, off by default (qa_ngram.py)
+    if not params.get("offer_ngram"):           # off in code; migration 222 sets it (qa_ngram.py)
         return out
     from .qa_ngram import with_ngram_chip
     try:
@@ -328,7 +328,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
     use_synonyms = params.get("synonyms", True)
     form = resolve_form(params)
     _rank_ties = bool(params.get("rank_ties"))  # EXPERIMENT, off by default (see the query)
-    if params.get("query_repair"):              # EXPERIMENT, off by default (query_repair.py)
+    if params.get("query_repair"):              # off in code; migration 220 sets it (query_repair.py)
         from .query_repair import repair_state
         state = repair_state(state, params["query_repair"], state.get("pack_ids", []))
 

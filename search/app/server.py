@@ -44,12 +44,11 @@ async def _lifespan(_app):
     """Load the dictionary that diacritics restoration looks words up in before
     the first query, instead of charging it to whoever asks first. A failure
     only means it is loaded on first use; the service starts either way."""
-    import time as _time
     from .text_norm import warm_diacritics
-    t0 = _time.monotonic()
+    t0 = time.monotonic()
     try:
         warm_diacritics()
-        logger.info("normalizer: dictionaries ready in %.1f s", _time.monotonic() - t0)
+        logger.info("normalizer: dictionaries ready in %.1f s", time.monotonic() - t0)
     except Exception as e:
         logger.warning("normalizer: dictionaries not preloaded (%s) — loaded on first use", e)
     yield
@@ -1684,7 +1683,7 @@ def search_stream(req: SearchRequest):
         if result.pop("_stopped_before", None):
             step_params = result.pop("_stopped_params", {}) or {}
             prep = prepare_generation(result, step_params)
-            # same rule as the answer step (`skip_without_key`, off by default)
+            # same rule as the answer step (`skip_without_key`, migration 223)
             if prep is None or (step_params.get("skip_without_key")
                                 and not chat_configured()):
                 result.update(resolve_unanswered(result))

@@ -192,10 +192,14 @@ def _dictionary(lang: str):
         with _DICTS_LOCK:
             if lang not in _DICTS:
                 try:
-                    # simplemma is pinned (requirements.txt): this is the loader
-                    # lemmatize() itself reads through
+                    # The factory lemmatize() and is_known() read through, so the
+                    # dictionary is held once per process (a new factory loads a
+                    # second copy, ~30 MB for Czech). simplemma is pinned.
+                    from simplemma import lemmatizer as _lm
                     from simplemma.strategies.dictionaries import DefaultDictionaryFactory
-                    _DICTS[lang] = DefaultDictionaryFactory().get_dictionary(lang)
+                    factory = (getattr(_lm, "_legacy_dictionary_factory", None)
+                               or DefaultDictionaryFactory())
+                    _DICTS[lang] = factory.get_dictionary(lang)
                 except Exception:
                     _DICTS[lang] = None
     return _DICTS[lang]

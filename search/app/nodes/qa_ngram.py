@@ -1,4 +1,4 @@
-"""EXPERIMENT (2026-11-06), off unless a qa_lexical step has `offer_ngram`.
+"""Off unless a qa_lexical step has `offer_ngram`; migration 222 sets it.
 
 A third chip by CHARACTER n-grams. When qa_lexical has no confident answer, its
 offer (the "did you mean" list, or the fallback at a dead end) keeps its first

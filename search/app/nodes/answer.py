@@ -2643,7 +2643,7 @@ def answer(state: SearchState, params: dict | None = None) -> dict:
     if state.get("resolved"):
         return {}
 
-    # EXPERIMENT (2026-11-08), off by default: `skip_without_key`. Without a key the
+    # `skip_without_key` (off in code; migration 223 sets it). Without a key the
     # generation below always fails and the asker reads "llm_unavailable" — a fault —
     # for what is a permanent state of the installation (measured on a replayed
     # production log: a quarter of all questions). With it, the step ends as if no

@@ -136,7 +136,7 @@ in `tools/lab/regression` (method: `METHOD.md`, numbers: `LEDGER.md` there).
 | `form: [norm, lemma]` | matches the lemma only, not the stem | 219 |
 | `query_repair: ["typo"]` | a query word the dictionary of its language does not know (undecided query: the school's languages) becomes the one curated word within edit distance 1 | 220 |
 | `fetch_k: 200` | more candidate variants before the aggregation, so an entry's union is complete | 221 |
-| `offer_ngram` | the LAST offered question (offer or fallback) by character 3-5-grams, for derived and colloquial forms; confident answers and the chips beside an answer never change | 222, not applied |
+| `offer_ngram` | the LAST offered question (offer or fallback) by character 3-5-grams, for derived and colloquial forms; confident answers and the chips beside an answer never change | 222 |
 | `negation_conflict` (also on `qa_vector`) | no confident answer across opposite polarity ("nepřijde" × "přijde"); a negation is what the lemmatizer made one (eduai_normalize 3.4.0), compared on the entry's lemmas | 224 |
 | `rank_ties` | ties in the ranking settled by the question text instead of the row order, so a re-upload of the packs cannot move them | none |
 | `skip_without_key` (answer step) | without a key the generation is not tried; the question ends with the parked offer or `no_answer` instead of `llm_unavailable` | 223 |

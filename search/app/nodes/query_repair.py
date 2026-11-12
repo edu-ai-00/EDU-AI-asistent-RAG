@@ -1,4 +1,4 @@
-"""EXPERIMENT (2026-10-26), off unless a qa_lexical step has `query_repair`.
+"""Off unless a qa_lexical step has `query_repair`; migration 220 sets it.
 
 Repair of the QUERY before the curated-QA match, bound to the words the
 school's curated questions actually use (the vocabulary of the entries the asker

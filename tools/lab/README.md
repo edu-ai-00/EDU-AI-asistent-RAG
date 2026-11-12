@@ -7,6 +7,8 @@
 
 Operational context: [docs/OPERATIONS_LINUX.md](../../docs/OPERATIONS_LINUX.md) (the section on backup and restore).
 For the `edu_ai_final` layout (an isolated lab) with verification of its own stack see [`cycle/`](cycle/README.md); the scripts below remain unchanged.
+The search-quality lab tools in the subdirectories (`neutral_answers/`, `regression/`, `replay/`, `variants/`) are
+separate and listed in [tools/README.md](../README.md).
 
 ## 1. Files, origin and SHA-256
 

@@ -60,7 +60,9 @@ from .negation import is_negation, negated_lemmas  # noqa: F401
 #   over the dictionary (_negated_lemmas.py, `python -m eduai_normalize.negation_build`).
 #   The folded token alone cannot tell "někdy" (`nekdy`) or "nemoc" from a
 #   negation. Lemmas, stems and norms do not change: no re-ingest.
-__version__ = "3.4.0"
+# 3.4.1 (2026-11-12): diacritics restoration reads simplemma's shared
+#   dictionary instead of loading a second copy. No output changes.
+__version__ = "3.4.1"
 
 
 def build_forms(s: str, cfg: dict | None = None, lang: str | None = None) -> dict[str, list[str]]:
