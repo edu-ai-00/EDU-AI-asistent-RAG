@@ -62,8 +62,8 @@ for the run only.
 runs of the same configuration agree case for case and one run against the
 accepted baseline is exact; without it, candidates with an equal rank come back
 in an order the database chooses and the small sets move by up to ±2.4 points
-between identical runs. `--config '{"rank_ties": false}'` measures the deployed
-behaviour instead. The accepted baselines are made with it on.
+between identical runs. `--config '{"rank_ties": false}'` measures an installation
+without migration 225 instead. The accepted baselines are made with it on.
 
 **Packs split between chats.** When a school serves its packs through separate
 chats (for example one for the admission exams and one for school life), each

@@ -77,7 +77,7 @@ if [ "${1:-}" = "--regression" ]; then
       --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
       --with-sql $M/220_qa_lexical_query_repair.sql \
       --with-sql $M/221_qa_lexical_fetch_k.sql --with-sql $M/222_qa_lexical_offer_ngram.sql \
-      --with-sql $M/224_qa_negation_conflict.sql 2>&1 | grep -E '^(A|B|ALL) '
+      --with-sql $M/224_qa_negation_conflict.sql --with-sql $M/225_qa_lexical_rank_ties.sql 2>&1 | grep -E '^(A|B|ALL) '
     if python3 tools/lab/regression/compare.py --cases "$R/cases.json" --baseline "$R/accepted.json" \
          --now "$R/check_now.json" --show 5 --by-split; then ok "regression: no new confident wrong answer"
     else fail "regression: a case turned into a confident wrong answer (listed above)"; fi
@@ -88,7 +88,8 @@ if [ "${1:-}" = "--regression" ]; then
       tools/lab/regression/run.sh "$STATE/stem_vs_lemma/otazky_idx.json" "$R/$G.json" "$R/${G}_now.json" \
         --with-sql $M/218_coverage_stop_politeness.sql --with-sql $M/219_qa_form_lemma_only.sql \
         --with-sql $M/220_qa_lexical_query_repair.sql --with-sql $M/221_qa_lexical_fetch_k.sql \
-        --with-sql $M/222_qa_lexical_offer_ngram.sql --with-sql $M/224_qa_negation_conflict.sql 2>&1 | grep -E '^G '
+        --with-sql $M/222_qa_lexical_offer_ngram.sql --with-sql $M/224_qa_negation_conflict.sql \
+        --with-sql $M/225_qa_lexical_rank_ties.sql 2>&1 | grep -E '^G '
       if python3 tools/lab/regression/compare.py --cases "$R/$G.json" --baseline "$R/${G}_accepted.json" \
            --now "$R/${G}_now.json" --show 5 --by-split; then ok "gold set ($G): no new confident wrong answer"
       else fail "gold set ($G): a case turned into a confident wrong answer (listed above)"; fi

@@ -327,7 +327,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
     trgm_min = float(params.get("trgm_suggest_min", _TRGM_SUGGEST_MIN))
     use_synonyms = params.get("synonyms", True)
     form = resolve_form(params)
-    _rank_ties = bool(params.get("rank_ties"))  # EXPERIMENT, off by default (see the query)
+    _rank_ties = bool(params.get("rank_ties"))  # off in code; migration 225 switches it on (see the query)
     if params.get("query_repair"):              # off in code; migration 220 sets it (query_repair.py)
         from .query_repair import repair_state
         state = repair_state(state, params["query_repair"], state.get("pack_ids", []))
@@ -381,7 +381,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # pack_filter sits on the JOINED table and does not. Both the ts query
             # and the trgm fallback below carry it.
             entry_text = form_text_concat(form, "v")
-            # EXPERIMENT (2026-11-06), off by default: `rank_ties`. Without it a tie
+            # `rank_ties` (2026-11-06; off in code, migration 225 switches it on). Without it a tie
             # at the cut (variant fetch_k and fetch_k+1 with the SAME rank) is broken
             # by the physical row order, so which variants are pulled — and the
             # coverage of their union — can change after a re-upload of the packs.
