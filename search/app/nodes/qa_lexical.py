@@ -29,7 +29,7 @@ from .qa_common import (
     concept_idf_weights, weighted_coverage,
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
-    content_tokens, form_text_concat,
+    content_tokens, form_text_concat, negation_conflict, entry_lemma_tokens, polarity_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -288,13 +288,46 @@ def qa_lexical(state: SearchState, params: dict | None = None) -> dict:
     return out
 
 
+def _rank_key(kv, ties: bool = False):
+    """Order of the aggregated entries: tier, rank, coverage; with `ties`
+    (rank_ties) an exact tie is settled by the question text, then the id."""
+    eid, e = kv
+    key = (e["tier"], -round(e["rank"], 6), -e["cov"])
+    return key + ((e.get("canonical_q") or "", str(eid)) if ties else ())
+
+
+def _trgm_order(ties: bool) -> str:
+    """ORDER BY of the typo fallback; with `rank_ties` an exact tie of trigram
+    distance is settled by the question text, then the id (else the database picks)."""
+    return "v.norm_text <-> %s" + (", e.canonical_q, v.entry_id" if ties else "")
+
+
 def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict:
+    """The A/B/C decision, plus the n-gram chip when `offer_ngram` is set."""
+    out = _qa_lexical_ranked(state, params)
+    params = params or {}
+    if not params.get("offer_ngram"):           # off in code; migration 222 sets it (qa_ngram.py)
+        return out
+    from .qa_ngram import with_ngram_chip
+    try:
+        with get_cursor() as cur:
+            return with_ngram_chip(out, state, params, cur)
+    except Exception as e:
+        logger.warning("qa_lexical: n-gram chip failed (%s) — offer unchanged", e)
+        return out
+
+
+def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
     params = params or {}
     fetch_k = int(params.get("fetch_k", config.QA_LEXICAL_FETCH_K))
     suggest_top_n = int(params.get("suggest_top_n", config.QA_SUGGEST_TOP_N))
     trgm_min = float(params.get("trgm_suggest_min", _TRGM_SUGGEST_MIN))
     use_synonyms = params.get("synonyms", True)
     form = resolve_form(params)
+    _rank_ties = bool(params.get("rank_ties"))  # off in code; migration 225 sets it
+    if params.get("query_repair"):              # off in code; migration 220 sets it (query_repair.py)
+        from .query_repair import repair_state
+        state = repair_state(state, params["query_repair"], state.get("pack_ids", []))
 
     norm = state.get("query_norm_tokens", []) or []   # surface — used by trgm fallback
     query_tokens = form_query_tokens(state, form)     # tsquery recall over the chosen form(s)
@@ -345,6 +378,9 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
             # pack_filter sits on the JOINED table and does not. Both the ts query
             # and the trgm fallback below carry it.
             entry_text = form_text_concat(form, "v")
+            # rank_ties: WITH TIES pulls every variant tied with the last one, so the
+            # cut at fetch_k does not depend on the physical row order (re-uploads).
+            _limit = ("FETCH FIRST %s ROWS WITH TIES" if _rank_ties else "LIMIT %s")
             sql = f"""
                 SELECT v.entry_id, e.pack_id, e.canonical_q, {entry_text} AS entry_text,
                        ts_rank_cd({tsexpr}, to_tsquery('simple', %s)) AS rank,
@@ -353,7 +389,7 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                 JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
                 WHERE v.is_active AND {frag}{cand_cond} AND {tsexpr} @@ to_tsquery('simple', %s)
                 ORDER BY rank DESC
-                LIMIT %s
+                {_limit}
             """
             cur.execute(sql, [tsq, *pack_params, *cand_params, tsq, fetch_k])
             rows = cur.fetchall()
@@ -367,7 +403,7 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                     FROM {config.QA_VARIANTS_TABLE} v
                     JOIN {config.QA_ENTRIES_TABLE} e ON e.entry_id = v.entry_id
                     WHERE v.is_active AND {frag}{cand_cond}
-                    ORDER BY v.norm_text <-> %s
+                    ORDER BY {_trgm_order(_rank_ties)}
                     LIMIT %s
                 """
                 cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params,
@@ -438,9 +474,7 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
 
             for _v in agg.values():
                 _v["tier"] = _tier(_v)
-            ranked = sorted(agg.items(),
-                            key=lambda kv: (kv[1]["tier"],
-                                            -round(kv[1]["rank"], 6), -kv[1]["cov"]))
+            ranked = sorted(agg.items(), key=lambda kv: _rank_key(kv, _rank_ties))
             top_id, top = ranked[0]
             top_cov = top["cov"]
             r1 = top["rank"]
@@ -598,8 +632,25 @@ def _qa_lexical_decision(state: SearchState, params: dict | None = None) -> dict
                                                 "of": _before, "max_df_share": _adm_max_df}
 
             # ── A ──
-            if (top_cov >= t_answer and margin >= m_margin
-                    and _rare_hit is not False):
+            # negation_conflict (migration 224): opposite polarity withholds the
+            # answer, never the suggestion. Own cursor, fail closed: a failing
+            # check must not abort this transaction and the offer below.
+            _can_answer = (top_cov >= t_answer and margin >= m_margin
+                           and _rare_hit is not False)
+            _neg = []
+            if _can_answer and params.get("negation_conflict"):
+                try:
+                    with get_cursor() as _ncur:
+                        _neg = negation_conflict(polarity_tokens(state),
+                                                 entry_lemma_tokens(_ncur, top_id), lang)
+                except Exception as e:
+                    logger.warning("qa_lexical: negation check failed (%s) — no curated answer", e)
+                    _detail["negation_check"] = "failed"
+                    _can_answer = False
+            if _neg:
+                _detail["negation_conflict"] = _neg
+                logger.info("qa_lexical: negation conflict (%d word(s)) — no curated answer", len(_neg))
+            if _can_answer and not _neg:
                 _q, answer_md, _tags, _refs = fetch_answer(cur, top_id)
                 _rel_items = _qa_items(_related, suggest_top_n)
                 # Nothing cleared the bar → what a curator filed alongside this

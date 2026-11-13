@@ -153,6 +153,9 @@ def _related_suggestions(state: SearchState, params: dict,
     # so an A/B of one of them measured nothing at all (2026-09-04).
     lex_params = {**lex_params,
                   **{k: v for k, v in params.items() if k.startswith("related_")}}
+    # the n-gram chip is for an offer INSTEAD of an answer; beside an exact
+    # answer its best match is the question just answered (qa_ngram.py)
+    lex_params.pop("offer_ngram", None)
     top_n = int(params.get("suggest_top_n")
                 or lex_params.get("suggest_top_n") or config.QA_SUGGEST_TOP_N)
     try:

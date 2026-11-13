@@ -11,6 +11,7 @@ sources:
   - scripts/eduai_migrate/registry.py
   - scripts/eduai_migrate/manifest.py
   - scripts/eduai_migrate/commands.py
+  - scripts/bootstrap.py
   - postgres/baseline/B216.json
   - postgres/migrations/README.md
   - postgres/init_clean/01_schema.sql
@@ -19,6 +20,7 @@ sources:
   - tests/test_migrate_lint.py
   - tests/test_migrate_fingerprint.py
   - tests/test_migrate_runner.py
+  - tests/test_bootstrap_migrations.py
 last_verified: 2026-10-01
 ---
 
@@ -27,7 +29,9 @@ last_verified: 2026-10-01
 Scope: **isolated, synthetic databases only.** The owner approved D07–D10 for
 this scope on 2026-09-30. Production, school installations and the takeover of
 old installations (D11) are **not** covered, and no school upgrade is supported
-by this spec. Backups (B02) are deferred; the local dump below is a precondition
+by this spec. One extension, approved by the owner on 2026-11-12: the clean
+install (below) runs `init` and `apply` on a new database before it holds any
+school data. Backups (B02) are deferred; the local dump below is a precondition
 of a run, not a backup policy. This page is self-contained; it does not depend
 on planning notes outside the tracked tree.
 
@@ -38,6 +42,23 @@ Migrations before 217 are never run on it and never listed in the registry.
 Migrations from 217 on live in `postgres/migrations/` and are recorded one by
 one in `edu_ai.schema_migration`. The table is **not** part of B216: the runner
 creates it (`init`), so the baseline stays unchanged.
+
+**Clean install.** `scripts/bootstrap.py` step 4b, right after PostgreSQL is up and
+before the rest of the stack starts, reads whether the registry exists and how
+many rows the content tables (`fingerprint.CONTENT_TABLES`) hold:
+
+- rows > 0 (production, a school in use, a database after a data transfer):
+  nothing runs, the step reports `skip`; migrations from 217 on follow the
+  manual procedure in `docs/OPERATIONS_LINUX.md`;
+- no rows, no registry: `init`, then `apply` of the release manifest with the
+  highest number; no rows, registry present: `apply` only (a re-run applies
+  nothing more);
+- a refusal or failure of either stops bootstrap before the other services start.
+
+Every check of `init` and `apply` below applies unchanged, including the server
+and extension versions of the baseline: a new `Dockerfile.postgres` needs a
+regenerated `B216.json` (`gen-baseline`) and release manifests, or a clean
+install stops at step 4b.
 
 ## Fingerprints
 

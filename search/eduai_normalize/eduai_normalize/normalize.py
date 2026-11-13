@@ -17,8 +17,11 @@ langflow_flows/ingestion/*.json) (query↔index parity).
 
 from __future__ import annotations
 
+import itertools
 import re
+import threading
 import unicodedata
+from functools import lru_cache
 
 _ASCII = re.compile(r"[a-z0-9]+")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
@@ -107,7 +110,10 @@ def _dictionary_vote(words: list[str], allowed: tuple) -> str | None:
     scores: dict[str, int] = {}
     for lang in allowed:
         try:
-            scores[lang] = sum(1 for w in words if is_known(w, lang=lang))
+            # a word typed without diacritics counts for the language that
+            # can restore it ("zacina" is no word; "začíná" is Czech)
+            scores[lang] = sum(1 for w in words
+                               if is_known(w, lang=lang) or diacritic_candidates(w, lang))
         except Exception:
             return None
     if len(scores) < 2:
@@ -158,6 +164,67 @@ def detect_lang(text: str, allowed: tuple = ("cs", "en")) -> str | None:
 
 def strip_diacritics(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", s) if not unicodedata.combining(c))
+
+
+# ── diacritics restoration (words typed without háčky a čárky) ──────────────
+# Languages whose words typed without diacritics are restored before lemmatization
+# and counted by the dictionary vote (Czech only; a language is added with its letters).
+DIACRITICS_RESTORE: dict[str, dict[str, str]] = {
+    "cs": {"a": "á", "c": "č", "d": "ď", "e": "éě", "i": "í", "n": "ň", "o": "ó",
+           "r": "ř", "s": "š", "t": "ť", "u": "úů", "y": "ý", "z": "ž"},
+}
+# Spellings tried per word, at most ("zapocitavaji" needs 512); longer words stay as typed.
+_RESTORE_MAX_SPELLINGS = 10_000
+_DICTS: dict[str, object] = {}
+_DICTS_LOCK = threading.Lock()
+
+
+def _dictionary(lang: str):
+    """simplemma's form dictionary for `lang` (None when it cannot be read)."""
+    if lang not in _DICTS:
+        with _DICTS_LOCK:
+            if lang not in _DICTS:
+                try:
+                    # the factory lemmatize() reads through: one copy per process (~30 MB cs)
+                    from simplemma import lemmatizer as _lm
+                    from simplemma.strategies.dictionaries import DefaultDictionaryFactory
+                    factory = (getattr(_lm, "_legacy_dictionary_factory", None)
+                               or DefaultDictionaryFactory())
+                    _DICTS[lang] = factory.get_dictionary(lang)
+                except Exception:
+                    _DICTS[lang] = None
+    return _DICTS[lang]
+
+
+def warm_diacritics(langs=tuple(DIACRITICS_RESTORE)) -> None:
+    """Load the dictionaries now (a service start), not on the first query."""
+    for lang in langs:
+        if lang in DIACRITICS_RESTORE:
+            _dictionary(lang)
+
+
+@lru_cache(maxsize=100_000)
+def diacritic_candidates(word: str, lang: str) -> tuple[str, ...]:
+    """The dictionary forms with diacritics a plain-ASCII word may be, unless the
+    spelling is a word of its own: "zacina" -> (začíná,), "muze" -> (muže, může),
+    "rada" -> (). Spellings are generated and looked up (no ~90 MB reverse map)."""
+    letters = DIACRITICS_RESTORE.get(lang)
+    if not letters:
+        return ()
+    wl = word.lower()
+    if not (wl.isascii() and wl.isalpha()):
+        return ()
+    d = _dictionary(lang)
+    if d is None or wl in d:
+        return ()
+    opts = [(ch, *letters.get(ch, "")) for ch in wl]
+    n = 1
+    for o in opts:
+        n *= len(o)
+        if n > _RESTORE_MAX_SPELLINGS:
+            return ()
+    return tuple(sorted(w for w in map("".join, itertools.product(*opts))
+                        if w != wl and w in d))
 
 
 def tokenize(text: str) -> list[str]:
@@ -309,6 +376,21 @@ def drop(tokens, drop_sw: bool, stops: set) -> list[str]:
     if drop_sw:
         return [t for t in tokens if t and t not in stops]
     return [t for t in tokens if t]
+
+
+def content_words(text: str, cfg, lang: str) -> list[str]:
+    """The words of `text` whose surface form is not a stop-word, unreduced.
+
+    The lemma and stem branches judge stop-words here, before reduction, so a
+    stop-word whose reduced form is not on the list ("jsou" → `jso`) no longer
+    leaks; drop() after reduction stays.
+    """
+    lc, strip, drop_sw = surface_cfg(cfg)
+    words = tokenize(text)
+    if not drop_sw:
+        return words
+    stops = stopwords_of(cfg, lang)
+    return [w for w in words if fold(w, lc, strip) not in stops]
 
 
 def normalize_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> list[str]:

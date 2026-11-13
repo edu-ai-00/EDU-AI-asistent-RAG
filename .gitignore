@@ -25,6 +25,8 @@ bifrost_data
 
 # Database files
 postgres_data/
+# pre-apply dumps of the migration runner (bootstrap step 4b, without an external state dir)
+db_migration_dumps/
 weaviate_data/
 *.db
 *.db-shm

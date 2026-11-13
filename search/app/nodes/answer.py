@@ -13,7 +13,7 @@ import re
 import unicodedata
 from urllib.parse import unquote
 
-from ..llm import get_chat
+from ..llm import get_chat, chat_configured
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import SearchState
@@ -2642,6 +2642,13 @@ def answer(state: SearchState, params: dict | None = None) -> dict:
     params = params or {}
     if state.get("resolved"):
         return {}
+
+    # skip_without_key (migration 223): without a chat key the generation would
+    # always fail as llm_unavailable; end as if no passage was found instead
+    # (parked offer, else no_answer). generate_variants needs the model too.
+    if params.get("skip_without_key") and not chat_configured():
+        logger.info("answer: no chat model configured → deferred suggest / no_answer")
+        return resolve_unanswered(state)
 
     prep = prepare_generation(state, params)
     if prep is None:
