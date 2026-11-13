@@ -511,8 +511,10 @@ def verify(container: str, user: str, m: dict, old_role: str = "") -> list[str]:
     tables = {r[0] for r in inv if r[1] in ("r", "p")}
     views = {r[0] for r in inv if r[1] == "v"}
     seqs = {r[0] for r in inv if r[1] == "S"}
-    if tables != set(e["table_dml"]):
-        bad.append(f"table inventory differs from the matrix: {sorted(tables ^ set(e['table_dml']))}")
+    # optional: the migration registry exists only where migrate.py init ran (a clean install)
+    required = tables - set(e.get("optional_tables", []))
+    if required != set(e["table_dml"]):
+        bad.append(f"table inventory differs from the matrix: {sorted(required ^ set(e['table_dml']))}")
     if views != set(e["views"]):
         bad.append("view inventory differs from the matrix")
     if seqs != set(m["baseline"]["edu_ai"]["sequences"]):

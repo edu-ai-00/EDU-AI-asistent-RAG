@@ -13,7 +13,7 @@ import re
 import unicodedata
 from urllib.parse import unquote
 
-from ..llm import get_chat
+from ..llm import get_chat, chat_configured
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import SearchState
@@ -2642,6 +2642,16 @@ def answer(state: SearchState, params: dict | None = None) -> dict:
     params = params or {}
     if state.get("resolved"):
         return {}
+
+    # `skip_without_key` (off in code; migration 223 sets it). Without a key the
+    # generation below always fails and the asker reads "llm_unavailable" — a fault —
+    # for what is a permanent state of the installation (measured on a replayed
+    # production log: a quarter of all questions). With it, the step ends as if no
+    # passage had been found: the parked offer, else the honest no_answer with the
+    # fallback questions. generate_variants is skipped too: it needs the same model.
+    if params.get("skip_without_key") and not chat_configured():
+        logger.info("answer: no chat model configured → deferred suggest / no_answer")
+        return resolve_unanswered(state)
 
     prep = prepare_generation(state, params)
     if prep is None:

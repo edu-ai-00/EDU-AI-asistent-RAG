@@ -294,6 +294,7 @@ def _registry_present(target: pg.Target) -> bool:
 
 def cmd_init(args, layout: Layout, target: pg.Target) -> int:
     base = manifest.load_baseline(layout)
+    contract = registry.contract_sql(layout.root)      # read before anything is locked or written
     problems = manifest.verify_init_clean(layout, base)
     f = facts(target)
     if not f["schema"]:
@@ -321,7 +322,7 @@ def cmd_init(args, layout: Layout, target: pg.Target) -> int:
             problems.append("configuration fingerprint differs from baseline B216")
         if problems:
             return _refuse("init refused", problems)
-        return _init_transaction(sess, target, base, sfp, cfp)
+        return _init_transaction(sess, target, base, sfp, cfp, contract)
     except pg.PgError as e:  # COMMIT and what follows it are handled inside _init_transaction
         say(f"init failed before COMMIT: {(getattr(e, 'output', '') or str(e)).strip()}")
         try:
@@ -336,9 +337,12 @@ def cmd_init(args, layout: Layout, target: pg.Target) -> int:
         sess.close()
 
 
-def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str, cfp: str) -> int:
+def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str, cfp: str,
+                      contract: list[str] = ()) -> int:
     sess.run("BEGIN;\nSET LOCAL lock_timeout = '5s';")
     sess.run(registry.DDL)
+    for stmt in contract:
+        sess.run(stmt)
     _fault("init:after_ddl", sess)
     drift = registry.drift([l for l in sess.run(registry.DESCRIBE_SQL).splitlines() if l])
     if drift:

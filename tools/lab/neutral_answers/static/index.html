@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neutrální odpovědi</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div>
+      <h1>Neutrální odpovědi</h1>
+      <div class="src" id="src">Načítám…</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="bulk" title="Schválí čekající položky, které mají jen automatické změny a žádné upozornění">Schválit všechny automatické</button>
+    <a class="btn" href="/export/review.csv">⇩ Přehled (CSV)</a>
+    <a class="btn" id="queuebtn" href="/queue.html" hidden>Dotazy z provozu</a>
+    <a class="btn primary" id="packbtn" href="/export/pack.csv">⇩ QA sada (CSV)</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="stats" id="stats"></section>
+  <section class="tools">
+    <input type="search" id="q" placeholder="Hledat v otázkách a odpovědích…" aria-label="Hledat">
+    <select id="rule" aria-label="Pravidlo"><option value="">Všechna pravidla</option></select>
+    <label style="font-size:14px;color:var(--muted);display:flex;gap:6px;align-items:center">
+      <input type="checkbox" id="allMachine"> rozbalit strojový pohled</label>
+    <span class="count" id="count"></span>
+  </section>
+  <details class="legend"><summary>Co jednotlivá pravidla dělají</summary>
+    <div class="legend-grid" id="legend"></div>
+    <div class="legend-grid">
+      <div><span class="tag auto">auto</span> mechanická oprava, bezpečná jako návrh</div>
+      <div><span class="tag check">zkontrolovat</span> návrh, u kterého je potřeba ověřit shodu a smysl</div>
+      <div><span class="tag flag">upozornění</span> problém, který pravidla vidí, ale neopraví</div>
+    </div>
+  </details>
+  <section class="table" id="table" aria-live="polite"></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { data: null, filter: "all", q: "", rule: "", open: new Set(), editing: null, allMachine: false, expanded: new Set() };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1600); }
+
+// word-level diff (LCS over words + whitespace runs)
+function diff(a, b) {
+  const A = a.split(/(\s+)/).filter((x) => x !== ""), B = b.split(/(\s+)/).filter((x) => x !== "");
+  const n = A.length, m = B.length, L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  const push = (t, s) => { const last = out[out.length - 1]; if (last && last.t === t) last.s += s; else out.push({ t, s }); };
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { push("eq", A[i]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) push("del", A[i++]); else push("ins", B[j++]);
+  }
+  while (i < n) push("del", A[i++]); while (j < m) push("ins", B[j++]);
+  return out;
+}
+const renderDiff = (a, b) => diff(a, b).map((p) => p.t === "eq" ? esc(p.s) : `<${p.t}>${esc(p.s)}</${p.t}>`).join("");
+
+function finalOf(it) {
+  const d = it.decision;
+  if (d.status === "rejected") return it.answer;
+  return (!d.stale && d.final) || it.proposed;
+}
+// not decided yet: waiting, or set aside "ke kontrole" by the curator
+const undecided = (it) => it.decision.status === "pending" || it.decision.status === "check";
+// automatic checks before the export: what was approved without a look at its weak spots
+function allWarnsOf(it) {
+  const d = it.decision, out = [];
+  if (d.status === "approved" && !d.final && it.changes.some((c) => c.kind === "check"))
+    out.push("Schváleno beze změny, i když návrh měl místa ke kontrole (tvar slova, rod) — zkontrolujte text.");
+  if (d.status === "approved" && it.flags.length)
+    out.push("Schváleno, i když nástroj hlásil problém (viz výše).");
+  const fin = finalOf(it);
+  if (d.status === "approved" && fin.length < 40) out.push("Velmi krátká odpověď.");
+  return out;
+}
+// accepted by the curator ("Schválit i tak") until they change
+const warnsOf = (it) => allWarnsOf(it).filter((n) => !(it.decision.warn_ok || []).includes(n));
+const hasCheck = (it) => it.changes.some((c) => c.kind === "check") || it.flags.length > 0;
+const changed = (it) => it.proposed !== it.answer || it.flags.length > 0;
+const machWarn = (it) => it.machine ? [...(it.machine.questions || []), it.machine.proposed].filter(Boolean).reduce((n, x) => n + (x.warnings || []).length, 0) : 0;
+
+const FILTERS = [
+  ["all", "Všechny položky", () => true, ""],
+  // what still waits for a person: a decided answer leaves this view like "Čeká"
+  ["pending", "Čeká na rozhodnutí", (it) => undecided(it) && changed(it), ""],
+  ["approved", "Schváleno", (it) => it.decision.status === "approved", "s-ok"],
+  ["rejected", "Zamítnuto", (it) => it.decision.status === "rejected", "s-bad"],
+  ["warn", "Upozornění", (it) => warnsOf(it).length > 0, "s-warn"],
+];
+
+function renderStats() {
+  const items = S.data.items, total = items.length || 1;
+  // the pack holds EVERY answer; only an approved one carries the new wording
+  const wait = items.filter((it) => it.proposed !== it.answer && undecided(it)).length;
+  const pb = $("#packbtn");
+  pb.textContent = wait ? `⇩ QA sada (CSV) · ${wait} čeká` : "⇩ QA sada (CSV)";
+  pb.title = "Celá sada ve formátu QA sady pro nahrání do aplikace. Nové znění mají jen schválené odpovědi, ostatní zůstávají v původním znění."
+    + (wait ? ` ${wait} navržených změn ještě nikdo neprošel, ty půjdou v původním znění.` : "");
+  $("#stats").innerHTML = FILTERS.map(([k, label, fn, cls]) => {
+    const n = items.filter(fn).length;
+    return `<button class="stat ${cls} ${S.filter === k ? "on" : ""}" data-f="${k}">
+      <div class="n">${n}</div><div class="l">${label}</div>
+      <div class="bar"><i style="width:${Math.round((n / total) * 100)}%"></i></div></button>`;
+  }).join("");
+}
+
+function tags(it) {
+  const R = S.data.rules, seen = new Map();
+  for (const c of it.changes) {
+    const key = c.rule + "|" + c.kind, e = seen.get(key) || { rule: c.rule, kind: c.kind, notes: [] };
+    const what = c.before || c.after ? `„${c.before}“ → „${c.after}“` : "";
+    e.notes.push([what, c.note].filter(Boolean).join(" — ")); seen.set(key, e);
+  }
+  let html = [...seen.values()].map((e) => `<span class="tag ${e.kind}" title="${esc(e.notes.join("\n"))}">${esc(R[e.rule]?.title || e.rule)}${e.notes.length > 1 ? " ×" + e.notes.length : ""}</span>`).join("");
+  html += it.flags.map((f) => `<span class="tag flag" title="${esc(f.note)}">⚠ ${esc(R[f.rule]?.title || f.rule)}</span>`).join("");
+  const mw = machWarn(it);
+  if (mw) html += `<span class="tag mach" title="Varování strojového pohledu — rozbalte ho">⚙ strojově ${mw}</span>`;
+  return html || `<span class="same">bez nálezu</span>`;
+}
+
+function tokRow(forms, key) {
+  if (!forms) return "";
+  return (forms[key] || []).map((t) => `<span class="tok">${esc(t)}</span>`).join("") +
+    (key === "norm" ? (forms.dropped || []).map((t) => `<span class="tok drop" title="stop-slovo, ve vyhledávání se nepoužije">${esc(t)}</span>`).join("") : "");
+}
+
+function machineHtml(it) {
+  const m = it.machine;
+  if (!m) return `<div class="machine row-extra"><span class="warn">Strojový pohled není k dispozici — server běží bez knihovny eduai_normalize (spusťte ho přes run.sh).</span></div>`;
+  const rows = [...m.questions.map((q, i) => ({ who: i === 0 ? "Otázka" : `Alternativa ${i}`, text: q.text, f: q })),
+    { who: "Odpověď (navržená)", text: it.proposed, f: m.proposed }];
+  return `<div class="machine"><h4>Strojový pohled — co si z textu vezme vyhledávání</h4>
+    <table class="mtable"><thead><tr><th>Text</th><th>Původní slova (norm)</th><th>Lemma</th><th>Kmen (stem)</th><th>Varování</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td><b>${esc(r.who)}</b><br>${esc(r.text)}</td><td>${tokRow(r.f, "norm")}</td><td>${tokRow(r.f, "lemma")}</td><td>${tokRow(r.f, "stem")}</td>
+      <td>${(r.f?.warnings || []).map((w) => `<div class="warn">⚠ ${esc(w.note)}</div>`).join("") || '<span class="same">—</span>'}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+// an approved answer is one line (question, approved text, ✓) until it is opened
+function compactHtml(it) {
+  const fin = finalOf(it), w = warnsOf(it).length;
+  return `<div class="row compact st-approved" id="r-${it.id}" data-act="expand" data-id="${it.id}" title="Kliknutím rozbalit">
+    <div class="id">${esc(it.id)}</div>
+    <div class="q-main">${esc(it.canonical_q)}</div>
+    <div class="ctext" title="Schválené znění">✓ ${esc(fin)}</div>
+    <div class="cstate">${w ? `<span class="pill stale" title="Má upozornění">⚠ ${w}</span> ` : ""}<span class="pill approved">schváleno</span>
+      <button class="linkish" data-act="expand" data-id="${it.id}">▸ rozbalit</button></div></div>`;
+}
+
+function rowHtml(it) {
+  const d = it.decision, fin = finalOf(it), editing = S.editing === it.id;
+  if (d.status === "approved" && !d.stale && !editing && !S.expanded.has(it.id)) return compactHtml(it);
+  const pill = d.readdressed ? `<span class="pill stale" title="Schváleno pro jiné oslovení — navržené znění je teď jiné, schvalte ho znovu">jiné oslovení</span>`
+    : d.stale ? `<span class="pill stale" title="Zdrojová odpověď se od rozhodnutí změnila">změněno ve zdroji</span>`
+    : `<span class="pill ${d.status === "check" ? "stale" : d.status}">${{ pending: "čeká", approved: "schváleno", rejected: "zamítnuto", check: "ke kontrole" }[d.status]}</span>`;
+  const alts = it.alternatives.length ? `<ul class="q-alts">${it.alternatives.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : "";
+  const finalCell = editing
+    ? `<textarea id="ed-${it.id}">${esc(fin)}</textarea>
+       <div class="actions"><button class="btn sm primary" data-act="save" data-id="${it.id}">Uložit a schválit</button>
+       <button class="btn sm" data-act="cancel" data-id="${it.id}">Zrušit</button></div>`
+    : (fin === it.answer ? `<div class="final">${esc(fin)}</div><div class="same">${d.status === "rejected" ? "zůstává původní znění" : "beze změny"}</div>`
+      : `<div class="final">${renderDiff(it.answer, fin)}</div>${d.final && !d.stale ? '<div class="edited">✎ upraveno ručně</div>' : ""}`)
+      + (it.flags.length ? `<div class="flags">${it.flags.map((f) => `<div>⚠ ${esc(f.note)}</div>`).join("")}</div>` : "")
+      + (warnsOf(it).length ? `<div class="flags">${warnsOf(it).map((n) => `<div>⚠ ${esc(n)}</div>`).join("")}
+          <div style="background:none;padding:0"><button class="btn sm ok" data-act="warn-ok" data-id="${it.id}">✓ Schválit i tak</button></div></div>`
+        : allWarnsOf(it).length ? `<div class="edited">✓ upozornění schváleno <button class="btn sm" data-act="warn-undo" data-id="${it.id}" title="Zrušit schválení upozornění">↺</button></div>` : "");
+  const open = S.allMachine || S.open.has(it.id);
+  return `<div class="row st-${d.stale ? "pending" : d.status}" id="r-${it.id}">
+    <div class="id" data-label="#">${esc(it.id)}</div>
+    <div data-label="Otázky, které k odpovědi vedou"><div class="q-main">${esc(it.canonical_q)}</div>${alts}
+      <button class="linkish" data-act="mach" data-id="${it.id}">${open ? "▾" : "▸"} strojový pohled</button></div>
+    <div data-label="Původní odpověď"><div class="orig">${esc(it.answer)}</div></div>
+    <div data-label="Navržená odpověď">${finalCell}</div>
+    <div data-label="Pravidla">${tags(it)}</div>
+    <div data-label="Stav">${pill}
+      <div class="actions">
+        <button class="btn sm ok ${d.status === "approved" && !d.stale ? "on" : ""}" data-act="approve" data-id="${it.id}" title="Schválit navržené znění">✓</button>
+        <button class="btn sm bad ${d.status === "rejected" && !d.stale ? "on" : ""}" data-act="reject" data-id="${it.id}" title="Zamítnout — zůstane původní znění">✕</button>
+        <button class="btn sm" data-act="edit" data-id="${it.id}" title="Upravit text ručně">✎</button>
+        ${d.status !== "pending" || d.final ? `<button class="btn sm" data-act="reset" data-id="${it.id}" title="Vrátit do stavu čeká">↺</button>` : ""}
+        ${d.status === "approved" && S.expanded.has(it.id) ? `<button class="linkish" data-act="collapse" data-id="${it.id}">▾ sbalit</button>` : ""}
+      </div></div>
+    ${open ? machineHtml(it) : ""}
+  </div>`;
+}
+
+function visible() {
+  const fn = FILTERS.find((f) => f[0] === S.filter)[2], q = S.q.toLowerCase();
+  return S.data.items.filter((it) => fn(it)
+    && (!S.rule || it.changes.some((c) => c.rule === S.rule) || it.flags.some((f) => f.rule === S.rule))
+    && (!q || [it.canonical_q, it.answer, it.proposed, ...it.alternatives].join(" ").toLowerCase().includes(q)));
+}
+
+function render() {
+  renderStats();
+  const rows = visible();
+  $("#count").textContent = `Zobrazeno ${rows.length} z ${S.data.items.length}`;
+  $("#table").innerHTML = `<div class="row head"><div>#</div><div>Otázky, které k odpovědi vedou</div><div>Původní odpověď</div><div>Navržená odpověď</div><div>Pravidla</div><div>Stav</div></div>`
+    + (rows.length ? rows.map(rowHtml).join("") : `<div class="empty">Žádná položka neodpovídá filtru.</div>`);
+}
+
+async function decide(id, status, final) {
+  const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id, status, final: final ?? null }) });
+  if (!res.ok) { toast("Uložení selhalo"); return; }
+  const it = S.data.items.find((x) => x.id === id); it.decision = await res.json();
+  S.editing = null; render();
+  toast({ approved: "Schváleno", rejected: "Zamítnuto", pending: "Vráceno", check: "Přesunuto do Ke kontrole" }[status]);
+}
+
+document.addEventListener("click", async (e) => {
+  const st = e.target.closest(".stat"); if (st) { S.filter = st.dataset.f; render(); return; }
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const id = b.dataset.id, it = S.data.items.find((x) => x.id === id), d = it.decision;
+  switch (b.dataset.act) {
+    case "approve": return decide(id, "approved", d.stale ? null : d.final);
+    case "reject": return decide(id, "rejected", null);
+    case "expand": S.expanded.add(id); render(); return;
+    case "collapse": S.expanded.delete(id); render(); return;
+    case "warn-ok": case "warn-undo": {
+      const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, status: d.status, final: d.final || null, note: d.note || "",
+          warn_ok: b.dataset.act === "warn-ok" ? allWarnsOf(it) : [] }) });
+      if (!res.ok) { toast("Uložení selhalo"); return; }
+      it.decision = await res.json(); render(); toast(b.dataset.act === "warn-ok" ? "Upozornění schváleno" : "Schválení upozornění zrušeno"); return;
+    }
+    case "reset": return decide(id, "pending", null);
+    case "edit": S.editing = id; render(); document.getElementById("ed-" + id)?.focus(); return;
+    case "cancel": S.editing = null; render(); return;
+    case "save": {
+      const txt = document.getElementById("ed-" + id).value.trim();
+      return decide(id, "approved", txt && txt !== it.proposed ? txt : null);
+    }
+    case "mach": S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); return;
+  }
+});
+
+$("#bulk").addEventListener("click", async () => {
+  const todo = S.data.items.filter((it) => it.decision.status === "pending" && it.proposed !== it.answer && !hasCheck(it));
+  if (!todo.length) { toast("Žádná čekající položka jen s automatickými změnami"); return; }
+  if (!confirm(`Schválit ${todo.length} položek, které mají jen automatické změny a žádné upozornění?`)) return;
+  for (const it of todo) {
+    const res = await fetch("/api/decision", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: it.id, status: "approved", final: null }) });
+    if (res.ok) it.decision = await res.json();
+  }
+  render(); toast(`Schváleno ${todo.length}`);
+});
+$("#q").addEventListener("input", (e) => { S.q = e.target.value; render(); });
+$("#rule").addEventListener("change", (e) => { S.rule = e.target.value; render(); });
+$("#allMachine").addEventListener("change", (e) => { S.allMachine = e.target.checked; render(); });
+
+(async () => {
+  const res = await fetch("/api/items"); S.data = await res.json();
+  const m = S.data.meta;
+  if (m.queue != null) { const qb = $("#queuebtn"); qb.hidden = false; qb.textContent = `Dotazy z provozu (${m.queue})`; }
+  $("#src").textContent = `${m.source} · ${m.count} odpovědí · neutrální podmět „${m.subject}“ · oslovení: ${m.address} · strojový pohled ${m.machine ? "zapnutý" : "nedostupný"}`;
+  $("#legend").innerHTML = Object.values(S.data.rules).map((r) => `<div><b>${esc(r.title)}</b> — ${esc(r.description)}</div>`).join("");
+  $("#rule").innerHTML += Object.entries(S.data.rules).map(([k, r]) => `<option value="${k}">${esc(r.title)}</option>`).join("");
+  render();
+})();
+</script>
+</body>
+</html>

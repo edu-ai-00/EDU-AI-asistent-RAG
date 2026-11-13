@@ -18,7 +18,8 @@ from ..db import get_cursor
 from .. import config
 from .. import scope
 from .qa_common import (pack_filter, domain_filter, sources_json,
-                        finalize_chips, resolve_form)
+                        finalize_chips, resolve_form, negation_conflict,
+                        entry_lemma_tokens, polarity_tokens)
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,32 @@ def qa_vector(state: SearchState, params: dict | None = None) -> dict:
                 sim, cosine_min, entry_id)
     if sim < cosine_min:
         return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec}
+
+    # An embedding hardly tells "přijde" from "nepřijde" — the two questions sit
+    # next to each other in vector space, so the cosine bar cannot catch what
+    # qa_lexical's polarity check does. Same check, same verdict: no curated
+    # answer, the cascade continues to the generated one, which reads the text.
+    # Off unless the step has `negation_conflict` (migration 224).
+    try:
+        if params.get("negation_conflict"):
+            with get_cursor() as cur:
+                _neg = negation_conflict(polarity_tokens(state),
+                                         entry_lemma_tokens(cur, entry_id),
+                                         state.get("query_language"))
+        else:
+            _neg = []
+    except Exception as e:
+        # Fail closed, like the guard in route.py: an answer whose polarity
+        # could not be checked is not given as a curated one.
+        logger.warning("qa_vector: negation check failed (%s) — no curated answer", e)
+        _neg = None
+    if _neg is None:
+        return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,
+                "trace_detail": {"negation_check": "failed"}}
+    if _neg:
+        logger.info("qa_vector: negation conflict (%d word(s)) — no curated answer", len(_neg))
+        return {"resolved": False, "match_score": round(sim, 4), "query_vec": vec,
+                "trace_detail": {"negation_conflict": _neg}}
 
     # Related questions next to the answer: qa_vector fetches only the single
     # nearest entry, so it has no ranking of its own to offer — but qa_lexical ran

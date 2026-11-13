@@ -17,8 +17,11 @@ langflow_flows/ingestion/*.json) (query↔index parity).
 
 from __future__ import annotations
 
+import itertools
 import re
+import threading
 import unicodedata
+from functools import lru_cache
 
 _ASCII = re.compile(r"[a-z0-9]+")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
@@ -107,7 +110,10 @@ def _dictionary_vote(words: list[str], allowed: tuple) -> str | None:
     scores: dict[str, int] = {}
     for lang in allowed:
         try:
-            scores[lang] = sum(1 for w in words if is_known(w, lang=lang))
+            # a word typed without diacritics counts for the language that
+            # can restore it ("zacina" is no word; "začíná" is Czech)
+            scores[lang] = sum(1 for w in words
+                               if is_known(w, lang=lang) or diacritic_candidates(w, lang))
         except Exception:
             return None
     if len(scores) < 2:
@@ -158,6 +164,82 @@ def detect_lang(text: str, allowed: tuple = ("cs", "en")) -> str | None:
 
 def strip_diacritics(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", s) if not unicodedata.combining(c))
+
+
+# ── diacritics restoration (words typed without háčky a čárky) ──────────────
+# Languages whose words typed WITHOUT diacritics are restored before
+# lemmatization and counted by the dictionary vote. Czech only: measured
+# 2026-10-21 with tools/lab/variants, Czech typed without diacritics went
+# unrecognised in 45 of 110 JPZ questions (the query was then reduced in all
+# four languages: "co se deje pred…" -> `dejar`, `testu`) and the dictionary
+# knew 34 % of its words. A language is added with its letters below, once it
+# is measured to need it.
+DIACRITICS_RESTORE: dict[str, dict[str, str]] = {
+    "cs": {"a": "á", "c": "č", "d": "ď", "e": "éě", "i": "í", "n": "ň", "o": "ó",
+           "r": "ř", "s": "š", "t": "ť", "u": "úů", "y": "ý", "z": "ž"},
+}
+# Spellings tried per word, at most. Measured: the longest JPZ word needs 512
+# ("zapocitavaji", 0.7 ms); "nejpravdepodobnejsi" needs 27 648 (30 ms) and is
+# skipped — a word that long is rare and then stays as typed.
+_RESTORE_MAX_SPELLINGS = 10_000
+_DICTS: dict[str, object] = {}
+_DICTS_LOCK = threading.Lock()
+
+
+def _dictionary(lang: str):
+    """simplemma's form dictionary for `lang` (None when it cannot be read)."""
+    if lang not in _DICTS:
+        with _DICTS_LOCK:
+            if lang not in _DICTS:
+                try:
+                    # The factory lemmatize() and is_known() read through, so the
+                    # dictionary is held once per process (a new factory loads a
+                    # second copy, ~30 MB for Czech). simplemma is pinned.
+                    from simplemma import lemmatizer as _lm
+                    from simplemma.strategies.dictionaries import DefaultDictionaryFactory
+                    factory = (getattr(_lm, "_legacy_dictionary_factory", None)
+                               or DefaultDictionaryFactory())
+                    _DICTS[lang] = factory.get_dictionary(lang)
+                except Exception:
+                    _DICTS[lang] = None
+    return _DICTS[lang]
+
+
+def warm_diacritics(langs=tuple(DIACRITICS_RESTORE)) -> None:
+    """Load the dictionaries now (a service start), not on the first query."""
+    for lang in langs:
+        if lang in DIACRITICS_RESTORE:
+            _dictionary(lang)
+
+
+@lru_cache(maxsize=100_000)
+def diacritic_candidates(word: str, lang: str) -> tuple[str, ...]:
+    """The dictionary forms WITH diacritics a word typed without them may be.
+
+    Empty unless the language restores, the word is plain ASCII letters, and
+    its spelling is not a dictionary form of its own: "zacina" -> (začíná,),
+    "muze" -> (muže, může), "rada" -> () (a word, next to "ráda"), "jpz" -> ()
+    (unknown). The spellings are generated and looked up, not indexed: a
+    reverse map of the Czech dictionary costs ~90 MB per process, this costs
+    nothing and gives the same answer.
+    """
+    letters = DIACRITICS_RESTORE.get(lang)
+    if not letters:
+        return ()
+    wl = word.lower()
+    if not (wl.isascii() and wl.isalpha()):
+        return ()
+    d = _dictionary(lang)
+    if d is None or wl in d:
+        return ()
+    opts = [(ch, *letters.get(ch, "")) for ch in wl]
+    n = 1
+    for o in opts:
+        n *= len(o)
+        if n > _RESTORE_MAX_SPELLINGS:
+            return ()
+    return tuple(sorted(w for w in map("".join, itertools.product(*opts))
+                        if w != wl and w in d))
 
 
 def tokenize(text: str) -> list[str]:
@@ -309,6 +391,27 @@ def drop(tokens, drop_sw: bool, stops: set) -> list[str]:
     if drop_sw:
         return [t for t in tokens if t and t not in stops]
     return [t for t in tokens if t]
+
+
+def content_words(text: str, cfg, lang: str) -> list[str]:
+    """The words of `text` whose SURFACE form is not a stop-word, unreduced.
+
+    The lemma and stem branches judge a stop-word here, BEFORE reduction, and
+    then drop() their reduced tokens as before. Judged only after reduction, a
+    stop-word whose stem or lemma is not itself on the list went through: 44 of
+    the 155 Czech index stop-words (jsou → `jso`, budou → `bud`, mezi → `meh`,
+    18 % of the JPZ phrasings), some colliding with content words — "během" →
+    `beh` as "běh", "této" → lemma `teta`. Matching the list's reduced forms
+    instead (migration 211's term_stem) would drop "běh" with "během"; the
+    surface form tells them apart. drop() after reduction stays, so nothing
+    that was dropped before is kept now.
+    """
+    lc, strip, drop_sw = surface_cfg(cfg)
+    words = tokenize(text)
+    if not drop_sw:
+        return words
+    stops = stopwords_of(cfg, lang)
+    return [w for w in words if fold(w, lc, strip) not in stops]
 
 
 def normalize_tokens(text: str, cfg: dict | None = None, lang: str | None = None) -> list[str]:

@@ -1,0 +1,67 @@
+{
+  "baseline": "B216",
+  "baseline_schema_fingerprint": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+  "fingerprint_algorithm": "edu-ai-fp-v1",
+  "format": 1,
+  "generated_by": "scripts/migrate.py v1",
+  "migrations": [
+    {
+      "id": "217_synonyms_meeting_groups",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "98cea91e61c60d19359aa8404f45bdf464f80e62df9268b7029b17bb581c9d22"
+    },
+    {
+      "id": "218_coverage_stop_politeness",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "a190afedfcee3e2a5702a362ab547c3a42a883dd5448e728c219438195a7551b"
+    },
+    {
+      "id": "219_qa_form_lemma_only",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "ef93c0f5f78c4339318bfcd2f84896ab4a66bc909fb011fa2e37197922321e14"
+    },
+    {
+      "id": "220_qa_lexical_query_repair",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "720264fd5483544b71521444b9cf34c87b930774f7dc6dcd0f8e8942ad67e2d6"
+    },
+    {
+      "id": "221_qa_lexical_fetch_k",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "402fb98d06430426f5d4dfcc46e1194ab9e91a741f33307c0e642c6dd3bb001e"
+    },
+    {
+      "id": "222_qa_lexical_offer_ngram",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "791ecaeb1cc51cb62826bc68787c33e0a084da569c9bf4a8983d6f026fbb7e23"
+    },
+    {
+      "id": "223_answer_skip_without_key",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "d7ecfb70f209581e4681ff8d2a3d4146de0ca8eeef44626eba4519d82c82f8e3"
+    },
+    {
+      "id": "224_qa_negation_conflict",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "29fa0d48ec335e01261a9666bec084b4312932c69102900b735cbc9e40af5bf9"
+    },
+    {
+      "id": "225_qa_lexical_rank_ties",
+      "schema_after": "e81419a38bda185612635968de1ce6eb114c7a34cb0783a3714df624a4472814",
+      "sha256": "a1feb645d866652ab1a6861ef929691f3cbcdce1687eb2de02250ed7c756f1da"
+    }
+  ],
+  "postgres": {
+    "base_image": "pgvector/pgvector:0.8.7-pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
+    "extensions": {
+      "pg_search": "0.26.3",
+      "pg_trgm": "1.6",
+      "plpgsql": "1.0",
+      "unaccent": "1.1",
+      "vector": "0.8.7"
+    },
+    "pg_dump_version": "18.6",
+    "server_version": "18.6"
+  },
+  "release": "R225"
+}

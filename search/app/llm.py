@@ -19,6 +19,14 @@ from . import config
 _DEFAULT_TEMPERATURE = 0.1
 
 
+def chat_configured() -> bool:
+    """False when OPENAI_API_KEY is absent or still the .env placeholder (CHANGE_ME…),
+    the same rule the installer uses (scripts/envfile.is_placeholder). Every call to
+    the chat model then fails, so a step may skip it instead of reporting a fault."""
+    key = (config.OPENAI_API_KEY or "").strip()
+    return bool(key) and not key.startswith("CHANGE_ME")
+
+
 @lru_cache(maxsize=8)
 def get_embedder(model: str) -> OpenAIEmbeddings:
     return OpenAIEmbeddings(model=model, api_key=config.OPENAI_API_KEY)

@@ -8,9 +8,11 @@ the union of {norm, lemma, synonym} tokens matches against either surface.
 
 import json
 import logging
+from collections import Counter
 
 from .. import config
 from .. import scope
+from ..text_norm import NEGATION_PREFIX, is_negation
 
 logger = logging.getLogger(__name__)
 
@@ -504,6 +506,76 @@ def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> li
     if items and all(i.get("score") is not None for i in items):
         items.sort(key=lambda i: -float(i["score"]))
     return items[:top_n]
+
+
+def negation_conflict(query_lemmas, entry_tokens: set[str], lang: str | None) -> list[str]:
+    """Words the query and an entry hold with OPPOSITE polarity ("nepřijít" vs "přijít").
+
+    Since eduai_normalize 3.1.0 a Czech lemma keeps its negation, so "Co když
+    pozvánka nepřijde?" reduces to `neprijit` while the curated "…přijde?" holds
+    `prijit`. Lemmas alone do not stop a curated answer: the other words of the
+    question still cover 0.65–0.75 of the query and pass t_answer — measured
+    2026-10-21 with tools/lab/variants, 37 of 39 flipped JPZ questions still got
+    the original answer. A conflict therefore withholds the CONFIDENT answer;
+    offering the entry as a suggestion stays allowed, the user sees the wording.
+
+    A token is a negation only when the LEMMATIZER made it one (eduai_normalize
+    is_negation, 3.4.0). The folded token alone cannot tell: "někdy" folds to
+    `nekdy`, "nemoc" to `nemoc`, and a bare prefix test read them as the negation
+    of "kdy" and "moc" — "Kdy můžu odejít dřív?" lost the confident answer to
+    "Můžu někdy odejít dřív?" (found 2026-11-10 in a code review).
+
+    The entry's negation is not excused by a positive form elsewhere in it: the
+    variant "Co mám vzít, když ještě nemám občanku?" holds both `mit` and
+    `nemit`, and exempting that let "Co když uchazeč má občanský průkaz?" get
+    the answer for having NO ID card (measured 2026-10-21). A negated query
+    against such an entry still matches — the negation is the marked side.
+    `lang` None (undecided query) checks every language. Returns the
+    conflicting query-side words, for the trace.
+    """
+    prefixes = (NEGATION_PREFIX.get(lang, ()) if lang
+                else tuple({p for ps in NEGATION_PREFIX.values() for p in ps}))
+    query = {t for t in (query_lemmas or ()) if t}
+    out: list[str] = []
+    for p in prefixes:
+        for t in sorted(query):
+            if t.startswith(p) and is_negation(t, lang) and t[len(p):] in entry_tokens \
+                    and t not in entry_tokens:
+                out.append(t)
+        for t in sorted(entry_tokens):
+            base = t[len(p):]
+            if t.startswith(p) and is_negation(t, lang) and base in query \
+                    and t not in query:
+                out.append(base)
+    return out
+
+
+def polarity_tokens(state) -> list[str]:
+    """The query's lemma tokens that may carry a polarity: those the asker typed.
+    A word query_repair put in is a guess, so it carries none — "nemoxi" repaired
+    to the vocabulary word "nemoci" (illnesses) must not read as the negated lemma
+    of "moci" (measured 2026-11-10: a right confident answer was withheld). Only
+    as many occurrences are dropped as repairs were made, so the same word typed
+    correctly elsewhere in the question keeps its polarity."""
+    left = Counter(c.split("→", 1)[-1] for c in state.get("query_repair") or ())
+    out = []
+    for t in state.get("query_lemma_tokens") or ():
+        if left.get(t):
+            left[t] -= 1
+            continue
+        out.append(t)
+    return out
+
+
+def entry_lemma_tokens(cur, entry_id: str) -> set[str]:
+    """The LEMMA tokens of an entry's active variants — the side negation_conflict
+    compares: a negation is a property of the lemma. A surface form can coincide
+    with a negated lemma once folded ("nemoci", illnesses, reads like `nemoci`,
+    the lemma of "nemůžu"), so the norm and stem tokens are left out."""
+    cur.execute(
+        f"SELECT lemma_text FROM {config.QA_VARIANTS_TABLE} WHERE entry_id = %s AND is_active",
+        (entry_id,))
+    return {t for (txt,) in cur.fetchall() for t in (txt or "").split() if t}
 
 
 def fetch_answer(cur, entry_id: str):

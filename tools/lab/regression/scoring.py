@@ -1,0 +1,185 @@
+"""Verdict, score and baseline comparison of the regression set. Stdlib only.
+
+A case is {"id", "set", "pack", "entry_key", "query", "category"}. `entry_key`
+is the curated answer that must come back; None means "no confident answer is
+right" (ambiguous or missing from the data): the offer is fine, a confident
+answer is the failure.
+
+A confident WRONG answer costs more than a right one gains: it says nothing
+like "Nechtěl ses zeptat…?", the asker takes it for the answer.
+"""
+
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+
+SCORE = {"přesná shoda": 1.0, "odpověď": 1.0, "v nabídce": 0.5,
+         "správně bez jisté odpovědi": 1.0, "ŠPATNÁ odpověď": -3.0}
+CONFIDENT = ("exact", "A")
+CONFIDENT_RIGHT = ("přesná shoda", "odpověď")
+
+
+def verdict(expect_key, r: dict, found_key=None, suggested_keys=(), accept=()) -> str:
+    """`r` is the cascade result {decision, entry, suggestions}; the keys are
+    the entry keys of what it returned (entry ids differ between runs).
+    `accept`: further keys that are as right as `expect_key` (equivalent answers)."""
+    d = r["decision"]
+    if expect_key is None:
+        return "ŠPATNÁ odpověď" if d in CONFIDENT else "správně bez jisté odpovědi"
+    right = {expect_key, *accept}
+    hit = found_key in right
+    in_sugg = bool(right & set(suggested_keys))
+    if d in CONFIDENT:
+        return ("přesná shoda" if d == "exact" else "odpověď") if hit else "ŠPATNÁ odpověď"
+    if d.startswith("B"):
+        return "v nabídce" if (hit or in_sugg) else "nabídka bez správné"
+    return "nic (C)" + (" – v záloze" if in_sugg else "")
+
+
+def score_of(verdicts) -> float:
+    return round(sum(SCORE.get(v, 0.0) for v in verdicts), 1)
+
+
+def split_by_chat(cases: list[dict], chats: dict, redirect: dict | None = None) -> list[dict]:
+    """The cases as asked when the school's packs are split between separate chats.
+
+    `chats` is {chat: [pack, ...]}; every case gets a "chat" and is asked over that
+    chat's packs only. A case whose pack belongs to a chat keeps its id. A case with
+    no curated answer (no pack: set N, unanswerable D) is asked in EVERY chat, as
+    "<id>@<chat>". With `redirect` = {chat: [pack, entry_key]} — the entry that sends
+    the asker to the other chat — every case with an answer is also asked in each
+    other chat that has a redirect, as "<id>@<chat>" in set "<set>→", and the
+    redirect entry is the right answer there. A case whose pack is in no chat is
+    dropped (the chats do not serve it)."""
+    chat_of = {p: ch for ch, packs in chats.items() for p in packs}
+    out = []
+    for c in cases:
+        own = chat_of.get(c.get("pack") or "")
+        if not c.get("pack") or c.get("entry_key") is None:
+            out.extend({**c, "id": f"{c['id']}@{ch}", "chat": ch} for ch in chats)
+            continue
+        if own is None:
+            continue
+        out.append({**c, "chat": own})
+        for ch, (pack, key) in (redirect or {}).items():
+            if ch != own:
+                out.append({**c, "id": f"{c['id']}@{ch}", "set": c["set"] + "→", "chat": ch,
+                            "pack": pack, "entry_key": key, "accept": ()})
+    return out
+
+
+def summarize(cases: list[dict], results: dict, by_split: bool = False) -> dict:
+    """{set: {"cases", "score", "confident_right", "offered", "confident_wrong", "by_verdict"}}
+    `by_split`: also "SET:train" / "SET:holdout" (the split of the curated entry)."""
+    by_set = defaultdict(list)
+    for c in cases:
+        res = results.get(c["id"])
+        if res:
+            by_set[c["set"]].append(res["verdict"])
+            if by_split and c.get("split"):
+                by_set[f"{c['set']}:{c['split']}"].append(res["verdict"])
+    out = {}
+    all_v = [v for k, l in by_set.items() if ":" not in k for v in l]
+    for name, vs in {**by_set, "ALL": all_v}.items():
+        cnt = Counter(vs)
+        out[name] = {"cases": len(vs), "score": score_of(vs),
+                     "confident_right": cnt["přesná shoda"] + cnt["odpověď"] + cnt["správně bez jisté odpovědi"],
+                     "offered": cnt["v nabídce"], "confident_wrong": cnt["ŠPATNÁ odpověď"],
+                     "by_verdict": dict(cnt)}
+    return out
+
+
+def compare(cases: list[dict], baseline: dict, current: dict) -> dict:
+    """Case by case. A regression is a lower score for the same case; the worst
+    are new confident wrong answers. Cases missing on one side are counted, not
+    compared (the set grew or the packs changed)."""
+    regress, improved, only_now, only_before = [], [], [], []
+    for c in cases:
+        b, n = baseline.get(c["id"]), current.get(c["id"])
+        if b and not n:
+            only_before.append(c["id"])
+            continue
+        if n and not b:
+            only_now.append(c["id"])
+            continue
+        if not b or not n:
+            continue
+        delta = SCORE.get(n["verdict"], 0.0) - SCORE.get(b["verdict"], 0.0)
+        row = {"id": c["id"], "set": c["set"], "before": b["verdict"], "now": n["verdict"],
+               "delta": delta, "found_before": b.get("found_key"), "found_now": n.get("found_key")}
+        if delta < 0:
+            regress.append(row)
+        elif delta > 0:
+            improved.append(row)
+    regress.sort(key=lambda r: r["delta"])
+    return {"regressions": regress, "improvements": improved,
+            "new_confident_wrong": [r for r in regress if r["now"] == "ŠPATNÁ odpověď"],
+            "only_now": only_now, "only_before": only_before}
+
+
+def silent_margin_drops(cases: list[dict], baseline: dict, current: dict, min_drop: float = 0.03) -> dict:
+    """Confident right answers that STAYED right with a smaller lead (`margin`).
+
+    The score does not see them: +1 before and +1 now. But the lead over the second
+    entry is the safety cushion against `m_margin`, and a new alternative on another
+    entry that moves the lead from 0.16 to 0.09 is one step from losing the answer.
+    Only cases where both runs report a margin and the same entry won are compared
+    (an older result file without `margin` gives `compared` = 0)."""
+    rows, compared = [], 0
+    for c in cases:
+        b, n = baseline.get(c["id"]), current.get(c["id"])
+        if not b or not n:
+            continue
+        if b["verdict"] not in CONFIDENT_RIGHT or n["verdict"] not in CONFIDENT_RIGHT:
+            continue
+        mb, mn = b.get("margin"), n.get("margin")
+        if mb is None or mn is None or b.get("found_key") != n.get("found_key"):
+            continue
+        compared += 1
+        if mb - mn >= min_drop:
+            rows.append({"id": c["id"], "set": c["set"], "margin_before": mb, "margin_now": mn,
+                         "drop": round(mb - mn, 4)})
+    rows.sort(key=lambda r: -r["drop"])
+    return {"drops": rows, "compared": compared, "min_drop": min_drop}
+
+
+def offer_growth(cases: list[dict], baseline: dict, current: dict, sets=("N",)) -> dict:
+    """Questions outside the content (set N) that gained or lost an OFFER (decision B*).
+
+    A confident answer there is already a −3 in the score; a new offer is not, but it
+    is the same kind of problem on a smaller scale: the assistant now suggests an
+    answer to a question that has none."""
+    gained, lost, total = [], [], 0
+    for c in cases:
+        if c["set"] not in sets:
+            continue
+        b, n = baseline.get(c["id"]), current.get(c["id"])
+        if not b or not n:
+            continue
+        total += 1
+        was, now = str(b.get("decision", "")).startswith("B"), str(n.get("decision", "")).startswith("B")
+        if now and not was:
+            gained.append(c["id"])
+        elif was and not now:
+            lost.append(c["id"])
+    return {"gained": gained, "lost": lost, "cases": total}
+
+
+def bootstrap_delta(cases: list[dict], baseline: dict, current: dict, n: int = 2000, seed: int = 7):
+    """Paired bootstrap of the score difference (current − baseline) over the cases
+    both runs have: {"delta", "lo", "hi", "n", "significant"} with a 95 % interval.
+    A difference whose interval holds 0 is noise, not an improvement."""
+    import random
+    diffs = []
+    for c in cases:
+        b, c2 = baseline.get(c["id"]), current.get(c["id"])
+        if b and c2:
+            diffs.append(SCORE.get(c2["verdict"], 0.0) - SCORE.get(b["verdict"], 0.0))
+    if not diffs:
+        return {"delta": 0.0, "lo": 0.0, "hi": 0.0, "n": 0, "significant": False}
+    rnd = random.Random(seed)
+    m = len(diffs)
+    sums = sorted(sum(diffs[rnd.randrange(m)] for _ in range(m)) for _ in range(n))
+    lo, hi = sums[int(0.025 * n)], sums[int(0.975 * n) - 1]
+    return {"delta": round(sum(diffs), 1), "lo": round(lo, 1), "hi": round(hi, 1), "n": m,
+            "significant": lo > 0 or hi < 0}

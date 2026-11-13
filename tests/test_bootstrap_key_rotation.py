@@ -453,7 +453,7 @@ class ExitCodeTests(Rotation):
     def run_main(self):
         with mock.patch.object(sys, "argv", ["bootstrap.py", "--no-input", "--langflow-url", BASE]), \
                 mock.patch.object(bootstrap, "step_preflight"), mock.patch.object(bootstrap, "step_env"), \
-                mock.patch.object(bootstrap, "step_dirs"), \
+                mock.patch.object(bootstrap, "step_dirs"), mock.patch.object(bootstrap, "step_migrations"), \
                 mock.patch.object(bootstrap, "step_up", return_value=True) as up, \
                 mock.patch.object(bootstrap, "step_langflow_vars") as variables, \
                 mock.patch.object(bootstrap, "step_flows") as flows, mock.patch.object(bootstrap, "step_smoke") as smoke, \
