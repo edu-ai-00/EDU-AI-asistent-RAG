@@ -51,6 +51,23 @@ LANGS = {
             # Without a case like this the vectors could not see a change to
             # per-column stoplist derivation at all (found 2026-09-04).
             "Kdy jsou přijímačky?",
+            # negation kept in the lemma (eduai_normalize 3.1.0): nesmět/nejít,
+            # the exception "není", and words that only START with the letters
+            # (superlative nej-, neděle, nemocný) left alone
+            "Co nesmím mít, když to nejde?",
+            "Není to nejlepší neděle",
+            "nemocný žák nedostal nedostatečnou",
+            # stop-words judged by their surface form BEFORE reduction (3.2.0):
+            # "během" must go while "běh" (same stem `beh`) stays; "této" must
+            # not survive as the lemma `teta`; "moje" not as the stem `moj`
+            "Během přestávky je běh na 100 m",
+            "Moje dcera je u této tety",
+            # typed without diacritics (3.3.0): restored where every form with
+            # diacritics agrees on the lemma (zacina, nesmim, prijimacky), left
+            # alone where they disagree (muze: muže/může, zapis: zápis/zapiš)
+            # or the spelling is a word of its own (rada, next to ráda)
+            "kdy zacina skola, nesmim mit mobil",
+            "muze rada skoly zmenit zapis",
         ],
     },
     "en": {

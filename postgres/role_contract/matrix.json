@@ -64,7 +64,8 @@
       "ui_label": {},
       "validity_period": {}
     },
-    "views": ["qa_conversation_v", "user_v"]
+    "views": ["qa_conversation_v", "user_v"],
+    "optional_tables": ["schema_migration"]
   },
   "langflow_db": {"owner": "edu_ai_langflow", "schemas": ["public"]},
   "baseline": {

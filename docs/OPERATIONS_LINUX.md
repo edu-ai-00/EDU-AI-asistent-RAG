@@ -65,8 +65,10 @@ does not document parity.
 Rehearsed on a lab VM on 2026-10-13 (production data into a clean installation of
 this branch); a production cutover remains a separate, explicitly approved step.
 It applies when both databases have the same `edu_ai` schema; compare
-`pg_dump --schema-only --no-owner --no-privileges -n edu_ai` of both first (the new
-installation's objects belong to the role contract's `edu_ai_owner`). If they differ,
+`pg_dump --schema-only --no-owner --no-privileges -n edu_ai -T edu_ai.schema_migration` of both first (the new
+installation's objects belong to the role contract's `edu_ai_owner`; the migration registry
+of a new installation is left out of the comparison; the `\restrict` and `\unrestrict`
+lines carry a random key per dump and always differ). If anything else differs,
 stop: a migration is a separate decision. Only the `edu_ai` database moves; Langflow's own database is
 not transferred (the flows come from the repository) and Bifrost's provider key
 is entered again in its UI. The new installation keeps its own roles, grants and
@@ -79,10 +81,13 @@ secrets.
 3. In ONE transaction, as the database superuser of the target container: `TRUNCATE`
    every table of schema `edu_ai` (`RESTART IDENTITY CASCADE`), then load the SQL that
    `pg_restore --data-only --disable-triggers` produces from the dump. A failure leaves
-   the target unchanged.
+   the target unchanged. This empties the target's migration registry too: from now on
+   the target holds the source's data, including its settings, and is an installation
+   with data like the source.
 4. Compare the row counts of every table with the source.
 5. `python3 scripts/setup.py install` brings the services back and verifies them
-   (bootstrap, smoke, roles).
+   (bootstrap, smoke, roles); bootstrap step 4b reports `skip` (the database holds data).
+6. Migrations from 217 on that the source did not have: the manual procedure below.
 
 The dump holds real personal data (including logged questions): keep it off Git and
 shared storage, and delete every copy when the transfer is verified.
@@ -101,7 +106,9 @@ after checking the roles, data, keys, files and the correct images.
 gates for a single layout; it must not be presented as a general updater. Before
 using it, verify all the prerequisites from its README. The B03e migration runner
 is approved only for isolated synthetic databases; do not use it on production or a
-school installation. Roles contract: [B06 C2](plans/b06-c2-role-contract.md).
+school installation. The one exception is bootstrap step 4b on a clean installation:
+while the database holds no school data it registers baseline B216 and applies the
+latest release in `postgres/releases/`. Roles contract: [B06 C2](plans/b06-c2-role-contract.md).
 
 After `git pull` in the source checkout, `python3 scripts/setup.py install`
 continues the same installation, and bootstrap rebuilds only the images whose
@@ -111,9 +118,30 @@ different one means a rebuild of that service, the previous image stays as
 `<image>-prev`. An uncommitted change or a checkout without git rebuilds that image
 every time (or, outside git, never: use `bootstrap.py --build`). Base-image
 updates without a source change still need `--build`. Not covered by this:
-database migrations, flows that already exist in Langflow (only missing ones are
+database migrations of an installation with data (below), flows that already exist in Langflow (only missing ones are
 imported) and a Compose change of a service's mounts, which the wizard refuses
 (`RESUME_STACK_OTHER_LAYOUT`).
+
+### Database migrations from 217 on (an installation with data)
+
+Bootstrap step 4b never touches a database that holds school data (`document_metadata`,
+`qa_entries` or `question_answer_log` rows): it reports `skip`, and `setup.py install`
+continues. Production and a school in use therefore get the files of
+`postgres/migrations/` by hand, after the new images are running, each file in its own
+transaction, in ascending order, only those not applied yet (the deployment note of the
+change names them):
+
+```bash
+# back up first (at least the tables the files change; the deployment note names them)
+docker exec -i edu_ai_postgres sh -c \
+  'psql -X -1 -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < postgres/migrations/217_synonyms_meeting_groups.sql
+```
+
+A file that changes data checks its own result and stops with `RAISE EXCEPTION`; with
+`-1` and `ON_ERROR_STOP` nothing of that file remains, and the following files are not
+started. No migration registry is created on such a database (taking over an existing
+installation, D11, is not decided).
 
 A change of `Dockerfile.postgres` within one PostgreSQL major version (e.g. 16.3 → 16.15,
 pgvector 0.7.4 → 0.8.7, pg_search 0.25.1 → 0.25.11) rebuilds the postgres image and recreates

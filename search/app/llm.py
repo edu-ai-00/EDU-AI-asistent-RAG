@@ -7,6 +7,10 @@ one client per model and reuse its pooled HTTP connection for the life of
 the worker process.
 """
 
+import json
+import os
+import time
+import urllib.request
 from functools import lru_cache
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -17,6 +21,35 @@ from . import config
 # Fallback when settings carry no answer.temperature. Low but not zero: the
 # answers are grounded in retrieved text, so sampling adds nothing but noise.
 _DEFAULT_TEMPERATURE = 0.1
+
+_GATEWAY_TTL = 60.0
+_gateway = {"at": float("-inf"), "ok": True}
+
+
+def _gateway_models(base: str) -> int | None:
+    """How many models the gateway lists; None when it cannot be asked."""
+    try:
+        with urllib.request.urlopen(base.rstrip("/") + "/models", timeout=2) as r:
+            data = json.load(r).get("data")
+        return len(data) if isinstance(data, list) else None
+    except Exception:
+        return None
+
+
+def chat_configured() -> bool:
+    """False only when no chat model can exist: no real OPENAI_API_KEY and the gateway
+    (OPENAI_BASE_URL, Bifrost holds the provider key) lists no model. A gateway that
+    cannot be asked counts as configured (a fault, not a missing key). Cached 60 s."""
+    key = (config.OPENAI_API_KEY or "").strip()
+    if key and not key.startswith("CHANGE_ME"):
+        return True
+    base = (os.environ.get("OPENAI_BASE_URL") or "").strip()
+    if not base:
+        return False
+    now = time.monotonic()
+    if now - _gateway["at"] >= _GATEWAY_TTL:
+        _gateway.update(at=now, ok=_gateway_models(base) != 0)
+    return _gateway["ok"]
 
 
 @lru_cache(maxsize=8)

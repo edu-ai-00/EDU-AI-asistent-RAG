@@ -53,7 +53,9 @@ blocks one at a time; on an error, resolve its cause first.
 
    Confirm the plan with Enter. The wizard prepares the configuration
    `~/edu-ai/config`, the state `~/edu-ai/state`, the project `edu_ai`, the
-   bootstrap with smoke and the roles check. `NETWORK_POOLS` may be accepted with
+   bootstrap with smoke and the roles check. Bootstrap step 4b registers the new
+   database as baseline B216 and applies the latest migration release
+   (`postgres/releases/`); its pre-apply dump goes to `~/edu-ai/state/db_migration_dumps`. `NETWORK_POOLS` may be accepted with
    the word `yes` only as the single unverified finding on an isolated VM. Any
    other problem stops the installation. Optional read-only overview:
    `python3 scripts/setup.py plan`.

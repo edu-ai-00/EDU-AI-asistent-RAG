@@ -221,8 +221,154 @@
       ],
       "stem": [
         "kdy",
-        "jso",
         "prijimack"
+      ]
+    },
+    {
+      "input": "Co nesmím mít, když to nejde?",
+      "norm": [
+        "co",
+        "nesmim",
+        "mit",
+        "nejde"
+      ],
+      "lemma": [
+        "co",
+        "nesmet",
+        "mit",
+        "nejit"
+      ],
+      "stem": [
+        "co",
+        "nes",
+        "mit",
+        "nejd"
+      ]
+    },
+    {
+      "input": "Není to nejlepší neděle",
+      "norm": [
+        "neni",
+        "nejlepsi",
+        "nedele"
+      ],
+      "lemma": [
+        "nebyt",
+        "nejlepsi",
+        "nedele"
+      ],
+      "stem": [
+        "nen",
+        "nejleps",
+        "nedel"
+      ]
+    },
+    {
+      "input": "nemocný žák nedostal nedostatečnou",
+      "norm": [
+        "nemocny",
+        "zak",
+        "nedostal",
+        "nedostatecnou"
+      ],
+      "lemma": [
+        "nemocny",
+        "zak",
+        "nedostat",
+        "nedostatecny"
+      ],
+      "stem": [
+        "nemocn",
+        "zak",
+        "nedostal",
+        "nedostatecn"
+      ]
+    },
+    {
+      "input": "Během přestávky je běh na 100 m",
+      "norm": [
+        "prestavky",
+        "beh",
+        "100",
+        "m"
+      ],
+      "lemma": [
+        "prestavka",
+        "beh",
+        "100",
+        "m"
+      ],
+      "stem": [
+        "prestavk",
+        "beh",
+        "100",
+        "m"
+      ]
+    },
+    {
+      "input": "Moje dcera je u této tety",
+      "norm": [
+        "dcera",
+        "tety"
+      ],
+      "lemma": [
+        "dcera",
+        "teta"
+      ],
+      "stem": [
+        "dcer",
+        "tet"
+      ]
+    },
+    {
+      "input": "kdy zacina skola, nesmim mit mobil",
+      "norm": [
+        "kdy",
+        "zacina",
+        "skola",
+        "nesmim",
+        "mit",
+        "mobil"
+      ],
+      "lemma": [
+        "kdy",
+        "zacinat",
+        "skola",
+        "nesmet",
+        "mit",
+        "mobil"
+      ],
+      "stem": [
+        "kdy",
+        "zacin",
+        "skol",
+        "nesmim",
+        "mit",
+        "mobil"
+      ]
+    },
+    {
+      "input": "muze rada skoly zmenit zapis",
+      "norm": [
+        "muze",
+        "rada",
+        "skoly",
+        "zmenit",
+        "zapis"
+      ],
+      "lemma": [
+        "muze",
+        "rada",
+        "skola",
+        "zmenit",
+        "zapis"
+      ],
+      "stem": [
+        "muh",
+        "rad",
+        "skol",
+        "zmenit",
+        "zapis"
       ]
     }
   ]

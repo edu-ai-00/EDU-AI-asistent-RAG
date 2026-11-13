@@ -1,7 +1,34 @@
 """The registry table `edu_ai.schema_migration` (v1): DDL and its own definition check."""
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
+from .manifest import ManifestError
+
 VERSION = 1
+_IDENT = re.compile(r"[a-z_][a-z0-9_]*")
+
+
+def contract_sql(root: Path) -> list[str]:
+    """Owner and SELECT grants of the registry per the DB role contract
+    (postgres/role_contract/matrix.json), like every other edu_ai table; [] without
+    the matrix. Runs in the init transaction, so db_roles verify stays MATCH."""
+    path = root / "postgres" / "role_contract" / "matrix.json"
+    if not path.is_file():
+        return []
+    try:
+        e = json.loads(path.read_text(encoding="utf-8"))["edu_ai_db"]
+        owner, readers = e["object_owner"], list(e["S_all_tables_for"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ManifestError(f"role contract matrix unreadable: {exc}") from exc
+    if not all(isinstance(r, str) and _IDENT.fullmatch(r) for r in [owner, *readers]):
+        raise ManifestError("unsafe role name in the role contract matrix")
+    out = [f"ALTER TABLE edu_ai.schema_migration OWNER TO {owner};"]
+    if readers:
+        out.append(f"GRANT SELECT ON edu_ai.schema_migration TO {', '.join(readers)};")
+    return out
 # Session advisory lock held for a whole apply/init ('EDUMIGR1' as a bigint).
 LOCK_KEY = 0x4544554D49475231
 

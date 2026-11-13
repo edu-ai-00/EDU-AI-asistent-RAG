@@ -8,9 +8,11 @@ the union of {norm, lemma, synonym} tokens matches against either surface.
 
 import json
 import logging
+from collections import Counter
 
 from .. import config
 from .. import scope
+from ..text_norm import NEGATION_PREFIX, is_negation
 
 logger = logging.getLogger(__name__)
 
@@ -504,6 +506,55 @@ def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> li
     if items and all(i.get("score") is not None for i in items):
         items.sort(key=lambda i: -float(i["score"]))
     return items[:top_n]
+
+
+def negation_conflict(query_lemmas, entry_tokens: set[str], lang: str | None) -> list[str]:
+    """Words the query and an entry hold with OPPOSITE polarity ("nepřijít" vs "přijít").
+
+    A conflict withholds the confident answer, never the suggestion. A token is a
+    negation only when the lemmatizer made it one (is_negation: "někdy" is not
+    "ne-kdy"); an entry's negation counts even beside a positive form of the word.
+    `lang` None checks every language. Returns the query-side words, for the trace.
+    """
+    prefixes = (NEGATION_PREFIX.get(lang, ()) if lang
+                else tuple({p for ps in NEGATION_PREFIX.values() for p in ps}))
+    query = {t for t in (query_lemmas or ()) if t}
+    out: list[str] = []
+    for p in prefixes:
+        for t in sorted(query):
+            if t.startswith(p) and is_negation(t, lang) and t[len(p):] in entry_tokens \
+                    and t not in entry_tokens:
+                out.append(t)
+        for t in sorted(entry_tokens):
+            base = t[len(p):]
+            if t.startswith(p) and is_negation(t, lang) and base in query \
+                    and t not in query:
+                out.append(base)
+    return out
+
+
+def polarity_tokens(state) -> list[str]:
+    """The query's lemma tokens the asker typed: a word query_repair put in is a
+    guess and carries no polarity ("nemoxi" → "nemoci" is not a negated "moci").
+    Only as many occurrences are dropped as repairs were made."""
+    left = Counter(c.split("→", 1)[-1] for c in state.get("query_repair") or ())
+    out = []
+    for t in state.get("query_lemma_tokens") or ():
+        if left.get(t):
+            left[t] -= 1
+            continue
+        out.append(t)
+    return out
+
+
+def entry_lemma_tokens(cur, entry_id: str) -> set[str]:
+    """The lemma tokens of an entry's active variants, the side negation_conflict
+    compares. Norm and stem tokens are left out: a folded surface form can look
+    like a negated lemma ("nemoci", illnesses)."""
+    cur.execute(
+        f"SELECT lemma_text FROM {config.QA_VARIANTS_TABLE} WHERE entry_id = %s AND is_active",
+        (entry_id,))
+    return {t for (txt,) in cur.fetchall() for t in (txt or "").split() if t}
 
 
 def fetch_answer(cur, entry_id: str):
