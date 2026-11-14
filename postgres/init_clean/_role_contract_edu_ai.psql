@@ -38,9 +38,13 @@ GRANT EXECUTE ON ALL ROUTINES IN SCHEMA edu_ai TO edu_ai_search, edu_ai_ingest, 
 GRANT SELECT ON ALL TABLES IN SCHEMA edu_ai TO edu_ai_search, edu_ai_ingest;
 GRANT INSERT ON edu_ai.code_list TO edu_ai_search;
 GRANT INSERT, UPDATE, DELETE ON edu_ai.document_chunks TO edu_ai_ingest;
+GRANT UPDATE, DELETE ON edu_ai.document_chunks TO edu_ai_search;
 GRANT INSERT, UPDATE, DELETE ON edu_ai.document_elements TO edu_ai_ingest;
+GRANT UPDATE, DELETE ON edu_ai.document_elements TO edu_ai_search;
 GRANT INSERT, UPDATE, DELETE ON edu_ai.document_metadata TO edu_ai_ingest;
+GRANT UPDATE, DELETE ON edu_ai.document_metadata TO edu_ai_search;
 GRANT INSERT, UPDATE, DELETE ON edu_ai.document_tables TO edu_ai_ingest;
+GRANT UPDATE, DELETE ON edu_ai.document_tables TO edu_ai_search;
 GRANT INSERT, UPDATE, DELETE ON edu_ai.idempotency_key TO edu_ai_search;
 GRANT INSERT ON edu_ai.ingestion_log TO edu_ai_ingest;
 GRANT INSERT, UPDATE ON edu_ai.qa_embedding TO edu_ai_ingest;
