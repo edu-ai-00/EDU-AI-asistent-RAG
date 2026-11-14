@@ -1,11 +1,17 @@
 openapi: 3.1.0
 # Track: contract. Canonical owner of the QA portal HTTP surface.
-# Contract version: qa-portal/1.2.1 — narrative and rationale in ./CONTRACT.md.
+# Contract version: qa-portal/1.8.0 — narrative and rationale in ./CONTRACT.md.
+# 1.5.0 adds the §14 document routes, School.permissions and the §13 DELETE routes.
+# 1.6.0 adds validity_state, list filters, PATCH validity, check-sources, preview-url (§14.8).
+# 1.7.0 adds POST /schools/{school}/ask-preview, try a question (§14.9).
+# 1.8.0 adds ask-preview debug/explain and entries/by-id (§14.11), documents/stats and
+# validity=expiring (§14.12), document chunks (§14.13), content_sha256, refresh and the
+# `skipped` job status (§14.14).
 # Error envelope and retryable semantics follow ../errors.yaml; portal-specific
 # codes are listed in CONTRACT.md §7 and in the Error schema below.
 info:
   title: EDU-AI QA portál — administrační API
-  version: "1.2.1"
+  version: "1.8.0"
   description: >
     JSON REST API nového kontejneru edu_ai_qa_admin. Obsluhuje všechny
     frontendy portálu. Neautentizuje: vstupním omezením je VPN a nginx.
@@ -26,6 +32,8 @@ tags:
   - name: import
   - name: export
   - name: operations
+  - name: documents
+  - name: ask
 
 paths:
   /health:
@@ -327,6 +335,69 @@ paths:
                   pack_version: { type: integer }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [entries]
+      operationId: deleteEntry
+      summary: Permanently delete one question (CONTRACT.md §13)
+      description: >
+        Irreversible. Removes the entry, its variants and embeddings; holds the
+        same pack lock as publication and discards the pack's stored previews.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - name: entry_key
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PackDeleteResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/packs/{pack}:
+    delete:
+      tags: [entries]
+      operationId: deletePack
+      summary: Permanently delete a whole pack (CONTRACT.md §13)
+      description: >
+        Irreversible. The administrator retypes the pack identifier; a mismatch
+        is 409 DELETE_CONFIRMATION_MISMATCH, checked before any upstream call.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/Pack" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm_pack_id]
+              additionalProperties: false
+              properties:
+                confirm_pack_id: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PackDeleteResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: DELETE_CONFIRMATION_MISMATCH or PUBLISH_IN_PROGRESS
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503": { $ref: "#/components/responses/Unavailable" }
 
   /schools/{school}/packs/{pack}/preview:
     post:
@@ -518,7 +589,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Operation" }
-        "404": { $ref: "#/components/responses/NotFound" }
+        "404":
+          description: >
+            Unknown operation, or the policy does not allow reading its school
+            (CONTRACT.md §14.6) — the two are indistinguishable.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
   /schools/{school}/exports:
     post:
@@ -574,7 +649,627 @@ paths:
           content:
             text/csv: { schema: { type: string, format: binary } }
             application/zip: { schema: { type: string, format: binary } }
+        "404":
+          description: >
+            Unknown or expired export, or the policy does not allow reading its
+            school (CONTRACT.md §14.6).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /schools/{school}/documents:
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      summary: The school's documents, one row per document (CONTRACT.md §14.2, §14.4)
+      description: Policy read. Ordered by the shown version, newest first.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, inactive, all], default: active }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 500 }
+          description: Case-insensitive substring of source_url or original_file_name.
+        - name: type
+          in: query
+          schema: { type: string, maxLength: 100 }
+          description: The shown version's document_type equals this code (CONTRACT.md §14.8).
+        - name: role
+          in: query
+          schema: { type: string, maxLength: 100 }
+          description: The shown version's audience_roles contains this code.
+        - name: validity
+          in: query
+          schema: { type: string, enum: [current, expired, future, expiring, all], default: all }
+          description: >
+            Unknown values are 422. `expiring` = active, current, valid_to within the
+            next 30 days (CONTRACT.md §14.12).
+        - name: source
+          in: query
+          schema: { type: string, maxLength: 2048 }
+          description: Exact match on source_url OR original_file_name (duplicate check).
+        - name: format
+          in: query
+          schema: { type: string, enum: [pdf, docx, pptx, xlsx, web] }
+          description: The shown version's file_format equals this value (CONTRACT.md §14.10). Unknown values are 422.
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Opaque; the next_cursor of the previous page.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documents, next_cursor]
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentSummary" }
+                  next_cursor: { type: [string, "null"] }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      summary: Queue ONE document item for ingest (CONTRACT.md §14.4, §14.5)
+      description: >
+        Policy ingest. Exactly one of `file` or `url`. Bulk upload posts every
+        item separately with the same client-chosen batch_id. The item is stored
+        and queued; the response comes at once. legal_entity is the school in
+        the path and user_id the school's technical uploader — the client can
+        send neither. Unknown form fields are ignored.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [batch_id, metadata]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: >
+                    Extension in DocumentOptions.file_extensions (.csv and others
+                    are 415), non-empty, at most max_file_bytes (413).
+                url:
+                  type: string
+                  description: Absolute http/https URL.
+                save_level_1_child:
+                  type: string
+                  enum: ["true", "false"]
+                  default: "false"
+                  description: Also ingest the page's level-1 links. Only with url.
+                max_child_links:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  default: 5
+                  description: Only with url.
+                batch_id:
+                  type: string
+                  format: uuid
+                  description: Groups items of one upload; at most max_batch_items per batch.
+                metadata:
+                  type: string
+                  description: JSON string of DocumentMetadata.
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job]
+                properties:
+                  job: { $ref: "#/components/schemas/DocumentJob" }
+        "400":
+          description: Malformed multipart body
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { $ref: "#/components/responses/TooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMedia" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "429": { $ref: "#/components/responses/QueueFull" }
+        "503":
+          description: >
+            PUBLISH_UPLOADER_UNAVAILABLE (no technical uploader, retryable false)
+            or UNAVAILABLE (code lists could not be read).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /schools/{school}/documents/check-sources:
+    post:
+      tags: [documents]
+      operationId: checkDocumentSources
+      summary: Which sources already exist and would be superseded (CONTRACT.md §14.8)
+      description: >
+        Policy ingest. At most max_batch_items sources (422 above). `value` is
+        trimmed. supersedes is true for a url always and for a file only when
+        the existing document's user_name equals the technical uploader's
+        display_name.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sources]
+              additionalProperties: false
+              properties:
+                sources:
+                  type: array
+                  items:
+                    type: object
+                    required: [kind, value]
+                    additionalProperties: false
+                    properties:
+                      kind: { type: string, enum: [file, url] }
+                      value: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      required: [kind, value, existing, supersedes]
+                      properties:
+                        kind: { type: string, enum: [file, url] }
+                        value: { type: string }
+                        existing:
+                          oneOf:
+                            - { $ref: "#/components/schemas/DocumentSummary" }
+                            - { type: "null" }
+                        supersedes: { type: boolean }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/preview-url:
+    post:
+      tags: [documents]
+      operationId: previewDocumentUrl
+      summary: Which pages a web ingest would fetch, without Langflow (CONTRACT.md §14.8)
+      description: >
+        Policy ingest. Validated like an upload item, then the gateway
+        POST /v1/ingest with dry_run=true as the technical uploader. The
+        gateway refusing the request is 400 with its message; unreachable or
+        5xx is 503.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, metadata]
+              additionalProperties: false
+              properties:
+                url: { type: string }
+                save_level_1_child: { type: boolean, default: false }
+                max_child_links: { type: [integer, "null"], minimum: 1, maximum: 10 }
+                metadata: { $ref: "#/components/schemas/DocumentMetadata" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      required: [source_url, source_type, page_role]
+                      properties:
+                        source_url: { type: [string, "null"] }
+                        source_type: { type: string }
+                        page_role: { type: string, enum: [parent, child] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/stats:
+    get:
+      tags: [documents]
+      operationId: getDocumentStats
+      summary: School overview counters (CONTRACT.md §14.12)
+      description: >
+        Policy read. Counts are per DOCUMENT (the shown version); expiring_30 =
+        active, current, valid_to between today and today + 30 days. Declared
+        before /documents/{file_uuid}, so "stats" is never taken as a file_uuid.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentStats" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/chunks:
+    get:
+      tags: [documents]
+      operationId: listDocumentChunks
+      summary: The text chunks of one version (CONTRACT.md §14.13)
+      description: >
+        Policy read. `file_uuid` is the VERSION; ordered by chunk_index; the
+        cursor is an offset owned by search. limit outside 1-100 is 422; a
+        search HTTP 500 is 502 UPSTREAM_ERROR.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 200 }
+          description: Opaque; the next_cursor of the previous page.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentChunks" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/refresh:
+    post:
+      tags: [documents]
+      operationId: refreshDocument
+      summary: Re-ingest a web document from its URL (CONTRACT.md §14.14)
+      description: >
+        Policy ingest. Enqueues a URL job with the shown version's metadata
+        (visibility, audience_roles, document_type, document_language,
+        school_subject, school_grade_codes, domain_codes, valid_from, valid_to),
+        no level-1 links and a fresh batch_id. A file document is 422. When the
+        page text is unchanged the job ends as `skipped` (result.reason
+        "unchanged") without an ingest call.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job]
+                properties:
+                  job: { $ref: "#/components/schemas/DocumentJob" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "429": { $ref: "#/components/responses/QueueFull" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/validity:
+    patch:
+      tags: [documents]
+      operationId: updateDocumentValidity
+      summary: Change the validity dates of every version (CONTRACT.md §14.8)
+      description: >
+        Policy deactivate. Both keys are required (null clears a date).
+        Dates are validated before search is called.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [valid_from, valid_to]
+              additionalProperties: false
+              properties:
+                valid_from: { type: [string, "null"], format: date }
+                valid_to: { type: [string, "null"], format: date }
+      responses:
+        "200": { $ref: "#/components/responses/DocumentOut" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}:
+    get:
+      tags: [documents]
+      operationId: getDocument
+      summary: One document with all its versions
+      description: Policy read. Any file_uuid of the document identifies it.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document, versions]
+                properties:
+                  document: { $ref: "#/components/schemas/DocumentSummary" }
+                  versions:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentVersion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      summary: Permanently delete the document with ALL its versions (CONTRACT.md §14.3)
+      description: >
+        Policy delete_permanently. Irreversible. confirm_file_uuid must equal
+        the path file_uuid (compared as UUIDs); a mismatch is 409, checked
+        before the gateway is called. The gateway deletes the rows through
+        search, then the uploaded files.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm_file_uuid]
+              additionalProperties: false
+              properties:
+                confirm_file_uuid: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentDeleteResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: DELETE_CONFIRMATION_MISMATCH
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422": { $ref: "#/components/responses/Validation" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/download:
+    get:
+      tags: [documents]
+      operationId: downloadDocumentFile
+      summary: Download one version's stored file (CONTRACT.md §14.10)
+      description: >
+        Policy read; a GET, so no CSRF header. `file_uuid` is the VERSION. The
+        gateway GET /v1/documents/{file_uuid}/file is streamed back unchanged:
+        application/octet-stream, the gateway's Content-Disposition (attachment)
+        and X-Content-Type-Options nosniff, so a saved page is never served inline.
+        404 is a foreign/unknown version or a file that is not stored (e.g. data
+        moved without uploads); 400 a bad uuid; 503 gateway or search unavailable.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+      responses:
+        "200":
+          description: The file bytes.
+          headers:
+            Content-Disposition: { schema: { type: string } }
+            X-Content-Type-Options: { schema: { type: string, enum: [nosniff] } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/deactivate:
+    post:
+      tags: [documents]
+      operationId: deactivateDocument
+      summary: Deactivate the document's active version (idempotent)
+      description: Policy deactivate. The document leaves search at once.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      responses:
+        "200": { $ref: "#/components/responses/DocumentOut" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/documents/{file_uuid}/activate:
+    post:
+      tags: [documents]
+      operationId: activateDocument
+      summary: Activate the document's NEWEST version (idempotent)
+      description: Policy deactivate. Never re-activates an older, superseded version.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/FileUuid" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      responses:
+        "200": { $ref: "#/components/responses/DocumentOut" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/document-options:
+    get:
+      tags: [documents]
+      operationId: getDocumentOptions
+      summary: Code lists and limits for the upload dialog (CONTRACT.md §14.4)
+      description: Policy read. Labels fall back requested language -> UI default -> code.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentOptions" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/document-jobs:
+    get:
+      tags: [documents]
+      operationId: listDocumentJobs
+      summary: The school's ingest jobs (CONTRACT.md §14.4, §14.5)
+      description: >
+        Policy read. Without batch_id the newest 200 jobs, newest first; with
+        batch_id only that batch, oldest first. Finished jobs are pruned after
+        7 days.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: batch_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobs]
+                properties:
+                  jobs:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentJob" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /schools/{school}/entries/by-id:
+    get:
+      tags: [ask]
+      operationId: getEntryById
+      summary: Where a matched QA entry lives (CONTRACT.md §14.11)
+      description: >
+        Policy read. Resolves the matched_entry_id of an ask-preview answer to its
+        pack and entry_key. A foreign or unknown entry is 404; an entry_id that is
+        not a UUID is 400.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - name: entry_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pack_id, entry_key, canonical_q, is_active]
+                properties:
+                  pack_id: { type: string }
+                  entry_key: { type: string }
+                  canonical_q: { type: string }
+                  is_active: { type: boolean }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /schools/{school}/ask-preview:
+    post:
+      tags: [ask]
+      operationId: askPreview
+      summary: Try a question against the school's assistant (CONTRACT.md §14.9)
+      description: >
+        Policy publish. The portal calls search POST /v1/ask with
+        legal_entity = the school, user_id = the school's technical account (qa_portal__<school>) and a fresh
+        query_id, so the query log tells a portal test from a real user. The
+        search fields are passed through unchanged; nothing is stored. A full
+        answer costs one LLM call; retrieval_only skips it. Search 4xx is 400
+        with its message, search 500 is 502 UPSTREAM_ERROR (retryable false),
+        unreachable or 502-504 is 503. With debug (default true, CONTRACT.md
+        §14.11) the portal sends debug=true to /v1/ask and, in parallel, the same
+        identity to POST /v1/explain; explain is null when that call fails and
+        the answer is still returned. Nothing of it is stored or logged.
+      parameters:
+        - { $ref: "#/components/parameters/School" }
+        - { $ref: "#/components/parameters/CsrfHeader" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AskPreviewRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AskPreviewResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
 
 components:
   parameters:
@@ -589,6 +1284,12 @@ components:
       in: path
       required: true
       schema: { type: string }
+    FileUuid:
+      name: file_uuid
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: Any version of the document; a value that is not a UUID is 400.
     CsrfHeader:
       name: X-QA-Portal
       in: header
@@ -617,13 +1318,134 @@ components:
       description: Soubor nad limit
       content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     UnsupportedMedia:
-      description: Není CSV ani ZIP
+      description: >
+        Import is not CSV/ZIP, or a document upload has an unsupported
+        extension (UNSUPPORTED_MEDIA_TYPE).
       content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    BadRequest:
+      description: BAD_REQUEST — malformed path or parameter (e.g. file_uuid is not a UUID)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    QueueFull:
+      description: >
+        INGEST_QUEUE_FULL — the school already has 300 queued/processing
+        document jobs (retryable true).
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    DocumentOut:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [document]
+            properties:
+              document: { $ref: "#/components/schemas/DocumentSummary" }
     Unavailable:
       description: Závislost dočasně nedostupná
       content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    UpstreamError:
+      description: >
+        UPSTREAM_ERROR (retryable false) — search answered HTTP 500 on a
+        document route (CONTRACT.md §14.8).
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
   schemas:
+    AskPreviewRequest:
+      type: object
+      required: [question, user_role]
+      additionalProperties: false
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Trimmed by the server; blank or over 2000 characters is 422.
+        user_role:
+          type: string
+          description: A code of the school's code_list 'role' (STUDENT, TEACHER, PARENT).
+        user_school_grade:
+          type: [string, "null"]
+          default: null
+          description: A code of the school's code_list 'school_grade', or null (not sent to search).
+        retrieval_only:
+          type: boolean
+          default: false
+          description: true = retrieval without an LLM call (free).
+        debug:
+          type: boolean
+          default: true
+          description: >
+            true = ask search for the trace and call explain beside it (CONTRACT.md
+            §14.11). Must be a JSON boolean.
+
+    AskPreviewResponse:
+      type: object
+      description: >
+        The search /v1/ask fields (contracts/schemas/search-response.schema.json)
+        passed through unchanged; a key search did not send is null, sources and
+        suggestions default to [].
+      required: [answer, outcome, answer_source, delivered_by, sources, suggestions,
+                 matched_entry_id, match_score, duration_ms, retrieval_only,
+                 effective_scope, strategies, key_words_used, language, answer_parts,
+                 trace, explain]
+      properties:
+        answer: { type: [string, "null"] }
+        outcome: { type: [string, "null"], description: "answer, suggest, blocked, self_harm, unusable, no_answer, role_required, llm_unavailable" }
+        answer_source: { type: [string, "null"], description: "guard, meta, qa_exact, qa_lexical, qa_vector, rag, none" }
+        delivered_by: { type: [string, "null"] }
+        sources:
+          type: array
+          items:
+            type: object
+            description: rag-source.schema.json; rank and title always, the rest optional.
+            properties:
+              rank: { type: integer }
+              title: { type: string }
+              url: { type: [string, "null"] }
+              file_uuid: { type: string }
+              original_file_name: { type: [string, "null"] }
+              source_url: { type: [string, "null"] }
+        suggestions:
+          type: array
+          items:
+            type: object
+            description: search-response.schema.json suggestions[].
+            properties:
+              kind: { type: string }
+              question: { type: string }
+              entry_id: { type: [string, "null"] }
+              score: { type: [number, "null"] }
+        matched_entry_id: { type: [string, "null"] }
+        match_score: { type: [number, "null"] }
+        duration_ms: { type: [integer, "null"] }
+        retrieval_only: { type: boolean, description: Echo of the request. }
+        effective_scope:
+          type: [object, "null"]
+          description: >
+            search's effective scope: legal_entity, role, school_grade, language,
+            domains, identified (CONTRACT.md §14.11).
+          additionalProperties: true
+        strategies: { type: array, items: { type: string } }
+        key_words_used: { type: array, items: { type: string } }
+        language: { type: [string, "null"] }
+        answer_parts:
+          type: array
+          items: { type: object, additionalProperties: true }
+        trace:
+          type: array
+          description: >
+            Per step (debug): step, status (ran/skipped/disabled/error/unknown), ms,
+            pool, pool_added, added_chunk_ids, matched_entry_id, resolved, outcome,
+            decision, match_score, stopped_here, note, detail. Passed through unchanged.
+          items: { type: object, additionalProperties: true }
+        explain:
+          type: [object, "null"]
+          description: >
+            Search POST /v1/explain, passed through unchanged (query_norm_tokens,
+            query_lemma_tokens, query_stem_tokens, query_language, query_in_corpus,
+            query_absent_concepts, pack_ids, offer_pack_ids, resolved, trace_detail);
+            null when debug is false or the call failed.
+          additionalProperties: true
+
     CodeOption:
       type: object
       required: [code, label]
@@ -697,13 +1519,25 @@ components:
 
     School:
       type: object
-      required: [code, name]
+      required: [code, name, permissions]
       properties:
         code: { type: string }
         name: { type: string }
         kind: { type: string }
         level: { type: [string, "null"] }
         parent_code: { type: [string, "null"] }
+        permissions: { $ref: "#/components/schemas/SchoolPermissions" }
+
+    SchoolPermissions:
+      type: object
+      description: From the policy (CONTRACT.md §14.6); the UI hides what is false.
+      required: [read, publish, ingest, deactivate, delete_permanently]
+      properties:
+        read: { type: boolean }
+        publish: { type: boolean }
+        ingest: { type: boolean }
+        deactivate: { type: boolean }
+        delete_permanently: { type: boolean }
 
     Domain:
       type: object
@@ -1008,3 +1842,229 @@ components:
           description: >
             CSV export není úplná záloha packu — neobsahuje všechna packová
             metadata. Úplný přenos zajišťuje ZIP s manifestem.
+
+    PackDeleteResult:
+      type: object
+      required: [deleted]
+      description: Counts of permanently deleted rows (CONTRACT.md §13.3).
+      properties:
+        deleted:
+          type: object
+          required: [entries, variants, embeddings, manifests]
+          properties:
+            entries: { type: integer }
+            variants: { type: integer }
+            embeddings: { type: integer }
+            manifests: { type: integer }
+
+    DocumentSummary:
+      type: object
+      description: One document = the versions of one school sharing a source (CONTRACT.md §14.1).
+      required: [file_uuid, title, source_kind, is_active, version_count, chunk_count,
+                 ingested_at, audience_roles, school_grade_codes, domain_codes, visibility]
+      properties:
+        file_uuid: { type: string, format: uuid, description: The shown version. }
+        title: { type: string, description: "source_url, else original_file_name, else file_uuid" }
+        source_kind: { type: string, enum: [web, file] }
+        source_url: { type: [string, "null"] }
+        original_file_name: { type: [string, "null"] }
+        document_type: { type: [string, "null"] }
+        document_language: { type: [string, "null"] }
+        school_subject: { type: [string, "null"] }
+        school_grade_codes: { type: array, items: { type: string } }
+        domain_codes: { type: array, items: { type: string } }
+        audience_roles: { type: array, items: { type: string } }
+        visibility: { type: string, enum: [private, entity, organization] }
+        valid_from: { type: [string, "null"], format: date }
+        valid_to: { type: [string, "null"], format: date }
+        validity_state:
+          type: string
+          enum: [current, expired, future]
+          description: Against CURRENT_DATE in search (CONTRACT.md §14.8).
+        user_name: { type: [string, "null"] }
+        ingested_at: { type: string, format: date-time }
+        is_active: { type: boolean, description: The document has an active version. }
+        version_count: { type: integer }
+        chunk_count: { type: integer, description: Chunks of the shown version. }
+        file_format: { type: [string, "null"], description: "The shown version's file format (CONTRACT.md §14.10)." }
+        content_sha256:
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+          description: >
+            SHA-256 of the shown version's content (file bytes, or the cleaned page
+            text); null for ingests outside the portal (CONTRACT.md §14.14).
+
+    DocumentStats:
+      type: object
+      description: Counts per DOCUMENT (the shown version), CONTRACT.md §14.12.
+      required: [active, inactive, expired, expiring_30, future, qa_entries_active]
+      properties:
+        active: { type: integer }
+        inactive: { type: integer }
+        expired: { type: integer }
+        expiring_30: { type: integer, description: "Active, current, valid_to within 30 days." }
+        future: { type: integer }
+        qa_entries_active: { type: integer }
+
+    DocumentChunk:
+      type: object
+      required: [chunk_index, text, char_count]
+      properties:
+        chunk_index: { type: integer }
+        heading_path: { type: [string, "null"] }
+        section_heading: { type: [string, "null"] }
+        text: { type: string }
+        char_count: { type: integer }
+
+    DocumentChunks:
+      type: object
+      required: [chunks, total, next_cursor]
+      properties:
+        chunks:
+          type: array
+          items: { $ref: "#/components/schemas/DocumentChunk" }
+        total: { type: integer }
+        next_cursor: { type: [string, "null"] }
+
+    DocumentVersion:
+      type: object
+      required: [file_uuid, ingested_at, is_active, chunk_count]
+      properties:
+        file_uuid: { type: string, format: uuid }
+        processing_uuid: { type: [string, "null"], format: uuid }
+        ingested_at: { type: string, format: date-time }
+        is_active: { type: boolean }
+        chunk_count: { type: integer }
+        file_format:
+          type: [string, "null"]
+          description: >
+            Stored file's extension in lower case (pdf, docx, pptx, xlsx, ...),
+            web for a saved page, null when unknown. The stored file name is
+            never exposed (CONTRACT.md §14.10).
+        content_sha256:
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+          description: This version's content hash (CONTRACT.md §14.14); null when unknown.
+
+    DocumentMetadata:
+      type: object
+      description: >
+        Sent as the JSON string `metadata` of an upload item. Every code is
+        checked against the school's DocumentOptions (422 with fields).
+      required: [visibility, audience_roles]
+      additionalProperties: false
+      properties:
+        visibility: { type: string, enum: [entity, organization] }
+        audience_roles: { type: array, minItems: 1, items: { type: string } }
+        document_type:
+          type: [string, "null"]
+          description: null = the LLM classifies.
+        document_language: { type: [string, "null"] }
+        school_subject: { type: [string, "null"] }
+        school_grade_codes: { type: array, default: [], items: { type: string } }
+        domain_codes: { type: array, default: [], items: { type: string } }
+        valid_from: { type: [string, "null"], format: date }
+        valid_to:
+          type: [string, "null"]
+          format: date
+          description: valid_from <= valid_to.
+
+    ValidityPeriod:
+      type: object
+      required: [id, name, is_default]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        valid_from: { type: [string, "null"], format: date }
+        valid_to: { type: [string, "null"], format: date }
+        is_default: { type: boolean }
+
+    DocumentOptions:
+      type: object
+      required: [visibility, audience_roles, school_grades, school_subjects, languages,
+                 document_types, domains, validity_periods, file_extensions,
+                 max_file_bytes, max_batch_items, max_child_links]
+      properties:
+        visibility:
+          type: array
+          items: { type: string, enum: [entity, organization] }
+        audience_roles: { type: array, items: { $ref: "#/components/schemas/CodeOption" } }
+        school_grades: { type: array, items: { $ref: "#/components/schemas/CodeOption" } }
+        school_subjects: { type: array, items: { $ref: "#/components/schemas/CodeOption" } }
+        languages: { type: array, items: { $ref: "#/components/schemas/CodeOption" } }
+        document_types:
+          type: array
+          description: code = the taxonomy type_code.
+          items: { $ref: "#/components/schemas/CodeOption" }
+        domains: { type: array, items: { $ref: "#/components/schemas/Domain" } }
+        validity_periods: { type: array, items: { $ref: "#/components/schemas/ValidityPeriod" } }
+        file_extensions:
+          type: array
+          items: { type: string }
+          example: [".pdf", ".docx", ".pptx", ".xlsx"]
+        max_file_bytes: { type: integer, example: 52428800 }
+        max_batch_items: { type: integer, example: 100 }
+        max_child_links: { type: integer, example: 10 }
+
+    DocumentJob:
+      type: object
+      description: One queued upload item (CONTRACT.md §14.5).
+      required: [job_id, batch_id, school, source_kind, source, status, created_at,
+                 started_at, finished_at, processing_uuid, result, stored_chunks, error]
+      properties:
+        job_id: { type: string, format: uuid }
+        batch_id: { type: string, format: uuid }
+        school: { type: string }
+        source_kind: { type: string, enum: [file, url] }
+        source: { type: string, description: File name or URL. }
+        status:
+          type: string
+          enum: [queued, processing, completed, failed, unknown, skipped]
+          description: >
+            unknown = the portal restarted while the item was being ingested;
+            check the document list before uploading it again. skipped = the
+            content equals the current version's (CONTRACT.md §14.14); nothing
+            was ingested, result carries reason and file_uuid.
+        created_at: { type: string, format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        processing_uuid: { type: [string, "null"], format: uuid }
+        result:
+          type: [object, "null"]
+          description: >
+            The gateway's own summary, or for a skipped job
+            {reason: "unchanged", file_uuid: <the current version>}.
+          properties:
+            status: { type: string }
+            total_files: { type: integer }
+            ok_count: { type: integer }
+            error_count: { type: integer }
+            reason: { type: string, enum: [unchanged] }
+            file_uuid: { type: string, format: uuid }
+        stored_chunks:
+          type: [integer, "null"]
+          description: >
+            Chunks stored for the run, looked up by the known processing_uuid
+            for up to 10 minutes after completion.
+        error:
+          type: [object, "null"]
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+
+    DocumentDeleteResult:
+      type: object
+      required: [deleted, file_uuids]
+      properties:
+        deleted:
+          type: object
+          required: [versions, chunks, elements, tables]
+          properties:
+            versions: { type: integer }
+            chunks: { type: integer }
+            elements: { type: integer }
+            tables: { type: integer }
+        file_uuids: { type: array, items: { type: string, format: uuid } }
+        files_removed: { type: integer }
+        warnings: { type: array, items: { type: string } }

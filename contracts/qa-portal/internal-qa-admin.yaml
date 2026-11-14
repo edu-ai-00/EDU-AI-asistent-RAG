@@ -67,6 +67,26 @@ paths:
         "404":
           description: Neznámý pack pro tuto entitu
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    delete:
+      operationId: deleteInternalEntry
+      summary: Permanently delete one QA entry (variants, embeddings included)
+      description: >
+        Deletes the entry, its variants (FK cascade, inactive ones too) and
+        every qa_embedding generation of it. question_answer_log and
+        embedding_registry are not touched (CONTRACT.md §13.1).
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: pack_id, in: query, required: true, schema: { type: string } }
+        - { name: entry_key, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Deleted row counts (manifests is always 0 here)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QaDeleteResult" }
+        "404":
+          description: Unknown entry, or an entry of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
   /uploader:
     get:
@@ -149,6 +169,376 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "422":
           description: Neplatný kód, labels nebo neznámý jazyk popisku
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  # --- Permanent deletion of QA content (CONTRACT.md §13) -------------------
+  # One transaction per request; legal_entity_code in every WHERE. Called by
+  # the portal only after it has taken the PackLock and checked confirmation.
+  /packs:
+    delete:
+      operationId: deleteInternalPack
+      summary: Permanently delete a whole QA pack
+      description: >
+        Deletes every entry of the pack (active or not), their variants and
+        embeddings, and ALL qa_pack_manifest rows of the (school, pack) pair.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: pack_id, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Deleted row counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QaDeleteResult" }
+        "404":
+          description: No manifest row for this pack and school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /entries/by-id:
+    get:
+      operationId: getInternalEntryById
+      summary: Pack and key of one QA entry by id (CONTRACT.md §14.11)
+      description: >
+        Active or inactive; legal_entity_code is in the WHERE, so another school's
+        entry is a 404.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: entry_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pack_id, entry_key, canonical_q, is_active]
+                properties:
+                  pack_id: { type: string }
+                  entry_key: { type: [string, "null"] }
+                  canonical_q: { type: string }
+                  is_active: { type: boolean }
+        "400":
+          description: entry_id is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown entry_id, or an entry of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  # --- Ingested documents (CONTRACT.md §14.2) --------------------------------
+  # A document = the versions (file_uuid) of one school sharing a source key
+  # (§14.1). Any file_uuid of a document identifies the whole document. One
+  # transaction per request; legal_entity_code in every WHERE.
+  /documents:
+    get:
+      operationId: listInternalDocuments
+      summary: The school's documents, one row per document (its shown version)
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, inactive, all], default: active }
+          description: inactive = documents with no active version.
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Case-insensitive substring of source_url or original_file_name.
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - name: cursor
+          in: query
+          schema: { type: string }
+          description: Opaque; next_cursor of the previous page.
+        - name: type
+          in: query
+          schema: { type: string }
+          description: The shown version's document_type equals this code (§14.8).
+        - name: role
+          in: query
+          schema: { type: string }
+          description: The shown version's audience_roles contains this code (§14.8).
+        - name: validity
+          in: query
+          schema: { type: string, enum: [current, expired, future, expiring, all], default: all }
+          description: >
+            Filter on validity_state of the shown version (§14.8). expiring = active,
+            current, valid_to between today and today + 30 days (§14.12).
+        - name: source
+          in: query
+          schema: { type: string }
+          description: Exact match on source_url OR original_file_name (§14.8).
+        - name: format
+          in: query
+          schema: { type: string, enum: [pdf, docx, pptx, xlsx, web] }
+          description: Stored file format of the shown version (§14.10); else 422.
+      responses:
+        "200":
+          description: Ordered by the shown version's ldts_gmt DESC, file_uuid DESC
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documents, next_cursor]
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentSummary" }
+                  next_cursor: { type: [string, "null"] }
+        "422":
+          description: Invalid status, validity, limit or cursor
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    delete:
+      operationId: deleteInternalDocument
+      summary: Permanently delete a document with all its versions
+      description: >
+        Removes every version from document_chunks, document_tables,
+        document_elements and document_metadata. ingestion_log,
+        question_answer_log and code lists are not touched. The caller
+        (the ingest gateway) removes the uploaded files of the returned
+        file_uuids afterwards.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: file_uuid, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Deleted row counts and the deleted versions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentDeleteResult" }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown file_uuid, or a document of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/stats:
+    get:
+      operationId: getInternalDocumentStats
+      summary: Per-document counts of the school and its active QA entries (§14.12)
+      description: >
+        Counts the shown version of each document. expired, future and expiring_30
+        count active documents only (the ones search hides or is about to hide).
+        Registered before /documents/{file_uuid}.
+      parameters:
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [active, inactive, expired, expiring_30, future, qa_entries_active]
+                properties:
+                  active: { type: integer }
+                  inactive: { type: integer }
+                  expired: { type: integer }
+                  expiring_30: { type: integer }
+                  future: { type: integer }
+                  qa_entries_active: { type: integer, description: Active qa_entries of the school. }
+
+  /documents/{file_uuid}:
+    get:
+      operationId: getInternalDocument
+      summary: One document with all its versions (newest first)
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document, versions]
+                properties:
+                  document: { $ref: "#/components/schemas/DocumentSummary" }
+                  versions:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentVersion" }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown file_uuid, or a document of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/{file_uuid}/deactivate:
+    post:
+      operationId: deactivateInternalDocument
+      summary: Deactivate the document's active version(s)
+      description: Idempotent — an already inactive document returns 200 unchanged.
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The document after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document: { $ref: "#/components/schemas/DocumentSummary" }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown file_uuid, or a document of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/{file_uuid}/activate:
+    post:
+      operationId: activateInternalDocument
+      summary: Activate the document's NEWEST version, deactivate all others
+      description: >
+        Idempotent. Never re-activates an older (superseded) version, even
+        when the path names one.
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The document after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document: { $ref: "#/components/schemas/DocumentSummary" }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown file_uuid, or a document of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/{file_uuid}/chunks:
+    get:
+      operationId: listInternalDocumentChunks
+      summary: Chunks of one version, by chunk_index (§14.13)
+      description: file_uuid is the VERSION. The cursor is an offset.
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string }, description: Offset; next_cursor of the previous page. }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [chunks, total, next_cursor]
+                properties:
+                  chunks:
+                    type: array
+                    items:
+                      type: object
+                      required: [chunk_index, heading_path, section_heading, text, char_count]
+                      properties:
+                        chunk_index: { type: integer }
+                        heading_path: { type: [string, "null"] }
+                        section_heading: { type: [string, "null"] }
+                        text: { type: string }
+                        char_count: { type: integer }
+                  total: { type: integer, description: Chunks of the version. }
+                  next_cursor: { type: [string, "null"] }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown version, or a version of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: limit outside 1-100, or a cursor that is not a number
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/{file_uuid}/content-hash:
+    patch:
+      operationId: updateInternalDocumentContentHash
+      summary: Record content_sha256 on ONE version (§14.14)
+      description: >
+        Sets document_metadata.content_sha256 of exactly this version
+        (file_uuid and legal_entity_code in the WHERE). The key is required and
+        no other key is allowed.
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_sha256]
+              additionalProperties: false
+              properties:
+                content_sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [file_uuid, content_sha256]
+                properties:
+                  file_uuid: { type: string, format: uuid }
+                  content_sha256: { type: string }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown version, or a version of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: Bad body or a value that is not 64 lowercase hex characters
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /documents/{file_uuid}/validity:
+    patch:
+      operationId: updateInternalDocumentValidity
+      summary: Set valid_from / valid_to on every version of the document
+      description: >
+        CONTRACT.md §14.8. One transaction; updates both columns in document_metadata,
+        document_chunks, document_elements and document_tables, legal_entity_code in
+        every WHERE. Both keys are required; null clears a date.
+      parameters:
+        - { name: file_uuid, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: legal_entity, in: query, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [valid_from, valid_to]
+              additionalProperties: false
+              properties:
+                valid_from: { type: [string, "null"], format: date }
+                valid_to: { type: [string, "null"], format: date }
+      responses:
+        "200":
+          description: The document after the change
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document: { $ref: "#/components/schemas/DocumentSummary" }
+        "400":
+          description: file_uuid is not a UUID
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: Unknown file_uuid, or a document of another school
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422":
+          description: Bad body, a date that is not YYYY-MM-DD, or valid_from after valid_to
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
 components:
@@ -255,3 +645,93 @@ components:
         is_active: { type: boolean }
         sort_order: { type: integer }
         notes: { type: [string, "null"] }
+
+    QaDeleteResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: object
+          required: [entries, variants, embeddings, manifests]
+          properties:
+            entries: { type: integer }
+            variants: { type: integer }
+            embeddings: { type: integer }
+            manifests: { type: integer }
+
+    DocumentSummary:
+      type: object
+      description: One document, described by its shown version (CONTRACT.md §14.1).
+      required: [file_uuid, title, source_kind, is_active, version_count, chunk_count, validity_state]
+      properties:
+        file_uuid: { type: string, format: uuid, description: The shown version. }
+        title:
+          type: string
+          description: source_url, else original_file_name, else file_uuid.
+        source_kind: { type: string, enum: [web, file], description: web iff source_url is not null. }
+        source_url: { type: [string, "null"] }
+        original_file_name: { type: [string, "null"] }
+        document_type: { type: [string, "null"], description: document_type_user, else document_type_llm. }
+        document_language: { type: [string, "null"], description: document_language_user, else document_language_llm. }
+        school_subject: { type: [string, "null"], description: school_subject_user. }
+        school_grade_codes:
+          type: array
+          items: { type: string }
+          description: code_list codes of school_grade_user ids; empty if none.
+        domain_codes:
+          type: array
+          items: { type: string }
+          description: taxonomy_rules.type_code of document_domain_user, else document_domain_llm.
+        audience_roles: { type: array, items: { type: string } }
+        visibility: { type: string, enum: [private, entity, organization] }
+        valid_from: { type: [string, "null"], format: date }
+        valid_to: { type: [string, "null"], format: date }
+        user_name: { type: [string, "null"] }
+        ingested_at: { type: string, format: date-time, description: ldts_gmt of the shown version. }
+        is_active: { type: boolean, description: The document has an active version. }
+        version_count: { type: integer }
+        chunk_count: { type: integer, description: Chunks of the shown version. }
+        validity_state:
+          type: string
+          enum: [current, expired, future]
+          description: >
+            Against CURRENT_DATE in search: future when valid_from is after today,
+            expired when valid_to is before today, else current (§14.8).
+        file_format:
+          type: [string, "null"]
+          description: Lower-case extension of the stored file; "web" for a saved page (§14.10).
+        content_sha256:
+          type: [string, "null"]
+          description: >
+            SHA-256 of the shown version's content (file bytes, or a web page's cleaned
+            text); null when the ingest did not record it (§14.14).
+
+    DocumentVersion:
+      type: object
+      required: [file_uuid, processing_uuid, ingested_at, is_active, chunk_count]
+      properties:
+        file_uuid: { type: string, format: uuid }
+        processing_uuid: { type: string, format: uuid }
+        ingested_at: { type: string, format: date-time }
+        is_active: { type: boolean }
+        chunk_count: { type: integer }
+        file_name: { type: [string, "null"], description: "Stored name <file_uuid>_<name>; internal only (§14.10)." }
+        file_format: { type: [string, "null"] }
+        content_sha256: { type: [string, "null"], description: "§14.14" }
+
+    DocumentDeleteResult:
+      type: object
+      required: [deleted, file_uuids]
+      properties:
+        deleted:
+          type: object
+          required: [versions, chunks, elements, tables]
+          properties:
+            versions: { type: integer }
+            chunks: { type: integer }
+            elements: { type: integer }
+            tables: { type: integer }
+        file_uuids:
+          type: array
+          items: { type: string, format: uuid }
+          description: Every deleted version; the gateway removes their uploaded files.

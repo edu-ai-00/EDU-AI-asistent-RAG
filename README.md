@@ -66,7 +66,7 @@ school upgrade. Lab backup tools retain their own layout and ownership guards.
 | `api/` | Ingestion gateway |
 | `search/` | Retrieval service and normalisation |
 | `web_chat/` | Browser chat and BFF |
-| `qa_portal/` | QA administration |
+| `qa_portal/` | Knowledge base administration: QA packs and documents |
 | `langflow_flows/` | Versioned ingestion and export flows |
 | `postgres/init_clean/` | Generated clean-install baseline |
 | `postgres/role_contract/` | Database role contract |

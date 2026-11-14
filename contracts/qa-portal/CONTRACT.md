@@ -1,6 +1,6 @@
 # QA portal — binding contract v1
 
-Track: contract. Owner: lead. Contract version: **qa-portal/1.4.0** (1.3.0 + §5.1 CSV written with a comma while reading both delimiters + §10.1 dialog scrolling).
+Track: contract. Owner: lead. Contract version: **qa-portal/1.8.0** (1.5.0 + §14.8 validity edit, list filters, source check, URL preview, `/knowledge/` address; + §14.9 try a question; + §14.11 debug, §14.12 overview, §14.13 content, §14.14 unchanged content and refresh).
 Basis: source HEAD `9fc015c`, integration baseline `8211a85`.
 
 This file is authoritative for the portal implementation. Where it diverges
@@ -16,7 +16,7 @@ No worker may change the shape of the API or the schema. A need for change goes 
 
 ```
 browser (VPN)
-   │  /qa/            static SPA
+   │  /knowledge/     static SPA
    │  /qa-api/v1/     JSON API
    ▼
 edu_ai_nginx (listener 80 = VPN side; NEVER listener 81 / search tunnel)
@@ -514,8 +514,9 @@ The same envelope as `contracts/errors.yaml`:
 | 409 | `PACK_ID_TAKEN` | `POST /packs` for an already existing `pack_id` (canonical code, not `PACK_EXISTS`) |
 | 409 | `PUBLISH_IN_PROGRESS` | Another publication is running for (school, pack) |
 | 409 | `DELETE_CONFIRMATION_MISMATCH` | The retyped pack identifier does not match (§13) |
-| 413 | `PAYLOAD_TOO_LARGE` | Import over the limit (nginx and application) |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | Import is not CSV/ZIP |
+| 413 | `PAYLOAD_TOO_LARGE` | Import or document upload over the limit (nginx and application) |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | Import is not CSV/ZIP; a document upload has an unsupported extension (§14.4) |
+| 429 | `INGEST_QUEUE_FULL` | The school's document queue is full (§14.4) |
 | 422 | `VALIDATION_ERROR` | Content validation (`fields` field) |
 | 422 | `IMPORT_ENTITY_MISMATCH` | The ZIP manifest targets a different school |
 | 422 | `UNKNOWN_CATEGORY` / `INACTIVE_CATEGORY` | Category code (§4.3) |
@@ -587,7 +588,7 @@ Shapes in `contracts/qa-portal/internal-qa-admin.yaml`.
 
 ## 10. Frontend
 
-- Own build (Vite + React), base `/qa/`, modelled on `web_chat/frontend`.
+- Own build (Vite + React), base `/knowledge/` (§14.8), modelled on `web_chat/frontend`.
 - Light cream look: `#fdf6ec` background, `#1a1410` text, `#aea2f5` accent,
   Nunito, a subtle green accent for the administration context. Colors and texts as
   **frontend tokens** (`src/tokens.css`, `src/strings.cs.ts`), not hard-coded.
@@ -680,6 +681,416 @@ Both return `200` with the counts of deleted rows
 `404 NOT_FOUND` for a foreign or nonexistent school/pack/question.
 Internally the portal calls `DELETE /internal/qa-admin/entries` and
 `DELETE /internal/qa-admin/packs` of the search service; only that touches the database.
+
+## 14. Documents (v1.5.0)
+
+A second page of the portal manages the school's ingested **documents** (not QA).
+Design rationale: `specs/active/spec.qa-portal-documents.md`. This section is the
+binding shape; nobody changes it without the lead.
+
+### 14.1 Terms
+
+- **Version** = one `file_uuid` (its `document_metadata` row plus the
+  `document_chunks` / `document_elements` / `document_tables` rows with that
+  `file_uuid`).
+- **Document** = the versions of ONE school (`legal_entity_code`) sharing a
+  **source key**: `'url:' || source_url` when `source_url` is not null, else
+  `'file:' || original_file_name || '|' || coalesce(user_name, '')`. This is the
+  key the ingest flow uses to retire older versions. A row with neither
+  `source_url` nor `original_file_name` falls back to `'uuid:' || file_uuid`,
+  so it is a document of its own instead of merging with every such row.
+- **Shown version** of a document = its active version if it has one, else its
+  newest version (`ldts_gmt DESC, file_uuid DESC`).
+- A document is **active** when it has an active version (`is_active = true`).
+- Any `file_uuid` of a document identifies the whole document in every path below.
+
+### 14.2 Internal search API (`/internal/qa-admin`, search only)
+
+Same rules as §13.2: one transaction per request, `legal_entity_code` in EVERY
+`WHERE`, a foreign or unknown document is `404 NOT_FOUND`, an `file_uuid` that is
+not a UUID is `400 BAD_REQUEST`. Error envelope as §7.
+
+| Method | Path | Response `200` |
+|---|---|---|
+| `GET` | `/documents?legal_entity=&status=active\|inactive\|all&q=&limit=&cursor=` | `{"documents": [DocumentSummary], "next_cursor": str\|null}` |
+| `GET` | `/documents/{file_uuid}?legal_entity=` | `{"document": DocumentSummary, "versions": [DocumentVersion]}` |
+| `POST` | `/documents/{file_uuid}/deactivate?legal_entity=` | `{"document": DocumentSummary}` |
+| `POST` | `/documents/{file_uuid}/activate?legal_entity=` | `{"document": DocumentSummary}` |
+| `DELETE` | `/documents?legal_entity=&file_uuid=` | `{"deleted": {"versions": n, "chunks": n, "elements": n, "tables": n}, "file_uuids": [str]}` |
+
+- `status` default `active`; `inactive` = documents with no active version.
+  `q` = case-insensitive substring of `source_url` or `original_file_name`.
+  `limit` 1–200, default 50. `cursor` is opaque (an offset is fine); order is
+  shown version `ldts_gmt DESC, file_uuid DESC`.
+- **deactivate** sets `is_active = false` on the document's active version(s).
+  Idempotent (already inactive → `200`, unchanged).
+- **activate** sets `is_active = true` on the NEWEST version and `false` on all
+  others of the document. Idempotent. Never re-activates an older version.
+- **DELETE** removes every version of the document from the four tables. Not
+  touched: `ingestion_log`, `question_answer_log`, code lists.
+
+```
+DocumentSummary = {
+  file_uuid: str,                 # the shown version
+  title: str,                     # source_url, else original_file_name, else file_uuid
+  source_kind: "web" | "file",    # "web" iff source_url is not null
+  source_url: str | null,
+  original_file_name: str | null,
+  document_type: str | null,      # document_type_user, else document_type_llm
+  document_language: str | null,  # document_language_user, else document_language_llm
+  school_subject: str | null,     # school_subject_user
+  school_grade_codes: [str],      # code_list codes of school_grade_user ids (empty if none)
+  domain_codes: [str],            # taxonomy_rules.type_code of document_domain_user, else _llm
+  audience_roles: [str],
+  visibility: "private" | "entity" | "organization",
+  valid_from: "YYYY-MM-DD" | null,
+  valid_to: "YYYY-MM-DD" | null,
+  user_name: str | null,
+  ingested_at: ISO-8601 str,      # ldts_gmt of the shown version
+  is_active: bool,                # document has an active version
+  version_count: int,
+  chunk_count: int                # chunks of the shown version
+}
+DocumentVersion = { file_uuid, processing_uuid, ingested_at, is_active, chunk_count }
+```
+
+### 14.3 Ingest gateway (`edu_ai_api`)
+
+```
+DELETE /v1/documents/{file_uuid}?legal_entity=<code>
+200 {"deleted": {...as 14.2}, "file_uuids": [str], "files_removed": n, "warnings": [str]}
+400 file_uuid not a UUID · 404 foreign/unknown · 503 search unreachable
+```
+
+The gateway calls `DELETE /internal/qa-admin/documents` first. Only after a
+`200` it removes, for each returned `file_uuid`, the files in `UPLOAD_DIR`
+whose name starts with `"<canonical uuid>_"`. Nothing from the request is used
+as a path. A failed unlink adds a warning and still returns `200`; so does a
+`200` from search that cannot be read (the rows are gone): the files of the
+requested `file_uuid` are removed and a warning says so. Logs carry
+`legal_entity`, `file_uuid` and counts only. Error bodies keep the gateway's
+existing FastAPI `{"detail": …}` shape.
+
+### 14.4 Portal API (`/qa-api/v1`)
+
+Every write passes `csrf_guard` (§8). Every route resolves the school through
+the policy (§14.6) BEFORE anything else.
+
+| Method | Path | Policy | Response |
+|---|---|---|---|
+| `GET` | `/schools/{school}/documents?status=&q=&limit=&cursor=` | read | `200` as 14.2 list |
+| `GET` | `/schools/{school}/documents/{file_uuid}` | read | `200` as 14.2 detail |
+| `GET` | `/schools/{school}/document-options?lang=` | read | `200 DocumentOptions` |
+| `POST` | `/schools/{school}/documents` (multipart) | ingest | `202 {"job": DocumentJob}` |
+| `GET` | `/schools/{school}/document-jobs?batch_id=` | read | `200 {"jobs": [DocumentJob]}` |
+| `POST` | `/schools/{school}/documents/{file_uuid}/deactivate` | deactivate | `200 {"document": DocumentSummary}` |
+| `POST` | `/schools/{school}/documents/{file_uuid}/activate` | deactivate | `200 {"document": DocumentSummary}` |
+| `DELETE` | `/schools/{school}/documents/{file_uuid}`, body `{"confirm_file_uuid": str}` | delete_permanently | `200` as 14.3 |
+
+```
+DocumentOptions = {
+  visibility: ["entity", "organization"],
+  audience_roles: [CodeOption],     # code_list 'role'
+  school_grades: [CodeOption],      # code_list 'school_grade'
+  school_subjects: [CodeOption],    # code_list 'school_subject'
+  languages: [CodeOption],          # code_list 'language'
+  document_types: [CodeOption],     # search /v1/document-types (type_code + labels)
+  domains: [Domain],                # same shape as GET /schools/{school}/domains
+  validity_periods: [{id, name, valid_from, valid_to, is_default}],
+  file_extensions: [".pdf", ".docx", ".pptx", ".xlsx"],     # no .txt: the gateway has no flow for it
+  max_file_bytes: 52428800,
+  max_batch_items: 100,
+  max_child_links: 10
+}
+CodeOption = {code, label, label_fallback?}   # label resolution as §4.1
+```
+
+**Upload item** (`POST /schools/{school}/documents`, `multipart/form-data`):
+
+| Field | Rule |
+|---|---|
+| `file` **xor** `url` | exactly one. `file`: extension in `file_extensions` (`.csv` → `415 UNSUPPORTED_MEDIA_TYPE`), non-empty, ≤ `max_file_bytes` (`413 PAYLOAD_TOO_LARGE`). `url`: absolute `http`/`https`. |
+| `save_level_1_child` | `"true"`/`"false"`, default false; only with `url` |
+| `max_child_links` | int 1–10, default 5; only with `url` |
+| `batch_id` | required, a UUID chosen by the client |
+| `metadata` | required, JSON string of `DocumentMetadata` |
+
+```
+DocumentMetadata = {
+  visibility: "entity" | "organization",       # required
+  audience_roles: [str],                        # required, >= 1
+  document_type: str | null,                    # null = the LLM classifies
+  document_language: str | null,
+  school_subject: str | null,
+  school_grade_codes: [str],
+  domain_codes: [str],
+  valid_from: "YYYY-MM-DD" | null,
+  valid_to: "YYYY-MM-DD" | null                 # from <= to
+}
+```
+
+Every code is checked against `DocumentOptions` of that school; a violation is
+`422 VALIDATION_ERROR` with `fields`. More than `max_batch_items` jobs with one
+`batch_id` → `422 VALIDATION_ERROR` (field `batch_id`). More than 300 jobs of the
+school in `queued`/`processing` → `429 INGEST_QUEUE_FULL` (retryable: true).
+`legal_entity` = the school, `user_id` = the technical uploader (§2.2); the
+client can send neither. A missing uploader → `503 PUBLISH_UPLOADER_UNAVAILABLE`.
+
+```
+DocumentJob = {
+  job_id: str, batch_id: str, school: str,
+  source_kind: "file" | "url", source: str,      # file name or URL
+  status: "queued" | "processing" | "completed" | "failed" | "unknown",
+  created_at, started_at | null, finished_at | null,
+  processing_uuid: str | null,
+  result: {status, total_files, ok_count, error_count} | null,   # gateway's own summary
+  stored_chunks: int | null,                      # from ingest-status, see 14.5
+  error: {code, message} | null
+}
+```
+
+`GET /document-jobs` returns the school's jobs newest first (max 200); with
+`batch_id` only that batch, oldest first.
+
+### 14.5 Ingest queue
+
+- `POST` stores the job (`jobs/<job_id>.json`) and the file (`jobs/files/<job_id>`)
+  in the state volume and returns `202` at once.
+- ONE worker thread started in `lifespan` processes jobs FIFO by `created_at`,
+  concurrency 1 (`QA_PORTAL_INGEST_CONCURRENCY`, only `1` is supported). It calls
+  the synchronous `POST /v1/ingest` with the job's fields; the temporary file is
+  removed when the job ends. `completed` = gateway `2xx` with status
+  `completed`/`partial`; `failed` = gateway `4xx` (its detail in `error`) or
+  status `failed`; gateway unreachable/`5xx` = `failed` with `UPSTREAM_ERROR`.
+  No automatic retry.
+- `stored_chunks`: when listing, for a `completed` job with `stored_chunks` null
+  or 0 finished less than 10 minutes ago, the portal asks `ingest-status` by the
+  job's KNOWN `processing_uuid` (never `since_seconds`, §6), sums `chunks`
+  over its files and stores a positive value. Lookup failures leave it unchanged.
+- Restart: `queued` stays queued; `processing` becomes `unknown` (the gateway
+  returns `processing_uuid` only at the end, so nothing can be looked up).
+- Finished jobs older than 7 days are pruned at startup and once an hour.
+
+### 14.6 Policy (ready for stage 2)
+
+`Policy` gains per-school methods; `VpnAdminPolicy` answers `True`:
+
+```python
+def may_read(self, p, school) -> bool: ...
+def may_ingest(self, p, school) -> bool: ...
+def may_deactivate(self, p, school) -> bool: ...
+def may_delete_permanently(self, p, school) -> bool: ...
+```
+
+- `GET /schools` adds to every school `permissions: {read, publish, ingest,
+  deactivate, delete_permanently}` from the policy; the UI hides what is `false`.
+- `GET /operations/{id}` and `GET /exports/{id}/download` answer `404` when the
+  policy does not allow reading the record's school.
+- `GET /context` `may_publish`/`may_replace` come from the policy (true if the
+  principal may do it for at least one school), not a literal.
+
+### 14.7 Errors added to §7
+
+| HTTP | code | When |
+|---|---|---|
+| 409 | `DELETE_CONFIRMATION_MISMATCH` | `confirm_file_uuid` ≠ the path `file_uuid` (also used by §13) |
+| 429 | `INGEST_QUEUE_FULL` | The school already has 300 queued/processing jobs |
+
+### 14.8 Validity, filters, previews and the `/knowledge/` address (v1.6.0)
+
+**Validity state.** Every `DocumentSummary` gains
+`validity_state: "current" | "expired" | "future"`, computed against `CURRENT_DATE`
+in search: `future` when `valid_from > today`, `expired` when `valid_to < today`,
+else `current`. Search hides `expired` and `future` documents even when active.
+
+**List filters** (search `GET /documents` and portal `GET /schools/{school}/documents`,
+all optional, combined with AND):
+
+| Param | Meaning |
+|---|---|
+| `type` | shown version's `document_type` equals this code |
+| `role` | shown version's `audience_roles` contains this code |
+| `validity` | `current` / `expired` / `future` / `all` (default `all`) |
+| `source` | exact match on `source_url` OR `original_file_name` (duplicate check) |
+
+**Edit validity** — the only metadata that can change without a new ingest:
+
+```
+search  PATCH /internal/qa-admin/documents/{file_uuid}/validity?legal_entity=
+portal  PATCH /schools/{school}/documents/{file_uuid}/validity        (policy: deactivate, csrf)
+body    {"valid_from": "YYYY-MM-DD" | null, "valid_to": "YYYY-MM-DD" | null}
+200     {"document": DocumentSummary}
+422     VALIDATION_ERROR (bad date, from > to)  · 404 foreign/unknown · 400 bad uuid
+```
+
+It sets both columns on EVERY version of the document in `document_metadata`,
+`document_chunks`, `document_elements` and `document_tables` (one transaction,
+`legal_entity_code` in every WHERE). Requires UPDATE on the three child tables for
+`edu_ai_search` (migration 227, `postgres/role_contract/matrix.json`).
+
+**Source check** before an upload:
+
+```
+portal  POST /schools/{school}/documents/check-sources               (policy: ingest, csrf)
+body    {"sources": [{"kind": "file" | "url", "value": str}]}        # <= max_batch_items
+200     {"results": [{"kind", "value", "existing": DocumentSummary | null, "supersedes": bool}]}
+```
+
+`existing` = the school's document whose `source_url` (kind url, after the same
+trimming the client sends) or `original_file_name` (kind file) equals `value`.
+`supersedes` = a new upload will retire it: always for `url`; for `file` only when the
+existing document's `user_name` equals the technical uploader's `display_name`
+(the ingest flow keys files by name AND uploader).
+
+**URL preview** — which pages a web ingest would fetch, without Langflow:
+
+```
+portal  POST /schools/{school}/documents/preview-url                 (policy: ingest, csrf)
+body    {"url": str, "save_level_1_child": bool, "max_child_links": 1..10, "metadata": DocumentMetadata}
+200     {"files": [{"source_url": str | null, "source_type": str, "page_role": "parent" | "child"}]}
+422     validation as §14.4 · 400 the gateway refused (its message)
+```
+
+The portal calls the gateway's `POST /v1/ingest` with `dry_run=true`. The gateway
+removes every file it saved for a dry run before answering (a preview leaves nothing
+in `/data/uploads`).
+
+**Error mapping.** A search answer `500` (e.g. a database permission error) becomes
+portal `502 UPSTREAM_ERROR` with `retryable: false`; network errors and `502/503/504`
+stay `503 UNAVAILABLE` (`retryable: true`).
+
+**Address.** The SPA is served at `/knowledge/` with real paths `/knowledge/qa` and
+`/knowledge/documents` (`/knowledge/` opens QA), on listener 80 only; the tunnel
+listener answers `404`. The former `/qa/` address is removed, with no redirect:
+nginx answers it `404` like any unknown path. The API stays `/qa-api/v1`.
+A legacy `#/documents` hash opens `/knowledge/documents`.
+
+### 14.9 Try a question (v1.7.0)
+
+An administrator asks the school's assistant from the portal, to check what the
+QA packs and documents answer — the same cascade the chat uses.
+
+```
+portal  POST /schools/{school}/ask-preview                           (policy: publish, csrf)
+body    {"question": str (1..2000 chars, not blank),
+         "user_role": "STUDENT" | "TEACHER" | "PARENT",              # code_list 'role' of the school
+         "user_school_grade": str | null,                            # a school_grade code of the school
+         "retrieval_only": bool}                                     # true = no LLM call, free
+200     {"answer", "outcome", "answer_source", "delivered_by", "sources", "suggestions",
+         "matched_entry_id", "match_score", "duration_ms", "retrieval_only"}
+422     VALIDATION_ERROR (blank/too long question, unknown role or grade)
+```
+
+The portal calls search `POST /v1/ask` with `legal_entity` = the school,
+`user_id` = the school's technical account `qa_portal__<school>` (§2.2; search
+refuses an unknown user_id with 403) and a fresh `query_id`, so the query log tells
+a portal test from a real user by that prefix. A missing technical account →
+`503 PUBLISH_UPLOADER_UNAVAILABLE`. Fields of the search response are passed through
+unchanged (contracts/schemas/search-response.schema.json); nothing is stored by
+the portal. A full answer costs one LLM call; `retrieval_only` shows what would be
+found without it. Search `4xx` → `400 BAD_REQUEST` with its message; `500` → `502
+UPSTREAM_ERROR`; unreachable/`502-504` → `503 UNAVAILABLE` (as §14.8).
+
+### 14.10 File format and download (v1.7.0)
+
+- `DocumentSummary.file_format` and `DocumentVersion.file_format`: the stored file's
+  extension in lower case (`pdf`, `docx`, `pptx`, `xlsx`, …), `web` for a saved web
+  page (`*.html`), null when unknown. Search list filter `format` =
+  `pdf | docx | pptx | xlsx | web` (else 422); the portal passes it through.
+- `DocumentVersion.file_name` (search internal only): the stored name
+  `<file_uuid>_<name>`. The portal does not expose it.
+- Download one version's stored file (original upload, or the saved HTML of a page):
+
+```
+gateway GET /v1/documents/{file_uuid}/file?legal_entity=     # file_uuid = the VERSION
+portal  GET /schools/{school}/documents/{file_uuid}/download   (policy: read; GET, no csrf)
+200     the bytes, application/octet-stream, Content-Disposition: attachment,
+        X-Content-Type-Options: nosniff  (a saved page is never served inline)
+404     foreign/unknown version, or the file is not stored (e.g. data moved without uploads)
+400     bad uuid · 503 search/gateway unavailable
+```
+
+The gateway asks search for the document detail, takes the version's `file_name`,
+accepts it only as a plain name starting with `<file_uuid>_`, and serves it from
+`UPLOAD_DIR`. The portal streams the gateway response unchanged.
+
+### 14.11 Debug information for "try a question" (v1.8.0)
+
+`POST /schools/{school}/ask-preview` body gains `"debug": bool` (default `true`).
+With `debug` the portal sends `debug: true` to search `/v1/ask` and, in parallel,
+the same identity to search `POST /v1/explain` (deterministic, no LLM). The response
+gains, passed through unchanged:
+
+| Field | From | Content |
+|---|---|---|
+| `effective_scope` | ask | `legal_entity, role, school_grade, language, domains, identified` |
+| `strategies`, `key_words_used`, `language`, `answer_parts` | ask | as the search response schema |
+| `trace` | ask (`debug`) | per step: `step, status (ran/skipped/disabled/error/unknown), ms, pool, pool_added, added_chunk_ids, matched_entry_id, resolved, outcome, decision, match_score, stopped_here, note, detail` |
+| `explain` | explain | `query_norm_tokens, query_lemma_tokens, query_stem_tokens, query_language, query_in_corpus, query_absent_concepts, pack_ids, offer_pack_ids, resolved, trace_detail` |
+
+`explain` is `null` when the explain call fails (the answer is still returned); the
+portal never stores or logs any of it. Search returns no ranked list of QA candidates:
+the panel shows the winner (`matched_entry_id`, score), the n-gram chip
+(`trace[qa_lexical].detail.ngram_chip`) and `suggestions`.
+
+```
+search  GET /internal/qa-admin/entries/by-id?legal_entity=&entry_id=
+portal  GET /schools/{school}/entries/by-id?entry_id=                (policy: read)
+200     {"pack_id": str, "entry_key": str, "canonical_q": str, "is_active": bool}
+404     foreign/unknown · 400 entry_id not a UUID
+```
+
+### 14.12 School overview and "expiring soon" (v1.8.0)
+
+```
+search  GET /internal/qa-admin/documents/stats?legal_entity=
+portal  GET /schools/{school}/documents/stats                        (policy: read)
+200     {"active": n, "inactive": n, "expired": n, "expiring_30": n, "future": n,
+         "qa_entries_active": n}
+```
+
+Counts are per DOCUMENT (shown version, §14.1). `expiring_30` = active, current, with
+`valid_to` between today and today + 30 days. The list filter `validity` gains
+`expiring` with the same meaning.
+
+### 14.13 Document content (chunks) (v1.8.0)
+
+```
+search  GET /internal/qa-admin/documents/{file_uuid}/chunks?legal_entity=&limit=&cursor=
+portal  GET /schools/{school}/documents/{file_uuid}/chunks?limit=&cursor=   (policy: read)
+200     {"chunks": [{"chunk_index": int, "heading_path": str|null,
+                      "section_heading": str|null, "text": str, "char_count": int}],
+         "total": int, "next_cursor": str|null}
+```
+
+`file_uuid` is the VERSION; order `chunk_index`; `limit` 1–100 (default 20); the cursor
+is an offset. Scoped by `legal_entity_code` like every document route.
+
+### 14.14 Unchanged content and refresh from the web (v1.8.0)
+
+- Migration 228 adds `document_metadata.content_sha256 text` (nullable). Approved by
+  the owner on 2026-11-14. Summaries and versions expose `content_sha256`.
+- `PATCH /internal/qa-admin/documents/{file_uuid}/content-hash?legal_entity=` body
+  `{"content_sha256": "<64 lowercase hex>"}` sets it on that ONE version (422 on a bad
+  value, 404 foreign). Search role already has UPDATE on `document_metadata` (226).
+- The hash is the SHA-256 of the uploaded file's bytes, or for a web page of its
+  cleaned text (`clean_text` of the page's visible text), so dates in markup do not
+  count. The gateway reports it per file in `/v1/ingest` results (`content_sha256`),
+  also in a dry run.
+- **Recording:** the portal stores the hash through the PATCH when a job's
+  `stored_chunks` first becomes positive (the metadata row exists only then). Ingests
+  outside the portal leave it NULL; a NULL hash never matches.
+- **Skipping:** a FILE job, or a URL job without level-1 links, whose hash equals the
+  `content_sha256` of the current ACTIVE version with at least one stored chunk of the same document (same source key),
+  and whose declared metadata match that version (visibility, roles, validity, grades,
+  subject; type, language and domains only when the job sets them), ends
+  as `status: "skipped"` with `result: {"reason": "unchanged", "file_uuid": <current>}`
+  and no ingest call. For a URL the portal first runs the gateway dry run to obtain
+  the hash. Crawls with level-1 links are never skipped.
+- **Refresh:** `POST /schools/{school}/documents/{file_uuid}/refresh` (ingest, csrf) on
+  a web document enqueues a URL job with the shown version's metadata and no level-1
+  links → `202 {"job": DocumentJob}`; a file document → 422.
+- `DocumentJob.status` gains `skipped`.
 
 ---
 

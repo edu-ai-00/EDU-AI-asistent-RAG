@@ -143,6 +143,20 @@ A file that changes data checks its own result and stops with `RAISE EXCEPTION`;
 started. No migration registry is created on such a database (taking over an existing
 installation, D11, is not decided).
 
+A file that only grants privileges (226: the search role may deactivate and delete
+documents; 227: it may also edit their validity dates) makes the role contract expect
+them at once: until it is applied, the smoke test of `setup.py install` reports
+"role contract deviates" and step 8b is skipped.
+Apply the file, then run `python3 scripts/db_roles.py verify --container edu_ai_postgres`
+(expect `MATCH`) and the installation again (VM 507, 2026-11-14).
+228 adds the column `document_metadata.content_sha256`; it is a schema change applied by
+hand like 226 and 227, and it changes no grant.
+
+`setup.py install` does not reload nginx when only `nginx/conf/nginx.conf` changed
+(e.g. the QA portal address `/knowledge/`, which replaced `/qa/`; the old address
+now answers `404`). Check and reload it by hand:
+`docker exec edu_ai_nginx nginx -t && docker exec edu_ai_nginx nginx -s reload`.
+
 A change of `Dockerfile.postgres` within one PostgreSQL major version (e.g. 16.3 → 16.15,
 pgvector 0.7.4 → 0.8.7, pg_search 0.25.1 → 0.25.11) rebuilds the postgres image and recreates
 the container on the same data volume; a minor version needs no dump. The extensions
