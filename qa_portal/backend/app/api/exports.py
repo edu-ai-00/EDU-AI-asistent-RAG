@@ -8,9 +8,11 @@ from fastapi import APIRouter, Depends, Response
 
 from .. import errors
 from ..adapters.search import SearchClient
+from ..policy import Policy, Principal
 from ..services import export_service
 from ..state.store import StateStore
-from .deps import get_search_client, get_store, require_school_publish
+from .deps import (get_policy, get_principal, get_search_client, get_store,
+                   may_read_record_school, require_school_publish)
 from .models import CreateExportRequest
 from .security import csrf_guard
 
@@ -27,19 +29,21 @@ def create_export(body: CreateExportRequest,
     result = export_service.create_export(
         search=search, store=store, school=school,
         pack_ids=body.pack_ids, fmt=body.format, lang=body.lang)
-    return {k: v for k, v in result.items() if k != "ext"}  # ext is internal bookkeeping
+    # ext and school are internal bookkeeping, not part of the Export schema
+    return {k: v for k, v in result.items() if k not in ("ext", "school")}
 
 
 @router.get("/exports/{export}/download")
-def download_export(export: str, store: StateStore = Depends(get_store)) -> Response:
-    """No `school` in the path (openapi.yaml). The stored export metadata
-    carries no owning school, so under the current VpnAdminPolicy — one admin
-    for every active school — the only distinguishable outcome is "known
-    export id" or not. A future per-school policy must first make
-    export_service record the owner (CONTRACT.md §5.2).
+def download_export(export: str, store: StateStore = Depends(get_store),
+                    principal: Principal = Depends(get_principal),
+                    policy: Policy = Depends(get_policy)) -> Response:
+    """No `school` in the path (openapi.yaml): the stored export metadata
+    carries the owning school and the policy decides (CONTRACT.md §14.6).
+    A record from before that field is visible only to an all-schools principal.
     """
     meta, blob = export_service.read_export(store, export)
-    if meta is None or blob is None:
+    if meta is None or blob is None or not may_read_record_school(
+            policy, principal, meta.get("school")):
         raise errors.not_found(f"no such export {export!r}")
     content_type = _CONTENT_TYPES.get(meta["ext"], "application/octet-stream")
     headers = {"Content-Disposition": f'attachment; filename="{meta["filename"]}"'}

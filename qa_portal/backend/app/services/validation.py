@@ -91,7 +91,7 @@ def fetch_code_lists(search: SearchClient, school: str) -> dict[str, list[dict]]
     try:
         return search.get_code_lists(school)
     except SearchUnavailable as e:
-        raise errors.unavailable(f"code lists unavailable: {e}")
+        raise errors.search_failure(e, f"code lists unavailable: {e}")
 
 
 def validate_pack_metadata(meta: dict, code_lists: dict) -> list[FieldError]:

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ApiClient } from "./api/client";
 import { createLiveClient } from "./api/liveClient";
 import { createMockClient } from "./api/mockClient";
-import type { Category, Context, Domain, EntryPage, Pack, PackMetadata, School } from "./api/types";
+import type { Category, Context, Domain, Entry, EntryPage, Pack, PackMetadata, School } from "./api/types";
 import { API_BASE_URL, DEFAULT_UI_LANG, USE_FIXTURES } from "./config";
 import { strings } from "./strings.cs";
 import { useKeyedResource, type AsyncState } from "./hooks/useKeyedResource";
+import { useWorkAreaOffset } from "./hooks/useWorkAreaOffset";
 import { useEntries } from "./hooks/useEntries";
 import {
   blankDraft,
@@ -26,6 +27,14 @@ import { ImportDialog } from "./components/ImportDialog";
 import { ExportDialog } from "./components/ExportDialog";
 import { NewPackDialog } from "./components/NewPackDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
+import { DocumentsPage } from "./components/DocumentsPage";
+import { AppHeader } from "./components/AppHeader";
+import { AskPreviewDrawer } from "./components/AskPreviewDrawer";
+import { OverflowMenu } from "./components/OverflowMenu";
+import { pageFromLocation, pathFor, type PageId } from "./lib/route";
+import { pickInitialSchool, storeSchool } from "./lib/schoolStore";
+
+// Path-based page switch (CONTRACT.md §14.8) via the History API — no router dependency.
 
 // Import/export/new-pack dialogs plus mobile layout and dialog keyboard
 // handling (points 7-8 of the original brief) are wired below through
@@ -42,6 +51,9 @@ export default function App() {
   const { state: contextState } = useKeyedResource<Context>("context", (_key, signal) => client.getContext(signal));
   const { state: schoolsState } = useKeyedResource<School[]>("schools", (_key, signal) => client.listSchools(signal));
   const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [page, setPage] = useState<PageId>(() => pageFromLocation(window.location));
+  // Updated synchronously in navigate() so a popstate we caused ourselves is a no-op.
+  const pageRef = useRef<PageId>(page);
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
   const [selectedEntryKey, setSelectedEntryKey] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -60,14 +72,22 @@ export default function App() {
 
   useEffect(() => {
     if (schoolsState.status === "ready" && schoolsState.value.length > 0 && selectedSchool === null) {
-      setSelectedSchool(schoolsState.value[0].code);
+      setSelectedSchool(pickInitialSchool(schoolsState.value.map((school) => school.code)));
     }
   }, [schoolsState, selectedSchool]);
+
+  useEffect(() => {
+    if (selectedSchool !== null) storeSchool(selectedSchool);
+  }, [selectedSchool]);
 
   const { state: packsState, loadedKey: packsLoadedFor, reload: reloadPacks } = useKeyedResource<Pack[]>(
     selectedSchool,
     (school, signal) => client.listPacks(school, signal),
   );
+  const gridRef = useWorkAreaOffset<HTMLElement>(page === "qa");
+  const [askOpen, setAskOpen] = useState(false);
+  const [openDocumentRequest, setOpenDocumentRequest] = useState<{ fileUuid: string; nonce: number } | null>(null);
+  const askButtonRef = useRef<HTMLButtonElement>(null);
   const [activeDialog, setActiveDialog] = useState<"import" | "export" | "newPack" | "deletePack" | null>(null);
 
   useEffect(() => {
@@ -115,7 +135,6 @@ export default function App() {
     client,
     selectedSchool,
     isPendingPack ? null : selectedPack,
-    query,
   );
   const entriesState: AsyncState<EntryPage> | { status: "empty" } = isPendingPack
     ? { status: "ready", value: { entries: [], next_cursor: null, total: 0, pack_etag: "", pack_version: 0, metadata_uniform: true } }
@@ -163,6 +182,51 @@ export default function App() {
     setPendingNewPack(null);
   }
 
+  // Leaving the QA page drops its in-browser drafts, so it asks first (same guard).
+  function navigate(next: PageId, source: "link" | "pop"): boolean {
+    if (next === pageRef.current) return true;
+    if (pageRef.current === "qa") {
+      const { proceed } = guardSwitch({
+        hasUnsavedChanges: hasUnsavedChanges(drafts, baselines),
+        current: pageRef.current,
+        next,
+        confirm: (message) => window.confirm(message),
+        message: strings.switchGuard.confirmMessage,
+      });
+      if (!proceed) {
+        // The browser already moved to the other URL; put the QA address back.
+        if (source === "pop") window.history.pushState(null, "", pathFor("qa"));
+        return false;
+      }
+      setDrafts({});
+      setBaselines({});
+      setSelectedEntryKey(null);
+    }
+    pageRef.current = next;
+    setPage(next);
+    if (source === "link") window.history.pushState(null, "", pathFor(next));
+    return true;
+  }
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+
+  useEffect(() => {
+    // A legacy #/documents bookmark becomes the real path.
+    if (window.location.hash === "#/documents") window.history.replaceState(null, "", pathFor("documents"));
+    const onPopState = () => navigateRef.current(pageFromLocation(window.location), "pop");
+    const onHashChange = () => {
+      if (window.location.hash !== "#/documents") return;
+      window.history.replaceState(null, "", window.location.pathname);
+      navigateRef.current("documents", "link");
+    };
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onHashChange);
+    };
+  }, []);
+
   function handleSelectPack(nextPack: string) {
     if (nextPack === selectedPack) return;
     const { proceed, value } = guardSwitch({
@@ -185,11 +249,51 @@ export default function App() {
   // "+ Přidat otázku": opens a fresh, local-only draft. The server assigns
   // the real entry_key on publish — this key only identifies the draft in
   // THIS browser tab and is never sent as entry_key (see buildEntryWrite).
+  function addNewDraft(canonicalQ: string) {
+    const key = `${NEW_ENTRY_PREFIX}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    setDrafts((prev) => ({ ...prev, [key]: { ...blankDraft(), canonical_q: canonicalQ } }));
+    setSelectedEntryKey(key);
+  }
+
   function handleAddQuestion() {
     if (selectedSchool === null || selectedPack === null) return;
-    const key = `${NEW_ENTRY_PREFIX}${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    setDrafts((prev) => ({ ...prev, [key]: blankDraft() }));
-    setSelectedEntryKey(key);
+    addNewDraft("");
+  }
+
+  // ---- Hooks of the "try a question" debug panel (CONTRACT.md §14.11) ----
+
+  /** "Otevřít v QA": the QA page with that pack and entry selected. */
+  function openEntryInQa(packId: string, entryKey: string) {
+    if (!navigate("qa", "link")) return;
+    if (packId !== selectedPack) {
+      const { proceed } = guardSwitch({
+        hasUnsavedChanges: hasUnsavedChanges(drafts, baselines),
+        current: selectedPack,
+        next: packId,
+        confirm: (message) => window.confirm(message),
+        message: strings.switchGuard.confirmMessage,
+      });
+      if (!proceed) return;
+      setSelectedPack(packId);
+    }
+    setSelectedEntryKey(entryKey);
+    setAskOpen(false);
+  }
+
+  /** "Vytvořit QA otázku z tohoto dotazu": a new draft in the selected pack, prefilled. */
+  function createQaFromQuestion(question: string): "ok" | "no-pack" {
+    if (selectedSchool === null || selectedPack === null) return "no-pack";
+    if (!navigate("qa", "link")) return "ok";
+    addNewDraft(question);
+    setAskOpen(false);
+    return "ok";
+  }
+
+  /** The debug panel's document link: the Documents page, detail drawer of that file. */
+  function openDocumentFromAsk(fileUuid: string) {
+    if (!navigate("documents", "link")) return;
+    setAskOpen(false);
+    setOpenDocumentRequest((prev) => ({ fileUuid, nonce: (prev?.nonce ?? 0) + 1 }));
   }
 
   // Called only once pollOperationUntilDone reports status "completed":
@@ -222,190 +326,269 @@ export default function App() {
   const selectedEntry = entriesState.status === "ready" ? entriesState.value.entries.find((e) => e.entry_key === selectedEntryKey) ?? null : null;
   const selectedDraft = selectedEntryKey !== null ? drafts[selectedEntryKey] ?? null : null;
   const packEtag = entriesState.status === "ready" ? entriesState.value.pack_etag : null;
+  const selectedSchoolObject =
+    schoolsState.status === "ready" ? schoolsState.value.find((s) => s.code === selectedSchool) ?? null : null;
+
+  // §14.9: trying a question needs the publish permission of the selected school.
+  const askAvailable = selectedSchoolObject?.permissions?.publish === true;
+  useEffect(() => {
+    if (!askAvailable) setAskOpen(false);
+  }, [askAvailable]);
+  function closeAsk() {
+    setAskOpen(false);
+    askButtonRef.current?.focus();
+  }
 
   return (
-    <main className="app-shell">
-      <header className="app-header">
-        <div className="app-brand">
-          <span className="app-brand-mark">
-            EDU<small>AI</small>
-          </span>
-          <div>
-            <h1>{strings.header.title}</h1>
-            <p className="qa-muted">{strings.header.subtitle}</p>
-          </div>
-        </div>
-        <span className="admin-badge">{strings.header.adminBadge}</span>
-      </header>
+    <div className="app-shell">
+      <AppHeader
+        page={page}
+        onNavigate={(next) => navigate(next, "link")}
+        schoolsState={schoolsState}
+        selectedSchool={selectedSchool}
+        onSelectSchool={handleSelectSchool}
+        askAvailable={askAvailable}
+        askOpen={askOpen && askAvailable}
+        onOpenAsk={() => setAskOpen(true)}
+        askButtonRef={askButtonRef}
+      />
 
-      <section className="toolbar">
-        <label className="field">
-          <span>{strings.toolbar.school}</span>
-          {schoolsState.status === "loading" && <span role="status">{strings.toolbar.loadingSchools}</span>}
-          {schoolsState.status === "error" && <span role="alert">{strings.toolbar.schoolsError}</span>}
-          {schoolsState.status === "ready" && (
-            <select value={selectedSchool ?? ""} onChange={(event) => handleSelectSchool(event.target.value)}>
-              {schoolsState.value.map((school) => (
-                <option key={school.code} value={school.code}>
-                  {school.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-
-        <label className="field">
-          <span>{strings.toolbar.pack}</span>
-          {selectedSchool === null && <span className="qa-muted">{strings.editor.selectQuestionHint}</span>}
-          {packsState.status === "loading" && <span role="status">{strings.toolbar.loadingPacks}</span>}
-          {packsState.status === "error" && <span role="alert">{strings.toolbar.packsError}</span>}
-          {packsState.status === "ready" && (
-            <select value={selectedPack ?? ""} onChange={(event) => handleSelectPack(event.target.value)}>
-              {selectionIsPendingPack && !packsState.value.some((p) => p.pack_id === pendingNewPack!.packId) && (
-                <option value={pendingNewPack!.packId}>{pendingNewPack!.packId}</option>
+      <main className="app-main">
+        {page === "qa" && (
+          <div className="pack-bar page-head">
+            <div className="page-head-main">
+            <h2>{strings.nav.qa}</h2>
+            <label className="field field--inline">
+              <span>{strings.toolbar.pack}</span>
+              {selectedSchool === null && <span className="qa-muted">{strings.editor.selectQuestionHint}</span>}
+              {packsState.status === "loading" && <span role="status">{strings.toolbar.loadingPacks}</span>}
+              {packsState.status === "error" && <span role="alert">{strings.toolbar.packsError}</span>}
+              {packsState.status === "ready" && (
+                <select value={selectedPack ?? ""} onChange={(event) => handleSelectPack(event.target.value)}>
+                  {selectionIsPendingPack && !packsState.value.some((p) => p.pack_id === pendingNewPack!.packId) && (
+                    <option value={pendingNewPack!.packId}>{pendingNewPack!.packId}</option>
+                  )}
+                  {packsState.value.map((pack) => (
+                    <option key={pack.pack_id} value={pack.pack_id}>
+                      {pack.pack_id} · v{pack.version}
+                    </option>
+                  ))}
+                </select>
               )}
-              {packsState.value.map((pack) => (
-                <option key={pack.pack_id} value={pack.pack_id}>
-                  {pack.pack_id} · v{pack.version}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
+            </label>
+            </div>
 
-        <div className="toolbar-actions">
-          <button type="button" disabled={selectedSchool === null} onClick={() => setActiveDialog("newPack")}>
-            {strings.toolbar.newPack}
-          </button>
-          <button type="button" disabled={selectedSchool === null} onClick={() => setActiveDialog("import")}>
-            {strings.toolbar.import}
-          </button>
-          <button type="button" disabled={selectedSchool === null || packsState.status !== "ready"} onClick={() => setActiveDialog("export")}>
-            {strings.toolbar.export}
-          </button>
-          {/* Destructive, so it needs a real pack selected and its own dialog
-              — never a bare confirm() (CONTRACT.md §13.2). */}
-          <button
-            type="button"
-            className="danger"
-            disabled={selectedSchool === null || selectedPack === null || pendingNewPack !== null}
-            onClick={() => setActiveDialog("deletePack")}
-          >
-            {strings.deletePermanent.deletePackButton}
-          </button>
-        </div>
-      </section>
+            <div className="pack-bar-actions page-head-actions">
+              <button type="button" className="btn btn--secondary" disabled={selectedSchool === null} onClick={() => setActiveDialog("newPack")}>
+                {strings.toolbar.newPack}
+              </button>
+              <button type="button" className="btn btn--secondary" disabled={selectedSchool === null} onClick={() => setActiveDialog("import")}>
+                {strings.toolbar.import}
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                disabled={selectedSchool === null || packsState.status !== "ready"}
+                onClick={() => setActiveDialog("export")}
+              >
+                {strings.toolbar.export}
+              </button>
+              {/* Destructive, so it lives in the overflow menu and opens its own
+                  dialog – never a bare confirm() (CONTRACT.md §13.2). */}
+              <OverflowMenu
+                label={strings.toolbar.moreActions}
+                items={[
+                  {
+                    key: "delete-pack",
+                    label: strings.deletePermanent.deletePackButton,
+                    danger: true,
+                    disabled: selectedSchool === null || selectedPack === null || pendingNewPack !== null,
+                    onSelect: () => setActiveDialog("deletePack"),
+                  },
+                ]}
+              />
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={selectedSchool === null || selectedPack === null}
+                onClick={handleAddQuestion}
+              >
+                {strings.list.addQuestion}
+              </button>
+            </div>
+          </div>
+        )}
 
-      {activeDialog === "newPack" && selectedSchool !== null && (
-        <NewPackDialog
-          client={client}
-          school={selectedSchool}
-          onClose={() => setActiveDialog(null)}
-          onCreated={(createdPackId, metadata) => {
-            setPendingNewPack({ packId: createdPackId, metadata });
-            setSelectedPack(createdPackId);
-            setSelectedEntryKey(null);
-            setActiveDialog(null);
-          }}
-        />
-      )}
+        {page === "qa" && (
+          <QaOverview
+            entries={entriesState.status === "ready" ? entriesState.value.entries : null}
+            packCount={packsState.status === "ready" ? packsState.value.length : null}
+          />
+        )}
 
-      {activeDialog === "deletePack" && selectedSchool !== null && selectedPack !== null && (
-        <DeleteDialog
-          client={client}
-          target={{
-            kind: "pack",
-            school: selectedSchool,
-            pack: selectedPack,
-            entryCount:
-              packsState.status === "ready"
-                ? packsState.value.find((p) => p.pack_id === selectedPack)?.entry_count ?? 0
-                : 0,
-          }}
-          onClose={() => setActiveDialog(null)}
-          onDeleted={() => {
-            setActiveDialog(null);
-            setSelectedPack(null);
-            setSelectedEntryKey(null);
-            reloadPacks();
-          }}
-        />
-      )}
-
-      {activeDialog === "import" && selectedSchool !== null && (
-        <ImportDialog
-          client={client}
-          school={selectedSchool}
-          packs={packsState.status === "ready" ? packsState.value : []}
-          initialPackId={selectedPack}
-          onClose={() => setActiveDialog(null)}
-          onImported={() => {
-            reloadPacks();
-            reloadEntries();
-          }}
-        />
-      )}
-
-      {activeDialog === "export" && selectedSchool !== null && packsState.status === "ready" && (
-        <ExportDialog
-          client={client}
-          school={selectedSchool}
-          packs={packsState.value}
-          initialPackId={selectedPack}
-          onClose={() => setActiveDialog(null)}
-        />
-      )}
-
-      <p className="qa-muted work-area-note">
-        {contextState.status === "ready"
-          ? `Kontrakt ${contextState.value.contract_version} · režim ${contextState.value.mode}`
-          : "Načítám kontext…"}
-      </p>
-
-      <section className="work-area two-pane">
-        <EntryList
-          state={entriesState}
-          query={query}
-          onQueryChange={setQuery}
-          selectedEntryKey={selectedEntryKey}
-          onSelect={setSelectedEntryKey}
-          pendingNewEntries={pendingNewEntries}
-          onAddQuestion={handleAddQuestion}
-          domains={domainsState.status === "ready" ? domainsState.value : []}
-        />
-        <div className="entry-editor-column">
-          <EntryEditor
-            entry={selectedEntry}
-            draft={selectedDraft}
-            domainsState={domainsState}
-            categoriesState={categoriesState}
-            onChange={handleDraftChange}
+        {page === "documents" && selectedSchoolObject !== null && (
+          <DocumentsPage
             client={client}
-            mayManageCategories={mayManageCategories}
+            school={selectedSchoolObject}
             uiDefaultLang={uiDefaultLang}
-            onCategoryCreated={() => reloadCategories()}
+            askOpen={askOpen && askAvailable}
+            onOpenDetail={() => setAskOpen(false)}
+            openDocumentRequest={openDocumentRequest}
+            onDocumentRequestHandled={() => setOpenDocumentRequest(null)}
+          />
+        )}
+
+        {activeDialog === "newPack" && selectedSchool !== null && (
+          <NewPackDialog
+            client={client}
             school={selectedSchool}
-            pack={selectedPack}
-            onEntryDeleted={() => {
-              // The entry is gone for good: drop the selection and reload the
-              // list, never leave the editor pointing at a deleted row.
+            onClose={() => setActiveDialog(null)}
+            onCreated={(createdPackId, metadata) => {
+              setPendingNewPack({ packId: createdPackId, metadata });
+              setSelectedPack(createdPackId);
               setSelectedEntryKey(null);
+              setActiveDialog(null);
+            }}
+          />
+        )}
+
+        {activeDialog === "deletePack" && selectedSchool !== null && selectedPack !== null && (
+          <DeleteDialog
+            client={client}
+            target={{
+              kind: "pack",
+              school: selectedSchool,
+              pack: selectedPack,
+              entryCount:
+                packsState.status === "ready"
+                  ? packsState.value.find((p) => p.pack_id === selectedPack)?.entry_count ?? 0
+                  : 0,
+            }}
+            onClose={() => setActiveDialog(null)}
+            onDeleted={() => {
+              setActiveDialog(null);
+              setSelectedPack(null);
+              setSelectedEntryKey(null);
+              reloadPacks();
+            }}
+          />
+        )}
+
+        {activeDialog === "import" && selectedSchool !== null && (
+          <ImportDialog
+            client={client}
+            school={selectedSchool}
+            packs={packsState.status === "ready" ? packsState.value : []}
+            initialPackId={selectedPack}
+            onClose={() => setActiveDialog(null)}
+            onImported={() => {
+              reloadPacks();
               reloadEntries();
             }}
           />
-          <PublishPanel
+        )}
+
+        {activeDialog === "export" && selectedSchool !== null && packsState.status === "ready" && (
+          <ExportDialog
             client={client}
             school={selectedSchool}
-            pack={selectedPack}
-            packEtag={packEtag}
-            drafts={drafts}
-            baselines={baselines}
-            onReload={reloadEntries}
-            onPublished={handlePublished}
-            pendingPackMetadata={isPendingPack ? pendingNewPack!.metadata : undefined}
+            packs={packsState.value}
+            initialPackId={selectedPack}
+            onClose={() => setActiveDialog(null)}
           />
+        )}
+
+        {page === "qa" && (
+          <section className="qa-grid" ref={gridRef}>
+            <EntryList
+              // A school or pack switch starts again on page 1 with the filter off.
+              key={`${selectedSchool ?? ""}::${selectedPack ?? ""}`}
+              state={entriesState}
+              query={query}
+              onQueryChange={setQuery}
+              selectedEntryKey={selectedEntryKey}
+              onSelect={setSelectedEntryKey}
+              pendingNewEntries={pendingNewEntries}
+              domains={domainsState.status === "ready" ? domainsState.value : []}
+            />
+            <div className="entry-editor-column">
+              <EntryEditor
+                entry={selectedEntry}
+                draft={selectedDraft}
+                domainsState={domainsState}
+                categoriesState={categoriesState}
+                onChange={handleDraftChange}
+                client={client}
+                mayManageCategories={mayManageCategories}
+                uiDefaultLang={uiDefaultLang}
+                onCategoryCreated={() => reloadCategories()}
+                school={selectedSchool}
+                pack={selectedPack}
+                onEntryDeleted={() => {
+                  // The entry is gone for good: drop the selection and reload the
+                  // list, never leave the editor pointing at a deleted row.
+                  setSelectedEntryKey(null);
+                  reloadEntries();
+                }}
+              />
+              <PublishPanel
+                client={client}
+                school={selectedSchool}
+                pack={selectedPack}
+                packEtag={packEtag}
+                drafts={drafts}
+                baselines={baselines}
+                onReload={reloadEntries}
+                onPublished={handlePublished}
+                pendingPackMetadata={isPendingPack ? pendingNewPack!.metadata : undefined}
+              />
+            </div>
+          </section>
+        )}
+      </main>
+
+      {selectedSchoolObject !== null && askAvailable && (
+        <AskPreviewDrawer
+          client={client}
+          school={selectedSchoolObject}
+          open={askOpen}
+          onClose={closeAsk}
+          onOpenEntry={openEntryInQa}
+          onOpenDocument={openDocumentFromAsk}
+          onCreateQa={createQaFromQuestion}
+        />
+      )}
+
+      <footer className="app-footer qa-muted">
+        <p>
+          {contextState.status === "ready"
+            ? strings.header.contract(contextState.value.contract_version, contextState.value.mode)
+            : strings.header.contextLoading}
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+function QaOverview({ entries, packCount }: { entries: Entry[] | null; packCount: number | null }) {
+  const t = strings.qaOverview;
+  const count = (pred: (e: Entry) => boolean) => (entries ? entries.filter(pred).length : null);
+  const tiles: Array<[string, string, number | null]> = [
+    ["📋", t.total, entries ? entries.length : null],
+    ["✅", t.active, count((e) => e.is_active)],
+    ["⏸️", t.inactive, count((e) => !e.is_active)],
+    ["🏷️", t.noAreas, count((e) => (e.domains ?? []).length === 0)],
+    ["📦", t.packs, packCount],
+  ];
+  return (
+    <section className="doc-tiles" aria-label={t.label}>
+      {tiles.map(([icon, label, value]) => (
+        <div key={label} className="doc-tile is-static">
+          <span className="doc-tile-icon" aria-hidden="true">{icon}</span>
+          <span className="doc-tile-count">{value ?? "–"}</span>
+          <span className="doc-tile-label">{label}</span>
         </div>
-      </section>
-    </main>
+      ))}
+    </section>
   );
 }

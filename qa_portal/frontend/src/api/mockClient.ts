@@ -17,6 +17,8 @@ import type {
   School,
 } from "./types";
 import { parseCsv, rowsToRecords, serializeCsv } from "../lib/csv";
+import { createMockAsk } from "./mockAsk";
+import { createMockDocuments } from "./mockDocuments";
 
 import contextFixture from "../fixtures/context.json";
 import schoolsFixture from "../fixtures/schools.json";
@@ -583,7 +585,29 @@ export function createMockClient(): ApiClient {
     return clone(operation);
   }
 
+  const qaEntriesActive = (school: string) =>
+    Array.from(requireSchool(school).packs.values()).reduce((n, p) => n + p.entries.filter((e) => e.is_active).length, 0);
+  const documentMethods = createMockDocuments((school) => requireSchool(school).domains, qaEntriesActive);
+
   return {
+    ...documentMethods,
+    ...createMockAsk((school) => {
+      for (const [packId, p] of requireSchool(school).packs) {
+        const entry = p.entries.find((e) => e.entry_id);
+        if (entry) return { entry_id: entry.entry_id!, pack_id: packId, question: entry.canonical_q };
+      }
+      return null;
+    }, async (school) => (await documentMethods.listDocuments(school, { status: "active", limit: 1 })).documents[0]?.file_uuid ?? null),
+
+    async getEntryById(school, entryId) {
+      await delay();
+      for (const [packId, p] of requireSchool(school).packs) {
+        const entry = p.entries.find((e) => e.entry_id === entryId);
+        if (entry) return { pack_id: packId, entry_key: entry.entry_key, canonical_q: entry.canonical_q, is_active: entry.is_active };
+      }
+      throw new ApiError(404, { code: "NOT_FOUND", message: "Otázka nenalezena.", retryable: false });
+    },
+
     async getContext() {
       await delay();
       return clone(contextFixture) as unknown as Context;
@@ -940,7 +964,7 @@ export function createMockClient(): ApiClient {
           download_url: url,
           filename: `${body.pack_ids[0]}.csv`,
           expires_at: new Date(Date.now() + 15 * 60000).toISOString(),
-          note: "CSV export není úplná záloha balíčku — neobsahuje všechna packová metadata.",
+          note: "CSV export není úplná záloha balíčku – neobsahuje všechna packová metadata.",
         };
       }
       // ZIP: the mock does not actually zip in-browser; it hands back one

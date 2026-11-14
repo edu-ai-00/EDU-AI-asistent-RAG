@@ -19,8 +19,8 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# base /qa/ belongs to the deployment behind nginx, not to the code — hence a build argument.
-ARG PORTAL_BASE=/qa/
+# base /knowledge/ belongs to the deployment behind nginx, not to the code — hence a build argument.
+ARG PORTAL_BASE=/knowledge/
 ENV VITE_BASE=${PORTAL_BASE}
 # src/config.ts defaults USE_FIXTURES to true, so the frontend could be developed against
 # frozen fixtures before the backend existed. In the IMAGE it must be off: otherwise a
@@ -52,7 +52,7 @@ RUN mkdir -p /var/lib/qa_admin_state
 ENV QA_ADMIN_STATE_DIR=/var/lib/qa_admin_state
 
 # The only internal port. Nothing is published on the host — access goes through nginx
-# on the VPN listener 80 (/qa/ and /qa-api/v1/).
+# on the VPN listener 80 (/knowledge/ and /qa-api/v1/).
 EXPOSE 8082
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \

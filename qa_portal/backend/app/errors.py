@@ -83,6 +83,10 @@ def unsupported_media(message: str = "File is neither CSV nor ZIP") -> AppError:
     return AppError(415, "UNSUPPORTED_MEDIA_TYPE", message, retryable=False)
 
 
+def ingest_queue_full(message: str = "The school's document queue is full") -> AppError:
+    return AppError(429, "INGEST_QUEUE_FULL", message, retryable=True)
+
+
 def validation_error(message: str, fields: list[dict[str, Any]]) -> AppError:
     return AppError(422, "VALIDATION_ERROR", message, retryable=False, fields=fields)
 
@@ -117,6 +121,17 @@ def publish_uploader_unavailable(message: str) -> AppError:
 
 def unavailable(message: str = "Dependency temporarily unavailable") -> AppError:
     return AppError(503, "UNAVAILABLE", message, retryable=True)
+
+
+def search_failure(exc: Exception, message: str) -> AppError:
+    """Search failure on a document path (CONTRACT.md §14.8): an upstream HTTP
+    500 is 502 UPSTREAM_ERROR (retryable false); network/502/503/504 stay 503."""
+    from .adapters.search import SearchServerError
+    if isinstance(exc, SearchServerError):
+        # The upstream body can carry database detail; keep it off the wire.
+        return AppError(502, "UPSTREAM_ERROR", "the search service failed (HTTP 500)",
+                        retryable=False)
+    return unavailable(message)
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:

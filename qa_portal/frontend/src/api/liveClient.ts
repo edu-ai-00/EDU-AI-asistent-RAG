@@ -1,11 +1,22 @@
 import type { ApiClient } from "./client";
 import { ApiError } from "./types";
+import { filenameFromDisposition } from "../lib/download";
 import type {
+  AskPreviewResult,
   Category,
   Context,
   DeleteResult,
+  DocumentChunkPage,
+  DocumentDeleteResult,
+  DocumentDetail,
+  DocumentJob,
+  DocumentOptions,
+  DocumentPage,
+  DocumentStats,
+  DocumentSummary,
   Domain,
   Entry,
+  EntryLocation,
   EntryPage,
   EntryWrite,
   ExportResult,
@@ -15,6 +26,8 @@ import type {
   Pack,
   Preview,
   School,
+  SourceCheckResult,
+  UrlPreviewFile,
 } from "./types";
 
 // Every write is a "non-simple" request per CONTRACT.md §8: JSON/multipart
@@ -144,8 +157,117 @@ export function createLiveClient(baseUrl: string): ApiClient {
       ),
     deletePack: (school, pack, body) =>
       request<DeleteResult>("DELETE", `/schools/${encodeURIComponent(school)}/packs/${encodeURIComponent(pack)}`, { json: body }),
+    getEntryById: (school, entryId, signal) =>
+      request<EntryLocation>("GET", `/schools/${encodeURIComponent(school)}/entries/by-id`, {
+        query: { entry_id: entryId },
+        signal,
+      }),
     createExport: (school, body) =>
       request<ExportResult>("POST", `/schools/${encodeURIComponent(school)}/exports`, { json: body }),
     downloadExportUrl: (exportId) => `${baseUrl}/exports/${encodeURIComponent(exportId)}/download`,
+
+    listDocuments: (school, params, signal) =>
+      request<DocumentPage>("GET", `/schools/${encodeURIComponent(school)}/documents`, { query: params, signal }),
+    getDocument: (school, fileUuid, signal) =>
+      request<DocumentDetail>(
+        "GET",
+        `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}`,
+        { signal },
+      ),
+    getDocumentOptions: (school, lang, signal) =>
+      request<DocumentOptions>("GET", `/schools/${encodeURIComponent(school)}/document-options`, { query: { lang }, signal }),
+    uploadDocument: async (school, item) => {
+      // §14.4: one multipart item; metadata travels as a JSON string field.
+      const form = new FormData();
+      if (item.file) form.set("file", item.file);
+      if (item.url !== undefined) {
+        form.set("url", item.url);
+        form.set("save_level_1_child", item.save_level_1_child ? "true" : "false");
+        if (item.save_level_1_child && item.max_child_links !== undefined) {
+          form.set("max_child_links", String(item.max_child_links));
+        }
+      }
+      form.set("batch_id", item.batch_id);
+      form.set("metadata", JSON.stringify(item.metadata));
+      return (await request<{ job: DocumentJob }>("POST", `/schools/${encodeURIComponent(school)}/documents`, { form })).job;
+    },
+    listDocumentJobs: async (school, params, signal) =>
+      (
+        await request<{ jobs: DocumentJob[] }>("GET", `/schools/${encodeURIComponent(school)}/document-jobs`, {
+          query: params,
+          signal,
+        })
+      ).jobs,
+    deactivateDocument: async (school, fileUuid) =>
+      (
+        await request<{ document: DocumentSummary }>(
+          "POST",
+          `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/deactivate`,
+        )
+      ).document,
+    activateDocument: async (school, fileUuid) =>
+      (
+        await request<{ document: DocumentSummary }>(
+          "POST",
+          `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/activate`,
+        )
+      ).document,
+    updateDocumentValidity: async (school, fileUuid, body) =>
+      (
+        await request<{ document: DocumentSummary }>(
+          "PATCH",
+          `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/validity`,
+          { json: body },
+        )
+      ).document,
+    checkDocumentSources: async (school, sources, signal) =>
+      (
+        await request<{ results: SourceCheckResult[] }>(
+          "POST",
+          `/schools/${encodeURIComponent(school)}/documents/check-sources`,
+          { json: { sources }, signal },
+        )
+      ).results,
+    previewDocumentUrl: async (school, body, signal) =>
+      (
+        await request<{ files: UrlPreviewFile[] }>(
+          "POST",
+          `/schools/${encodeURIComponent(school)}/documents/preview-url`,
+          { json: body, signal },
+        )
+      ).files,
+    documentDownloadUrl: (school, fileUuid) =>
+      `${baseUrl}/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/download`,
+    downloadDocument: async (school, fileUuid) => {
+      const response = await fetch(
+        `${baseUrl}/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/download`,
+        { method: "GET", credentials: "same-origin" },
+      );
+      if (!response.ok) throw toApiError(response.status, await readBody(response));
+      return { blob: await response.blob(), filename: filenameFromDisposition(response.headers.get("Content-Disposition")) };
+    },
+    getDocumentStats: (school, signal) =>
+      request<DocumentStats>("GET", `/schools/${encodeURIComponent(school)}/documents/stats`, { signal }),
+    listDocumentChunks: (school, fileUuid, params, signal) =>
+      request<DocumentChunkPage>(
+        "GET",
+        `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/chunks`,
+        { query: params, signal },
+      ),
+    refreshDocument: async (school, fileUuid) =>
+      (
+        await request<{ job: DocumentJob }>(
+          "POST",
+          `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}/refresh`,
+        )
+      ).job,
+    deleteDocument: (school, fileUuid, body) =>
+      request<DocumentDeleteResult>(
+        "DELETE",
+        `/schools/${encodeURIComponent(school)}/documents/${encodeURIComponent(fileUuid)}`,
+        { json: body },
+      ),
+    askPreview: (school, body, signal) =>
+      request<AskPreviewResult>("POST", `/schools/${encodeURIComponent(school)}/ask-preview`, { json: body, signal }),
   };
 }

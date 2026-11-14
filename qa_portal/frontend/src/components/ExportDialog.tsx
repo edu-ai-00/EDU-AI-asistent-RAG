@@ -86,10 +86,10 @@ export function ExportDialog({ client, school, packs, initialPackId, onClose }: 
 
       {state.kind !== "ready" && (
         <div className="dialog-actions">
-          <button type="button" disabled={selectedIds.length === 0 || state.kind === "preparing"} onClick={handlePrepare}>
+          <button type="button" className="btn btn--primary" disabled={selectedIds.length === 0 || state.kind === "preparing"} onClick={handlePrepare}>
             {state.kind === "preparing" ? strings.exportDialog.preparing : strings.exportDialog.prepare}
           </button>
-          <button type="button" onClick={onClose}>
+          <button type="button" className="btn btn--secondary" onClick={onClose}>
             {strings.actions.cancel}
           </button>
         </div>

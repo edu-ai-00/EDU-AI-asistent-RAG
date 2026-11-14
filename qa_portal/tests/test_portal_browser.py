@@ -197,7 +197,7 @@ with sync_playwright() as p:
     page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
 
     # ── 1. shell loads from the real API ──────────────────────────────
-    page.goto(f"{BASE}/qa/", wait_until="networkidle")
+    page.goto(f"{BASE}/knowledge/", wait_until="networkidle")
     selects = page.locator("select")
     school_options = selects.first.locator("option").count()
     check("1 shell loads with real schools", school_options >= 2, f"{school_options} schools")
@@ -354,7 +354,7 @@ with sync_playwright() as p:
     page.set_viewport_size({"width": 1440, "height": 950})
 
     # ── 13. areas render as Czech names, not as stable codes ──────────
-    page.goto(f"{BASE}/qa/", wait_until="networkidle")
+    page.goto(f"{BASE}/knowledge/", wait_until="networkidle")
     select_school(page, SCHOOL)
     page.wait_for_timeout(1500)
     domains = json.loads(urllib.request.urlopen(

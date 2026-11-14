@@ -287,7 +287,7 @@ export function ImportDialog({ client, school, packs, initialPackId, onClose, on
       </fieldset>
 
       <div className="dialog-actions">
-        <button type="button" disabled={!file || previewStage.kind === "checking" || isBusy} onClick={handleCheck}>
+        <button type="button" className="btn btn--primary" disabled={!file || previewStage.kind === "checking" || isBusy} onClick={handleCheck}>
           {previewStage.kind === "checking" ? strings.importDialog.checking : strings.importDialog.check}
         </button>
       </div>
@@ -352,7 +352,7 @@ export function ImportDialog({ client, school, packs, initialPackId, onClose, on
                     <ul>
                       {pack.legacy_cat_unresolved.map((item) => (
                         <li key={item.entry_key || item.cat}>
-                          {item.entry_key ? `${item.entry_key} — ` : ""}
+                          {item.entry_key ? `${item.entry_key} – ` : ""}
                           {item.cat}
                         </li>
                       ))}
@@ -384,7 +384,7 @@ export function ImportDialog({ client, school, packs, initialPackId, onClose, on
                   </section>
                 ))}
               <div className="dialog-actions">
-                <button type="button" disabled={!canConfirmMetadata || confirmMetadataStage.kind === "confirming"} onClick={handleConfirmMetadata}>
+                <button type="button" className="btn btn--primary" disabled={!canConfirmMetadata || confirmMetadataStage.kind === "confirming"} onClick={handleConfirmMetadata}>
                   {confirmMetadataStage.kind === "confirming" ? strings.importDialog.confirmingMetadata : strings.importDialog.confirmMetadata}
                 </button>
               </div>
@@ -410,10 +410,10 @@ export function ImportDialog({ client, school, packs, initialPackId, onClose, on
 
           {publishStage.kind === "idle" && (
             <div className="dialog-actions">
-              <button type="button" disabled={!canPublish} onClick={handlePublish}>
+              <button type="button" className="btn btn--primary" disabled={!canPublish} onClick={handlePublish}>
                 {strings.importDialog.publishSelected}
               </button>
-              <button type="button" onClick={onClose}>
+              <button type="button" className="btn btn--secondary" onClick={onClose}>
                 {strings.actions.cancel}
               </button>
             </div>
@@ -450,7 +450,7 @@ export function ImportDialog({ client, school, packs, initialPackId, onClose, on
                             role={pack.status === "failed" ? "alert" : "status"}
                             className={`import-publish-pack${pack.status === "failed" ? " import-publish-pack-failed" : ""}`}
                           >
-                            <strong>{pack.pack_id}</strong> — {packStatusLabel(pack.status)}
+                            <strong>{pack.pack_id}</strong> – {packStatusLabel(pack.status)}
                             {packMessageText(pack.message) ? `: ${packMessageText(pack.message)}` : ""}
                           </li>
                         ))}

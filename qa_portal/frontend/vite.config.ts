@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Mirrors web_chat/frontend/vite.config.ts. base=/qa/ matches the nginx
-// location this SPA is served from (CONTRACT.md §10); dev proxy targets the
-// future edu_ai_qa_admin container port (8082), not any port on the host.
+// Mirrors web_chat/frontend/vite.config.ts. The base is the address the SPA is
+// served from (CONTRACT.md §14.8: /knowledge/); the Dockerfile passes it as
+// VITE_BASE. The dev proxy targets the edu_ai_qa_admin container port (8082).
 export default defineConfig({
-  base: "/qa/",
+  base: process.env.VITE_BASE || "/knowledge/",
   plugins: [react()],
   server: {
     port: 5174,

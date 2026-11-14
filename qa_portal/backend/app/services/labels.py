@@ -22,3 +22,17 @@ def resolve_label(labels: dict[str, str] | None, lang: str | None,
         if value:
             return value, True
     return code, True
+
+
+def code_options(items: list[dict] | None, lang: str | None, default_lang: str,
+                 code_key: str = "code") -> list[dict]:
+    """[{code, label, label_fallback?}] — the CodeOption shape (CONTRACT.md §14.4)."""
+    out = []
+    for c in items or []:
+        code = c[code_key]
+        label, fallback = resolve_label(c.get("labels"), lang, default_lang, code)
+        item = {"code": code, "label": label}
+        if fallback:
+            item["label_fallback"] = True
+        out.append(item)
+    return out

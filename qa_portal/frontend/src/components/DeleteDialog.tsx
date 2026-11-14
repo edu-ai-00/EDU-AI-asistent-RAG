@@ -95,10 +95,10 @@ export function DeleteDialog({ client, target, onClose, onDeleted }: Props) {
       {state.kind === "error" && <p role="alert">{state.message}</p>}
 
       <div className="dialog-actions">
-        <button type="button" disabled={!canConfirm} onClick={handleConfirm}>
+        <button type="button" className="btn btn--danger" disabled={!canConfirm} onClick={handleConfirm}>
           {state.kind === "deleting" ? strings.deletePermanent.deleting : strings.deletePermanent.confirm}
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" className="btn btn--secondary" onClick={onClose}>
           {strings.actions.cancel}
         </button>
       </div>

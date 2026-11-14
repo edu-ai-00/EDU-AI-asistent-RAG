@@ -16,12 +16,23 @@ export type Context = {
   ui_default_lang?: string;
 };
 
+/** CONTRACT.md §14.6: per-school permissions from the policy. */
+export type SchoolPermissions = {
+  read: boolean;
+  publish: boolean;
+  ingest: boolean;
+  deactivate: boolean;
+  delete_permanently: boolean;
+};
+
 export type School = {
   code: string;
   name: string;
   kind?: string;
   level?: string | null;
   parent_code?: string | null;
+  /** Absent on an older backend: the UI then treats everything as allowed. */
+  permissions?: SchoolPermissions;
 };
 
 export type Domain = {
@@ -226,6 +237,303 @@ export type ExportResult = {
   bytes?: number;
   expires_at: string;
   note?: string;
+};
+
+// ---- Documents (CONTRACT.md §14) ----
+
+export type DocumentStatusFilter = "active" | "inactive" | "all";
+
+/** §14.8: computed by search against CURRENT_DATE. */
+export type ValidityState = "current" | "expired" | "future";
+/** §14.12: `expiring` = active, current, valid_to within the next 30 days. */
+export type DocumentValidityFilter = ValidityState | "expiring" | "all";
+/** §14.10 list filter `format`. */
+export type DocumentFormatFilter = "pdf" | "docx" | "pptx" | "xlsx" | "web";
+
+/** §14.8 list filters, all optional and combined with AND. */
+export type DocumentListParams = {
+  status?: DocumentStatusFilter;
+  q?: string;
+  type?: string;
+  role?: string;
+  validity?: DocumentValidityFilter;
+  format?: DocumentFormatFilter;
+  source?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+/** §14.2: one document = the versions of one school sharing a source key. */
+export type DocumentSummary = {
+  file_uuid: string;
+  title: string;
+  source_kind: "web" | "file";
+  source_url: string | null;
+  original_file_name: string | null;
+  document_type: string | null;
+  document_language: string | null;
+  school_subject: string | null;
+  school_grade_codes: string[];
+  domain_codes: string[];
+  audience_roles: string[];
+  visibility: "private" | "entity" | "organization";
+  valid_from: string | null;
+  valid_to: string | null;
+  user_name: string | null;
+  ingested_at: string;
+  is_active: boolean;
+  /** Absent on an older backend: treated as "current". */
+  validity_state?: ValidityState;
+  version_count: number;
+  chunk_count: number;
+  /** §14.10: extension in lower case, "web" for a saved page, null/absent when unknown. */
+  file_format?: string | null;
+  /** §14.14: SHA-256 of the content (hex); null/absent when the ingest did not come from the portal. */
+  content_sha256?: string | null;
+};
+
+export type DocumentVersion = {
+  file_uuid: string;
+  processing_uuid: string | null;
+  ingested_at: string;
+  is_active: boolean;
+  chunk_count: number;
+  file_format?: string | null;
+  /** §14.14 */
+  content_sha256?: string | null;
+};
+
+export type DocumentPage = { documents: DocumentSummary[]; next_cursor: string | null };
+
+export type DocumentDetail = { document: DocumentSummary; versions: DocumentVersion[] };
+
+/** §14.3: permanent delete of every version, as returned by the portal. */
+export type DocumentDeleteResult = {
+  deleted: { versions: number; chunks: number; elements: number; tables: number };
+  file_uuids: string[];
+  files_removed: number;
+  warnings: string[];
+};
+
+export type ValidityPeriod = {
+  id: string | number;
+  name: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  is_default: boolean;
+};
+
+/** §14.4 GET /schools/{school}/document-options. */
+export type DocumentOptions = {
+  visibility: string[];
+  audience_roles: CodeOption[];
+  school_grades: CodeOption[];
+  school_subjects: CodeOption[];
+  languages: CodeOption[];
+  document_types: CodeOption[];
+  domains: Domain[];
+  validity_periods: ValidityPeriod[];
+  file_extensions: string[];
+  max_file_bytes: number;
+  max_batch_items: number;
+  max_child_links: number;
+};
+
+/** §14.4: sent as the JSON string field `metadata` of one upload item. */
+export type DocumentMetadata = {
+  visibility: "entity" | "organization";
+  audience_roles: string[];
+  document_type: string | null;
+  document_language: string | null;
+  school_subject: string | null;
+  school_grade_codes: string[];
+  domain_codes: string[];
+  valid_from: string | null;
+  valid_to: string | null;
+};
+
+/** One upload item: exactly one of `file` / `url`. */
+export type DocumentUploadItem = {
+  file?: File;
+  url?: string;
+  save_level_1_child?: boolean;
+  max_child_links?: number;
+  batch_id: string;
+  metadata: DocumentMetadata;
+};
+
+/** §14.14: `skipped` = the content did not change, nothing was ingested. */
+export type DocumentJobStatus = "queued" | "processing" | "completed" | "failed" | "skipped" | "unknown";
+
+export type DocumentJob = {
+  job_id: string;
+  batch_id: string;
+  school: string;
+  source_kind: "file" | "url";
+  source: string;
+  status: DocumentJobStatus;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  processing_uuid: string | null;
+  result: {
+    status?: string;
+    total_files?: number;
+    ok_count?: number;
+    error_count?: number;
+    /** §14.14: "unchanged" on a skipped job, with the file_uuid of the current version. */
+    reason?: string;
+    file_uuid?: string;
+  } | null;
+  stored_chunks: number | null;
+  error: { code: string; message: string } | null;
+};
+
+/** §14.8 PATCH .../validity body. */
+export type DocumentValidityBody = { valid_from: string | null; valid_to: string | null };
+
+/** §14.8 check-sources. `value` is the trimmed URL or the file name. */
+export type SourceCheckItem = { kind: "file" | "url"; value: string };
+export type SourceCheckResult = {
+  kind: "file" | "url";
+  value: string;
+  existing: DocumentSummary | null;
+  supersedes: boolean;
+};
+
+/** §14.8 preview-url. */
+export type UrlPreviewBody = {
+  url: string;
+  save_level_1_child: boolean;
+  max_child_links: number;
+  metadata: DocumentMetadata;
+};
+export type UrlPreviewFile = {
+  source_url: string | null;
+  source_type: string;
+  page_role: "parent" | "child";
+};
+
+/** CONTRACT.md §14.12 GET .../documents/stats: counts per DOCUMENT (shown version). */
+export type DocumentStats = {
+  active: number;
+  inactive: number;
+  expired: number;
+  expiring_30: number;
+  future: number;
+  qa_entries_active: number;
+};
+
+/** CONTRACT.md §14.13 GET .../documents/{file_uuid}/chunks (file_uuid = the VERSION). */
+export type DocumentChunk = {
+  chunk_index: number;
+  heading_path: string | null;
+  section_heading: string | null;
+  text: string;
+  char_count: number;
+};
+export type DocumentChunkPage = { chunks: DocumentChunk[]; total: number; next_cursor: string | null };
+
+/** CONTRACT.md §14.11 GET .../entries/by-id. */
+export type EntryLocation = { pack_id: string; entry_key: string; canonical_q: string; is_active: boolean };
+
+/** CONTRACT.md §14.9: try a question. `user_school_grade` null = not sent to search.
+ *  `debug` (§14.11, default true on the server) adds trace and explain to the answer. */
+export type AskPreviewBody = {
+  question: string;
+  user_role: string;
+  user_school_grade: string | null;
+  retrieval_only: boolean;
+  debug?: boolean;
+};
+
+/** rag-source.schema.json: rank and title always, the rest optional. */
+export type AskSource = {
+  rank?: number;
+  title?: string;
+  url?: string | null;
+  file_uuid?: string;
+  original_file_name?: string | null;
+  source_url?: string | null;
+};
+
+export type AskSuggestion = {
+  kind?: string;
+  question: string;
+  entry_id?: string | null;
+  score?: number | null;
+};
+
+/** §14.11 effective_scope: what the search actually ran with. */
+export type AskEffectiveScope = {
+  legal_entity?: string | null;
+  role?: string | null;
+  school_grade?: string | null;
+  language?: string | null;
+  domains?: string[] | null;
+  identified?: boolean;
+};
+
+/** §14.11 trace row. Only a debugging surface: every field but `step` may be absent. */
+export type AskTraceStep = {
+  step: string;
+  status?: string;
+  ms?: number | null;
+  pool?: number | null;
+  pool_added?: number | null;
+  matched_entry_id?: string | null;
+  resolved?: boolean | null;
+  outcome?: string | null;
+  decision?: string | null;
+  match_score?: number | null;
+  stopped_here?: boolean | null;
+  note?: string | null;
+  detail?: Record<string, unknown> | null;
+};
+
+/** §14.11 explain (POST /v1/explain); null on the result when that call failed. */
+export type AskExplain = {
+  query_norm_tokens?: string[];
+  query_lemma_tokens?: string[];
+  query_stem_tokens?: string[];
+  query_language?: string | null;
+  query_in_corpus?: boolean | null;
+  query_absent_concepts?: string[];
+  pack_ids?: string[];
+  offer_pack_ids?: string[];
+};
+
+export type AskAnswerPart = {
+  index: number;
+  lead_in?: string | null;
+  text: string;
+  markdown?: string;
+  source_rank?: number | null;
+  title?: string | null;
+  url?: string | null;
+  file_uuid?: string | null;
+};
+
+/** The search /v1/ask fields passed through; a key search did not send is null. */
+export type AskPreviewResult = {
+  answer: string | null;
+  outcome: string | null;
+  answer_source: string | null;
+  delivered_by: string | null;
+  sources: AskSource[];
+  suggestions: AskSuggestion[];
+  matched_entry_id: string | null;
+  match_score: number | null;
+  duration_ms: number | null;
+  retrieval_only: boolean;
+  /** §14.11, present with `debug`; an older backend sends none of these. */
+  effective_scope?: AskEffectiveScope | null;
+  strategies?: string[];
+  key_words_used?: string[];
+  language?: string | null;
+  answer_parts?: AskAnswerPart[];
+  trace?: AskTraceStep[] | null;
+  explain?: AskExplain | null;
 };
 
 /** Thrown by both adapters on a non-2xx response, so callers never branch

@@ -110,12 +110,12 @@ export function CategoryManager({ client, categoriesState, uiDefaultLang, onClos
                 onChange={(event) => updateRow(index, "label", event.target.value)}
               />
             </label>
-            <button type="button" onClick={() => removeRow(index)} aria-label={strings.newCategory.removeLanguage}>
+            <button type="button" className="btn btn--ghost" onClick={() => removeRow(index)} aria-label={strings.newCategory.removeLanguage}>
               {strings.newCategory.removeLanguage}
             </button>
           </div>
         ))}
-        <button type="button" onClick={addRow}>
+        <button type="button" className="btn btn--secondary" onClick={addRow}>
           {strings.newCategory.addLanguage}
         </button>
       </fieldset>
@@ -128,10 +128,10 @@ export function CategoryManager({ client, categoriesState, uiDefaultLang, onClos
       {state.kind === "error" && <p role="alert">{state.message}</p>}
 
       <div className="dialog-actions">
-        <button type="button" disabled={!canCreate} onClick={handleCreate}>
+        <button type="button" className="btn btn--primary" disabled={!canCreate} onClick={handleCreate}>
           {state.kind === "creating" ? strings.newCategory.creating : strings.newCategory.create}
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" className="btn btn--secondary" onClick={onClose}>
           {strings.actions.cancel}
         </button>
       </div>

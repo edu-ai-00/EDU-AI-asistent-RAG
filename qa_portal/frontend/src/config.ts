@@ -20,3 +20,12 @@ export const DEFAULT_UI_LANG = "cs";
  *  production polls faster. */
 export const PUBLISH_POLL_INTERVAL_MS = 1500;
 export const PUBLISH_POLL_MAX_ATTEMPTS = 120;
+
+/** Documents page (spec.qa-portal-documents §8). Tests override these;
+ *  the shipped build polls batch jobs every 5 s. */
+export const DOCUMENT_JOBS_POLL_INTERVAL_MS = 5000;
+export const DOCUMENTS_SEARCH_DEBOUNCE_MS = 300;
+export const DOCUMENTS_PAGE_SIZE = 50;
+
+/** QA page: entries shown per page in the list (the whole pack is loaded, see useEntries). */
+export const ENTRIES_PAGE_SIZE = 50;

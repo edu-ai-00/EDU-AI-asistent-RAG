@@ -99,7 +99,7 @@ with sync_playwright() as p:
 
     # ── PHASE 1: reuse the existing school/pack/entry-opening steps from
     #    test_portal_browser.py — nothing published, pure client-side render.
-    page.goto(f"{BASE}/qa/", wait_until="networkidle")
+    page.goto(f"{BASE}/knowledge/", wait_until="networkidle")
     select_school(page, SCHOOL)
     selects = page.locator("select")
     pack_select = selects.nth(1)
@@ -215,7 +215,7 @@ with sync_playwright() as p:
         if published:
             # Force a real reload so what we see next came back from the API,
             # not the in-memory draft that was just typed.
-            page.goto(f"{BASE}/qa/", wait_until="networkidle")
+            page.goto(f"{BASE}/knowledge/", wait_until="networkidle")
             select_school(page, SCHOOL)
             selects2 = page.locator("select")
             pack_select2 = selects2.nth(1)

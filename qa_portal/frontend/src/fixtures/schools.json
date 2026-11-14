@@ -1,6 +1,20 @@
 {
   "schools": [
-    { "code": "ZS_KAVCI_HORY", "name": "ZŠ Kavčí hory", "kind": "ZS", "level": null, "parent_code": null },
-    { "code": "ZS_JEDOVNICE", "name": "ZŠ Jedovnice", "kind": "ZS", "level": null, "parent_code": null }
+    {
+      "code": "ZS_KAVCI_HORY",
+      "name": "ZŠ Kavčí hory",
+      "kind": "ZS",
+      "level": null,
+      "parent_code": null,
+      "permissions": { "read": true, "publish": true, "ingest": true, "deactivate": true, "delete_permanently": true }
+    },
+    {
+      "code": "ZS_JEDOVNICE",
+      "name": "ZŠ Jedovnice",
+      "kind": "ZS",
+      "level": null,
+      "parent_code": null,
+      "permissions": { "read": true, "publish": true, "ingest": true, "deactivate": true, "delete_permanently": true }
+    }
   ]
 }

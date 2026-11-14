@@ -73,3 +73,49 @@ def require_school_publish(school: str, principal: Principal = Depends(get_princ
     if not is_school_active(search, school):
         raise errors.not_found(f"no such active school {school!r}")
     return school
+
+
+def _require_school(school: str, allowed: bool, action: str,
+                    search: SearchClient) -> str:
+    # Policy first, then existence: a foreign code is 403 even if it exists.
+    if not allowed:
+        raise errors.forbidden(f"policy does not allow {action} for school {school!r}")
+    if not is_school_active(search, school):
+        raise errors.not_found(f"no such active school {school!r}")
+    return school
+
+
+def require_school_documents_read(school: str, principal: Principal = Depends(get_principal),
+                                   policy: Policy = Depends(get_policy),
+                                   search: SearchClient = Depends(get_search_client)) -> str:
+    return _require_school(school, policy.may_read(principal, school), "reading", search)
+
+
+def require_school_ingest(school: str, principal: Principal = Depends(get_principal),
+                           policy: Policy = Depends(get_policy),
+                           search: SearchClient = Depends(get_search_client)) -> str:
+    return _require_school(school, policy.may_ingest(principal, school), "ingesting", search)
+
+
+def require_school_deactivate(school: str, principal: Principal = Depends(get_principal),
+                               policy: Policy = Depends(get_policy),
+                               search: SearchClient = Depends(get_search_client)) -> str:
+    return _require_school(school, policy.may_deactivate(principal, school),
+                           "deactivating documents", search)
+
+
+def require_school_delete(school: str, principal: Principal = Depends(get_principal),
+                           policy: Policy = Depends(get_policy),
+                           search: SearchClient = Depends(get_search_client)) -> str:
+    return _require_school(school, policy.may_delete_permanently(principal, school),
+                           "permanent deletion", search)
+
+
+def may_read_record_school(policy: Policy, principal: Principal, school: str | None) -> bool:
+    """CONTRACT.md §14.6: a stored record (operation, export) is visible only
+    when the policy allows reading its school. A legacy record without a
+    school is visible only to an all-schools principal.
+    """
+    if not school:
+        return policy.allowed_schools(principal).all_active
+    return bool(policy.may_read(principal, school))

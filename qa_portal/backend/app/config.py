@@ -33,6 +33,10 @@ class Settings:
     http_timeout_seconds: float = float(
         os.environ.get("QA_PORTAL_HTTP_TIMEOUT_SECONDS", "10"))
 
+    # Try a question (§14.9): a full answer is one LLM call, so a long timeout.
+    ask_timeout_seconds: float = float(
+        os.environ.get("QA_PORTAL_ASK_TIMEOUT_SECONDS", "90"))
+
     preview_ttl_seconds: int = int(
         os.environ.get("QA_PORTAL_PREVIEW_TTL_SECONDS", str(15 * 60)))
     export_ttl_seconds: int = int(
@@ -41,8 +45,36 @@ class Settings:
         os.environ.get("QA_PORTAL_LOCK_TTL_SECONDS", "120"))
 
     portal_version: str = os.environ.get("QA_PORTAL_VERSION", "dev")
-    contract_version: str = "qa-portal/1.3.0"
+    contract_version: str = "qa-portal/1.8.0"
     ui_default_lang: str = os.environ.get("QA_PORTAL_UI_DEFAULT_LANG", "cs")
+
+    # Documents (CONTRACT.md §14.4-§14.5). Limits mirror the contract; the
+    # gateway ingest is synchronous and slow, hence its own long timeout.
+    document_ingest_timeout_seconds: float = float(
+        os.environ.get("QA_PORTAL_DOCUMENT_INGEST_TIMEOUT_SECONDS", "1800"))
+    # URL preview (§14.8): the gateway skips Langflow, so a modest timeout is enough.
+    document_preview_timeout_seconds: float = float(
+        os.environ.get("QA_PORTAL_DOCUMENT_PREVIEW_TIMEOUT_SECONDS", "120"))
+    # Stored-file download (§14.10): connect/read timeout of the gateway stream.
+    document_download_timeout_seconds: float = float(
+        os.environ.get("QA_PORTAL_DOCUMENT_DOWNLOAD_TIMEOUT_SECONDS", "60"))
+    document_delete_timeout_seconds: float = float(
+        os.environ.get("QA_PORTAL_DOCUMENT_DELETE_TIMEOUT_SECONDS", "60"))
+    # No .txt: the gateway lists it but has no extraction flow for it (always fails).
+    document_file_extensions: tuple[str, ...] = (".pdf", ".docx", ".pptx", ".xlsx")
+    max_document_file_bytes: int = 52428800
+    max_document_batch_items: int = 100
+    max_document_child_links: int = 10
+    default_document_child_links: int = 5
+    document_queue_school_cap: int = 300
+    document_job_retention_seconds: int = 7 * 24 * 3600
+    document_job_prune_interval_seconds: int = 3600
+    document_stored_chunks_window_seconds: int = 600
+    # Only 1 is supported (§14.5); any other value is logged and ignored.
+    ingest_concurrency: str = os.environ.get("QA_PORTAL_INGEST_CONCURRENCY", "1")
+    # "0" keeps lifespan from starting the queue worker thread.
+    document_worker_enabled: bool = os.environ.get(
+        "QA_PORTAL_DOCUMENT_WORKER", "1").strip() not in ("0", "false", "no")
 
 
 settings = Settings()

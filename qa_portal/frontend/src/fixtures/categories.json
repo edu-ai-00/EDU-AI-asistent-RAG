@@ -16,7 +16,7 @@
       "labels": { "en": "School supplies" },
       "is_active": true,
       "sort_order": 2,
-      "notes": "Chybí český popisek — doplňte přes založení/úpravu kategorie."
+      "notes": "Chybí český popisek – doplňte přes založení/úpravu kategorie."
     },
     {
       "code": "LEGACY_CANTEEN",

@@ -11,9 +11,9 @@ from fastapi import APIRouter, Depends
 from .. import errors
 from ..adapters.search import SearchClient, SearchConflict, SearchValidationError
 from ..config import settings
-from ..policy import Policy, Principal
+from ..policy import Policy, Principal, school_permissions
 from ..services import pack_service
-from ..services.labels import resolve_label
+from ..services.labels import code_options
 from ..services.validation import fetch_code_lists
 from .deps import get_policy, get_principal, get_search_client, require_school_read
 from .models import CreateCategoryRequest
@@ -27,7 +27,10 @@ def list_schools(principal: Principal = Depends(get_principal),
                   policy: Policy = Depends(get_policy),
                   search: SearchClient = Depends(get_search_client)) -> dict:
     allowed = policy.allowed_schools(principal)
-    return {"schools": pack_service.list_schools(search, allowed)}
+    schools = pack_service.list_schools(search, allowed)
+    for s in schools:  # CONTRACT.md §14.6: the UI hides what is false
+        s["permissions"] = school_permissions(policy, principal, s["code"])
+    return {"schools": schools}
 
 
 @router.get("/schools/{school}/domains")
@@ -44,21 +47,11 @@ def get_pack_metadata_options(lang: str | None = None,
     """Číselníky pro dialog nového packu (CONTRACT.md §2.4a). visibility je
     frontendový token (§10), ne databázový číselník — proto natvrdo zde."""
     code_lists = fetch_code_lists(search, school)
-
-    def _options(list_code: str) -> list[dict]:
-        out = []
-        for c in code_lists.get(list_code, []):
-            label, fallback = resolve_label(c.get("labels"), lang, settings.ui_default_lang, c["code"])
-            item = {"code": c["code"], "label": label}
-            if fallback:
-                item["label_fallback"] = True
-            out.append(item)
-        return out
-
+    default = settings.ui_default_lang
     return {
         "visibility": ["entity", "organization"],
-        "audience_roles": _options("role"),
-        "school_grades": _options("school_grade"),
+        "audience_roles": code_options(code_lists.get("role"), lang, default),
+        "school_grades": code_options(code_lists.get("school_grade"), lang, default),
     }
 
 

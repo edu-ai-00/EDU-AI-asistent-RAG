@@ -10,6 +10,8 @@ type Props = {
    *  viewport regardless of how tall the body's content grows (CONTRACT.md
    *  §10.1). When omitted, the shell renders exactly as before. */
   footer?: ReactNode;
+  /** Wider shell for dialogs with tables or inline editors. */
+  wide?: boolean;
 };
 
 const FOCUSABLE_SELECTOR =
@@ -21,7 +23,7 @@ const FOCUSABLE_SELECTOR =
  *  never leave it. On unmount: focus returns to the trigger. Every dialog in
  *  this portal (import/export/new pack) renders through this one shell so the
  *  behaviour is identical everywhere — no dialog reimplements it. */
-export function Dialog({ title, onClose, children, footer }: Props) {
+export function Dialog({ title, onClose, children, footer, wide }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -71,7 +73,7 @@ export function Dialog({ title, onClose, children, footer }: Props) {
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef}>
+      <div className={wide ? "dialog dialog--wide" : "dialog"} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef}>
         <div className="dialog-header">
           <h2 id={titleId}>{title}</h2>
           <button type="button" className="dialog-close" onClick={onClose} aria-label={strings.actions.close}>

@@ -7,7 +7,9 @@ to the contract's schemas — no second, drifting copy of those shapes here.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 
 class SourceIn(BaseModel):
@@ -91,3 +93,66 @@ class CreateExportRequest(BaseModel):
     pack_ids: list[str] = Field(min_length=1)
     format: str = "zip"
     lang: str | None = None
+
+
+class DocumentMetadataIn(BaseModel):
+    """CONTRACT.md §14.4 DocumentMetadata — the `metadata` JSON part of a
+    document upload. Codes are checked against DocumentOptions afterwards."""
+    model_config = ConfigDict(extra="forbid")
+    visibility: Literal["entity", "organization"]
+    audience_roles: list[str] = Field(min_length=1)
+    document_type: str | None = None
+    document_language: str | None = None
+    school_subject: str | None = None
+    school_grade_codes: list[str] = Field(default_factory=list)
+    domain_codes: list[str] = Field(default_factory=list)
+    valid_from: str | None = None
+    valid_to: str | None = None
+
+
+class DeleteDocumentRequest(BaseModel):
+    """Body for DELETE .../documents/{file_uuid} (CONTRACT.md §14.4); a
+    mismatch is 409, checked before any upstream call."""
+    model_config = ConfigDict(extra="forbid")
+    confirm_file_uuid: str
+
+
+class DocumentValidityIn(BaseModel):
+    """PATCH .../documents/{file_uuid}/validity (CONTRACT.md §14.8). Both keys
+    are required (null clears a date) so a partial body cannot wipe the other."""
+    model_config = ConfigDict(extra="forbid")
+    valid_from: str | None
+    valid_to: str | None
+
+
+class SourceCheckItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["file", "url"]
+    value: str
+
+
+class CheckSourcesIn(BaseModel):
+    """POST .../documents/check-sources (CONTRACT.md §14.8); the batch bound
+    is checked in the service (422 with a field), not by pydantic."""
+    model_config = ConfigDict(extra="forbid")
+    sources: list[SourceCheckItem]
+
+
+class PreviewUrlIn(BaseModel):
+    """POST .../documents/preview-url (CONTRACT.md §14.8)."""
+    model_config = ConfigDict(extra="forbid")
+    url: str
+    save_level_1_child: bool = False
+    max_child_links: int | None = None
+    metadata: DocumentMetadataIn
+
+
+class AskPreviewIn(BaseModel):
+    """POST .../ask-preview (CONTRACT.md §14.9). Length and code-list checks
+    run in the service so every violation is a 422 with `fields`."""
+    model_config = ConfigDict(extra="forbid")
+    question: str
+    user_role: str
+    user_school_grade: str | None = None
+    retrieval_only: StrictBool = False
+    debug: StrictBool = True   # §14.11: trace + explain; false = the plain answer

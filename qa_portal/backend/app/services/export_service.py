@@ -74,8 +74,9 @@ def create_export(*, search: SearchClient, store: StateStore, school: str,
         ext, filename = "zip", f"{school}_qa_export.zip"
 
     store.save_export_blob(export_id, content, ext)
+    # `school` lets the download check the policy (CONTRACT.md §14.6).
     meta = {"export_id": export_id, "format": fmt, "filename": filename, "bytes": len(content),
-            "expires_at": expires_at, "ext": ext, "note": note}
+            "expires_at": expires_at, "ext": ext, "note": note, "school": school}
     store.save_export_meta(export_id, meta)
     return {**meta, "download_url": f"/qa-api/v1/exports/{export_id}/download"}
 

@@ -1,0 +1,37 @@
+{
+  "visibility": ["entity", "organization"],
+  "audience_roles": [
+    { "code": "TEACHER", "label": "Učitel" },
+    { "code": "PARENT", "label": "Rodič" },
+    { "code": "STUDENT", "label": "Žák" }
+  ],
+  "school_grades": [
+    { "code": "1", "label": "1. ročník" },
+    { "code": "2", "label": "2. ročník" },
+    { "code": "3", "label": "3. ročník" }
+  ],
+  "school_subjects": [
+    { "code": "MATH", "label": "Matematika" },
+    { "code": "CZECH", "label": "Český jazyk" },
+    { "code": "ENGLISH", "label": "Anglický jazyk" }
+  ],
+  "languages": [
+    { "code": "cs", "label": "Čeština" },
+    { "code": "en", "label": "Angličtina" }
+  ],
+  "document_types": [
+    { "code": "SCHOOL_RULES", "label": "Školní řád" },
+    { "code": "ANNOUNCEMENT", "label": "Oznámení" },
+    { "code": "MENU", "label": "Jídelníček" },
+    { "code": "SCHEDULE", "label": "Rozvrh" }
+  ],
+  "domains": [],
+  "validity_periods": [
+    { "id": 1, "name": "Školní rok 2026/27", "valid_from": "2026-09-01", "valid_to": "2027-08-31", "is_default": true },
+    { "id": 2, "name": "1. pololetí 2026/27", "valid_from": "2026-09-01", "valid_to": "2027-01-31", "is_default": false }
+  ],
+  "file_extensions": [".pdf", ".docx", ".pptx", ".xlsx"],
+  "max_file_bytes": 52428800,
+  "max_batch_items": 100,
+  "max_child_links": 10
+}

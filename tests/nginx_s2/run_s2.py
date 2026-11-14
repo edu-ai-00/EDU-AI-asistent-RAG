@@ -486,7 +486,8 @@ def equivalence(lab, rep, su=None):
             L.expect_http(r["80 POST /api 50MiB+1 declared"], 413)
             L.expect_http(r["8444 POST 100MiB+1 declared"], 413)
             L.expect_http(r["80 GET /chat"], 308, header=("Location", "http://edu.example/chat/"))
-            L.expect_http(r["80 GET /qa"], 308, header=("Location", "http://edu.example/qa/"))
+            L.expect_http(r["80 GET /qa"], 404, envelope_code="NOT_FOUND")    # the old portal address is gone
+            L.expect_http(r["80 GET /knowledge"], 308, header=("Location", "http://edu.example/knowledge/"))
             e = L.upstream_saw(r["80 GET /api/ping?x=1&y=%20z"])
             assert e["target"] == "/ping?x=1&y=%20z", e["target"]          # prefix stripped, query kept
             e = L.upstream_saw(r["80 GET /search/health"])
@@ -587,13 +588,13 @@ def resilience(lab, rep):
         L.wait_healthy(new.container, 60)
         s = su.get(new, 80, "/search/health")
         L.expect_http(s, 503, envelope_code="UNAVAILABLE")
-        q = su.get(new, 80, "/qa/")
+        q = su.get(new, 80, "/knowledge/")
         L.expect_http(q, 502)
         for p in ("/health", "/api/ping", "/chat/x"):
             L.expect_http(su.get(new, 80, p), 200)
         data["c1_candidate"] = {"search": {"status": s["status"], "elapsed": s["elapsed"]},
                                 "qa": {"status": q["status"], "elapsed": q["elapsed"]}}
-        return f"healthy with search and qa absent; /health, /api, /chat 200; /search 503 UNAVAILABLE in {s['elapsed']}s; /qa/ 502 in {q['elapsed']}s"
+        return f"healthy with search and qa absent; /health, /api, /chat 200; /search 503 UNAVAILABLE in {s['elapsed']}s; /knowledge/ 502 in {q['elapsed']}s"
     rep.check("C1 candidate starts and turns healthy with two upstreams missing; other paths work", c1_new)
 
     old.up()
@@ -619,7 +620,7 @@ def resilience(lab, rep):
 
     def c2_new():
         s = wait_ok(su, new, "/search/health", timeout=30)
-        q = wait_ok(su, new, "/qa/", timeout=30)
+        q = wait_ok(su, new, "/knowledge/", timeout=30)
         data["c2_candidate_recover_s"] = {"search": s, "qa": q}
         assert s <= 15 and q <= 15, f"recovery took search {s}s / qa {q}s (> 15 s)"
         assert worker_pids(new) == pids_before, "worker processes changed: nginx was reloaded"

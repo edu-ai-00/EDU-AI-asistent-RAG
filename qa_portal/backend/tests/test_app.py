@@ -31,8 +31,11 @@ def test_list_schools(client):
     resp = client.get("/qa-api/v1/schools")
     assert resp.status_code == 200
     schools = resp.json()["schools"]
+    # CONTRACT.md §14.6: every school carries its permissions from the policy.
     assert schools == [{"code": "ZS_DEMO", "name": "ZS Demo", "kind": "school",
-                         "level": "zs", "parent_code": None}]
+                         "level": "zs", "parent_code": None,
+                         "permissions": {"read": True, "publish": True, "ingest": True,
+                                         "deactivate": True, "delete_permanently": True}}]
 
 
 def test_school_domains(client):
@@ -107,7 +110,7 @@ def test_upstream_unavailable_returns_error_envelope(client):
 
 def test_static_dir_absent_does_not_break_app(client):
     # STATIC_DIR does not exist in this dev checkout (Docker build creates it);
-    # the app must still start and answer API requests, and /qa/ must not
+    # the app must still start and answer API requests, and /knowledge/ must not
     # 500 or leak a traceback.
     from app.main import STATIC_DIR
     assert not STATIC_DIR.is_dir()

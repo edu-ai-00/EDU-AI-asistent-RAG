@@ -1,6 +1,6 @@
 """ASGI entrypoint. Wires the API routers under /qa-api/v1 and, if present,
-serves the built SPA from static/qa (qa_portal/Dockerfile copies the frontend
-build there; in dev the directory does not exist and that must not break
+serves the built SPA at /knowledge/ from static/qa (qa_portal/Dockerfile copies
+the frontend build there; in dev the directory does not exist and that must not break
 import or startup — see CONTRACT.md §8 and the Dockerfile comment on the
 SPA fallback never swallowing /qa-api/ 404s).
 """
@@ -16,9 +16,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import errors
-from .api import catalog, context, exports, imports, operations, packs
+from .api import ask, catalog, context, documents, exports, imports, operations, packs
 from .api.deps import get_ingest_client, get_search_client, get_store
-from .services import publish_service
+from .config import settings
+from .services import document_queue, publish_service
 
 logger = logging.getLogger("qa_portal.main")
 
@@ -42,7 +43,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             store=get_store(), ingest=get_ingest_client(), search=get_search_client())
     except Exception as e:
         logger.warning("startup reconcile: skipped (%s)", e)
+    # Document queue (CONTRACT.md §14.5): same rule — degrade, never crash.
+    worker = None
+    try:
+        document_queue.reconcile_jobs_on_startup(get_store())
+        document_queue.prune_jobs(get_store())
+    except Exception as e:
+        logger.warning("document queue startup reconcile: skipped (%s)", type(e).__name__)
+    if settings.document_worker_enabled:
+        try:
+            worker = document_queue.start_worker(get_store(), get_ingest_client())
+        except Exception as e:
+            logger.warning("document queue worker: not started (%s)", type(e).__name__)
     yield
+    if worker is not None:
+        worker.stop()
 
 
 app = FastAPI(title="EDU-AI QA portal", version="1.0.0", lifespan=lifespan)
@@ -57,6 +72,8 @@ app.include_router(packs.router, prefix=API_PREFIX)
 app.include_router(imports.router, prefix=API_PREFIX)
 app.include_router(exports.router, prefix=API_PREFIX)
 app.include_router(operations.router, prefix=API_PREFIX)
+app.include_router(documents.router, prefix=API_PREFIX)
+app.include_router(ask.router, prefix=API_PREFIX)
 
 
 @app.get(f"{API_PREFIX}/{{full_path:path}}", include_in_schema=False)
@@ -68,12 +85,25 @@ def api_not_found(full_path: str) -> JSONResponse:
     raise errors.not_found(f"no such API route: /{full_path}")
 
 
-if STATIC_DIR.is_dir():
+def mount_spa(application: FastAPI, static_dir: Path) -> None:
+    """Serves the built SPA at /knowledge and /knowledge/<path> (CONTRACT.md
+    §14.8). Unknown files fall back to index.html (client-side routes)."""
+    root = static_dir.resolve()
+    assets = root / "assets"
 
-    @app.get("/qa", include_in_schema=False)
-    @app.get("/qa/{full_path:path}", include_in_schema=False)
+    @application.get("/knowledge", include_in_schema=False)
+    @application.get("/knowledge/{full_path:path}", include_in_schema=False)
     def spa_fallback(full_path: str = "") -> FileResponse:
-        candidate = STATIC_DIR / full_path
-        if full_path and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(STATIC_DIR / "index.html")
+        candidate = (root / full_path).resolve()
+        if full_path and candidate.is_file() and root in candidate.parents:
+            # Vite names assets by content hash, so they never change in place.
+            hashed = assets in candidate.parents
+            cache = "public, max-age=31536000, immutable" if hashed else "no-cache"
+            return FileResponse(candidate, headers={"Cache-Control": cache})
+        # index.html must be revalidated, or a browser keeps the previous
+        # release's bundle after a deploy.
+        return FileResponse(root / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+if STATIC_DIR.is_dir():
+    mount_spa(app, STATIC_DIR)

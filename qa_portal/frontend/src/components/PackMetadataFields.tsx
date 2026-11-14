@@ -1,4 +1,5 @@
 import type { MetadataOptions } from "../api/types";
+import { allSchoolGradeCodes } from "../lib/grades";
 import { strings } from "../strings.cs";
 
 /** Editable draft of PackMetadata (api/types.ts): visibility starts unset
@@ -26,6 +27,10 @@ type Props = {
   /** The language these labels were requested in — named in the
    *  missing-translation hint so it cannot claim the wrong one. */
   uiDefaultLang: string;
+  /** Overrides the pack-specific roles legend (documents reuse this form). */
+  audienceRolesLabel?: string;
+  /** Adds "Vybrat všechny ročníky školy" (every grade but 9999, see lib/grades.ts). */
+  selectAllGradesLabel?: string;
 };
 
 function toggle(list: string[], code: string): string[] {
@@ -36,7 +41,7 @@ function toggle(list: string[], code: string): string[] {
  *  NewPackDialog (§2.4a) and ImportDialog (§2.4c) — extracted so a new pack
  *  confirmed from a dialog and one confirmed from an import file use exactly
  *  the same fields, labels and validation-relevant shape. */
-export function PackMetadataFields({ options, value, onChange, idPrefix, uiDefaultLang }: Props) {
+export function PackMetadataFields({ options, value, onChange, idPrefix, uiDefaultLang, audienceRolesLabel, selectAllGradesLabel }: Props) {
   return (
     <>
       <fieldset className="field">
@@ -62,7 +67,7 @@ export function PackMetadataFields({ options, value, onChange, idPrefix, uiDefau
       </fieldset>
 
       <fieldset className="field">
-        <legend>{strings.newPack.audienceRoles}</legend>
+        <legend>{audienceRolesLabel ?? strings.newPack.audienceRoles}</legend>
         <p className="qa-muted">{strings.newPack.audienceRolesHint}</p>
         {options.audience_roles.map((role) => (
           <label key={role.code} className="checkbox-row">
@@ -81,7 +86,18 @@ export function PackMetadataFields({ options, value, onChange, idPrefix, uiDefau
 
       <fieldset className="field">
         <legend>{strings.newPack.grades}</legend>
-        <p className="qa-muted">{strings.newPack.gradesHint}</p>
+        <div className="grades-head">
+          <p className="qa-muted">{strings.newPack.gradesHint}</p>
+          {selectAllGradesLabel && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={() => onChange({ ...value, school_grade_codes: allSchoolGradeCodes(options.school_grades) })}
+            >
+              {selectAllGradesLabel}
+            </button>
+          )}
+        </div>
         {/* Dense multi-column layout (Job 1): one long column of grade
             checkboxes is what made the dialog too tall to fit a small
             screen in the first place. */}

@@ -19,7 +19,7 @@ from pathlib import Path
 class StateStore:
     def __init__(self, base_dir: str | Path):
         self._base = Path(base_dir)
-        for sub in ("previews", "operations", "exports", "locks"):
+        for sub in ("previews", "operations", "exports", "locks", "jobs", "jobs/files"):
             (self._base / sub).mkdir(parents=True, exist_ok=True)
 
     @property
@@ -70,6 +70,11 @@ class StateStore:
 
     def list_operation_ids(self) -> list[str]:
         return self.list_ids("operations")
+
+    # ── document jobs (CONTRACT.md §14.5) ────────────────────────────────
+    def job_file_path(self, job_id: str) -> Path:
+        """Temporary upload payload of one job; the name is ours, never the client's."""
+        return self._base / "jobs" / "files" / job_id
 
     # ── exports ──────────────────────────────────────────────────────────
     def save_export_meta(self, export_id: str, record: dict) -> None:

@@ -136,7 +136,7 @@ describe("markdown preview", () => {
       target: { value: "**tučně** a <img src=x onerror=\"window.__xss=true\"><script>window.__xss=true;</script>" },
     });
 
-    fireEvent.click(screen.getByText(strings.editor.previewButton));
+    fireEvent.click(screen.getByRole("tab", { name: strings.editor.tabPreview }));
 
     const preview = document.querySelector(".markdown-preview") as HTMLElement;
     expect(preview).toBeTruthy();

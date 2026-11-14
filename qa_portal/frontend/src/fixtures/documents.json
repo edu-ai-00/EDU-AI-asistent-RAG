@@ -1,0 +1,305 @@
+{
+  "ZS_KAVCI_HORY": [
+    {
+      "document": {
+        "file_uuid": "0b6f2c1e-6a4d-4c1b-9a51-2d1f3e5a7b01",
+        "title": "https://www.zs-kavcihory.example/skolni-rad",
+        "source_kind": "web",
+        "source_url": "https://www.zs-kavcihory.example/skolni-rad",
+        "original_file_name": null,
+        "document_type": "SCHOOL_RULES",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [],
+        "domain_codes": [
+          "SCHOOL_OPERATIONS"
+        ],
+        "audience_roles": [
+          "PARENT",
+          "STUDENT"
+        ],
+        "visibility": "entity",
+        "valid_from": null,
+        "valid_to": null,
+        "user_name": "qa_portal__ZS_KAVCI_HORY",
+        "ingested_at": "2026-10-20T08:15:00Z",
+        "is_active": true,
+        "version_count": 2,
+        "chunk_count": 14
+      },
+      "versions": [
+        {
+          "file_uuid": "0b6f2c1e-6a4d-4c1b-9a51-2d1f3e5a7b01",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000101",
+          "ingested_at": "2026-10-20T08:15:00Z",
+          "is_active": true,
+          "chunk_count": 14
+        },
+        {
+          "file_uuid": "0b6f2c1e-6a4d-4c1b-9a51-2d1f3e5a7b00",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000100",
+          "ingested_at": "2026-09-02T07:00:00Z",
+          "is_active": false,
+          "chunk_count": 12
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "1a2b3c4d-1111-4abc-8def-000000000201",
+        "title": "Provozni_rad_jidelny.pdf",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Provozni_rad_jidelny.pdf",
+        "document_type": "SCHOOL_RULES",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [
+          "1",
+          "2",
+          "3"
+        ],
+        "domain_codes": [
+          "SCHOOL_OPERATIONS",
+          "SAFETY"
+        ],
+        "audience_roles": [
+          "PARENT"
+        ],
+        "visibility": "organization",
+        "valid_from": "2026-09-01",
+        "valid_to": "2027-08-31",
+        "user_name": "qa_portal__ZS_KAVCI_HORY",
+        "ingested_at": "2026-10-12T10:30:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 32
+      },
+      "versions": [
+        {
+          "file_uuid": "1a2b3c4d-1111-4abc-8def-000000000201",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000201",
+          "ingested_at": "2026-10-12T10:30:00Z",
+          "is_active": true,
+          "chunk_count": 32
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "2b3c4d5e-2222-4abc-8def-000000000301",
+        "title": "Jidelnicek_zari.docx",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Jidelnicek_zari.docx",
+        "document_type": "MENU",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [],
+        "domain_codes": [],
+        "audience_roles": [
+          "PARENT",
+          "STUDENT"
+        ],
+        "visibility": "entity",
+        "valid_from": "2026-09-01",
+        "valid_to": "2026-09-30",
+        "user_name": "qa_portal__ZS_KAVCI_HORY",
+        "ingested_at": "2026-08-28T12:00:00Z",
+        "is_active": false,
+        "version_count": 1,
+        "chunk_count": 3
+      },
+      "versions": [
+        {
+          "file_uuid": "2b3c4d5e-2222-4abc-8def-000000000301",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000301",
+          "ingested_at": "2026-08-28T12:00:00Z",
+          "is_active": false,
+          "chunk_count": 3
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "3c4d5e6f-3333-4abc-8def-000000000401",
+        "title": "Matematika_pracovni_list_3.pdf",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Matematika_pracovni_list_3.pdf",
+        "document_type": null,
+        "document_language": "cs",
+        "school_subject": "MATH",
+        "school_grade_codes": [
+          "3"
+        ],
+        "domain_codes": [],
+        "audience_roles": [
+          "STUDENT",
+          "TEACHER"
+        ],
+        "visibility": "entity",
+        "valid_from": null,
+        "valid_to": null,
+        "user_name": "qa_portal__ZS_KAVCI_HORY",
+        "ingested_at": "2026-10-05T09:00:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 6
+      },
+      "versions": [
+        {
+          "file_uuid": "3c4d5e6f-3333-4abc-8def-000000000401",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000401",
+          "ingested_at": "2026-10-05T09:00:00Z",
+          "is_active": true,
+          "chunk_count": 6
+        }
+      ]
+    }
+  ],
+  "ZS_JEDOVNICE": [
+    {
+      "document": {
+        "file_uuid": "4d5e6f70-4444-4abc-8def-000000000501",
+        "title": "https://www.zsjedovnice.example/druzina",
+        "source_kind": "web",
+        "source_url": "https://www.zsjedovnice.example/druzina",
+        "original_file_name": null,
+        "document_type": "ANNOUNCEMENT",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [],
+        "domain_codes": [],
+        "audience_roles": [
+          "PARENT"
+        ],
+        "visibility": "entity",
+        "valid_from": null,
+        "valid_to": null,
+        "user_name": "qa_portal__ZS_JEDOVNICE",
+        "ingested_at": "2026-10-18T14:00:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 5
+      },
+      "versions": [
+        {
+          "file_uuid": "4d5e6f70-4444-4abc-8def-000000000501",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000501",
+          "ingested_at": "2026-10-18T14:00:00Z",
+          "is_active": true,
+          "chunk_count": 5
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "5e6f7081-5555-4abc-8def-000000000601",
+        "title": "Jidelnicek_2024_25.pdf",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Jidelnicek_2024_25.pdf",
+        "document_type": "MENU",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [],
+        "domain_codes": [],
+        "audience_roles": [
+          "PARENT",
+          "STUDENT"
+        ],
+        "visibility": "entity",
+        "valid_from": "2024-09-01",
+        "valid_to": "2025-08-31",
+        "user_name": "qa_portal__ZS_JEDOVNICE",
+        "ingested_at": "2026-10-10T09:00:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 9
+      },
+      "versions": [
+        {
+          "file_uuid": "5e6f7081-5555-4abc-8def-000000000601",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000601",
+          "ingested_at": "2026-10-10T09:00:00Z",
+          "is_active": true,
+          "chunk_count": 9
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "6f708192-6666-4abc-8def-000000000701",
+        "title": "Skolni_rok_2030_31.docx",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Skolni_rok_2030_31.docx",
+        "document_type": "SCHEDULE",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [],
+        "domain_codes": [],
+        "audience_roles": [
+          "PARENT",
+          "TEACHER"
+        ],
+        "visibility": "entity",
+        "valid_from": "2030-09-01",
+        "valid_to": "2031-08-31",
+        "user_name": "qa_portal__ZS_JEDOVNICE",
+        "ingested_at": "2026-10-09T09:00:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 4
+      },
+      "versions": [
+        {
+          "file_uuid": "6f708192-6666-4abc-8def-000000000701",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000701",
+          "ingested_at": "2026-10-09T09:00:00Z",
+          "is_active": true,
+          "chunk_count": 4
+        }
+      ]
+    },
+    {
+      "document": {
+        "file_uuid": "708192a3-7777-4abc-8def-000000000801",
+        "title": "Pololetni_zprava.pdf",
+        "source_kind": "file",
+        "source_url": null,
+        "original_file_name": "Pololetni_zprava.pdf",
+        "document_type": "ANNOUNCEMENT",
+        "document_language": "cs",
+        "school_subject": null,
+        "school_grade_codes": [
+          "1",
+          "2",
+          "3"
+        ],
+        "domain_codes": [],
+        "audience_roles": [
+          "TEACHER"
+        ],
+        "visibility": "organization",
+        "valid_from": null,
+        "valid_to": null,
+        "user_name": "Jana Nováková",
+        "ingested_at": "2026-10-01T09:00:00Z",
+        "is_active": true,
+        "version_count": 1,
+        "chunk_count": 11
+      },
+      "versions": [
+        {
+          "file_uuid": "708192a3-7777-4abc-8def-000000000801",
+          "processing_uuid": "5c3d7e10-0000-4000-8000-000000000801",
+          "ingested_at": "2026-10-01T09:00:00Z",
+          "is_active": true,
+          "chunk_count": 11
+        }
+      ]
+    }
+  ]
+}

@@ -110,12 +110,13 @@ def build(allowed, contract):
     for path in ("/chat", "/chat/", "/chat/a/b?c=1", "/chat/x/stream?n=1&delay=0.01"):
         add(f"80 GET {path}", 80, "GET", path, cat="chat")
     add("80 POST /chat/x", 80, "POST", "/chat/x", body=small, cat="chat")
-    for path in ("/qa", "/qa/", "/qa/assets/app.js?v=1", "/qa-api/v1/health"):
+    for path in ("/knowledge", "/knowledge/", "/knowledge/assets/app.js?v=1", "/knowledge/documents",
+                 "/qa-api/v1/health"):
         add(f"80 GET {path}", 80, "GET", path, cat="qa")
     add("80 POST /qa-api/v1/schools", 80, "POST", "/qa-api/v1/schools", body=small, cat="qa")
     add("80 POST /qa-api 50MiB+1 declared", 80, "POST", "/qa-api/v1/schools",
         body={"fill": "a", "len": 0, "declare_len": 50 * MiB + 1}, cat="body-limit")
-    for path in ("/", "/unknown", "/favicon.ico", "/robots.txt", "/search-x", "/chat-x", "/qa-x"):
+    for path in ("/", "/unknown", "/favicon.ico", "/robots.txt", "/search-x", "/chat-x", "/qa-x", "/qa", "/qa/"):
         add(f"80 GET {path}", 80, "GET", path, cat="catch-all")
     for m in ("OPTIONS", "DELETE", "PUT", "PATCH", "HEAD"):
         add(f"80 {m} /search/health", 80, m, "/search/health", cat="methods")
@@ -134,7 +135,7 @@ def build(allowed, contract):
             body={"fill": "b", "len": 7}, cat="tunnel-allowed")
     for p in deny:
         add(f"81 GET {p} (denied)", 81, "GET", p, cat="tunnel-denied")
-    for path in ("/health", "/api/ping", "/api/", "/chat/", "/qa/", "/qa-api/v1/health", "/pgadmin/", "/"):
+    for path in ("/health", "/api/ping", "/api/", "/chat/", "/qa/", "/knowledge/", "/qa-api/v1/health", "/pgadmin/", "/"):
         add(f"81 GET {path} (not on the tunnel)", 81, "GET", path, cat="tunnel-denied")
     add("81 POST /search 1MiB+1 (413)", 81, "POST", "/search/v1/ask", body={"fill": "a", "len": MiB + 1}, cat="body-limit")
     for client in ("172", "192"):

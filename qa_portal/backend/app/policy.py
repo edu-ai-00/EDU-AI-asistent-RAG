@@ -52,6 +52,22 @@ class Policy(Protocol):
     def may_publish(self, p: Principal, school: str) -> bool: ...
     def may_replace(self, p: Principal, school: str) -> bool: ...
     def may_manage_categories(self, p: Principal) -> bool: ...
+    # Per-school document permissions (CONTRACT.md §14.6).
+    def may_read(self, p: Principal, school: str) -> bool: ...
+    def may_ingest(self, p: Principal, school: str) -> bool: ...
+    def may_deactivate(self, p: Principal, school: str) -> bool: ...
+    def may_delete_permanently(self, p: Principal, school: str) -> bool: ...
+
+
+def school_permissions(policy: Policy, p: Principal, school: str) -> dict[str, bool]:
+    """`permissions` of one school in GET /schools (CONTRACT.md §14.6)."""
+    return {
+        "read": bool(policy.may_read(p, school)),
+        "publish": bool(policy.may_publish(p, school)),
+        "ingest": bool(policy.may_ingest(p, school)),
+        "deactivate": bool(policy.may_deactivate(p, school)),
+        "delete_permanently": bool(policy.may_delete_permanently(p, school)),
+    }
 
 
 class VpnAdminPolicy:
@@ -76,6 +92,18 @@ class VpnAdminPolicy:
 
     def may_manage_categories(self, p: Principal) -> bool:
         return True
+
+    def may_read(self, p: Principal, school: str) -> bool:
+        return self.allowed_schools(p).allows(school)
+
+    def may_ingest(self, p: Principal, school: str) -> bool:
+        return self.allowed_schools(p).allows(school)
+
+    def may_deactivate(self, p: Principal, school: str) -> bool:
+        return self.allowed_schools(p).allows(school)
+
+    def may_delete_permanently(self, p: Principal, school: str) -> bool:
+        return self.allowed_schools(p).allows(school)
 
 
 def build_vpn_admin_principal() -> Principal:

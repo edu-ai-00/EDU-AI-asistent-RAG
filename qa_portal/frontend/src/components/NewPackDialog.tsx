@@ -68,10 +68,10 @@ export function NewPackDialog({ client, school, onClose, onCreated }: Props) {
 
   const actions = (
     <div className="dialog-actions">
-      <button type="button" disabled={!canCreate} onClick={handleCreate}>
+      <button type="button" className="btn btn--primary" disabled={!canCreate} onClick={handleCreate}>
         {strings.newPack.create}
       </button>
-      <button type="button" onClick={onClose}>
+      <button type="button" className="btn btn--secondary" onClick={onClose}>
         {strings.actions.cancel}
       </button>
     </div>

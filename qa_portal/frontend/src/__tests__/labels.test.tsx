@@ -78,7 +78,6 @@ function renderList(entries: Array<Partial<Entry>>, domains: Domain[] = DOMAINS)
       selectedEntryKey={null}
       onSelect={() => {}}
       pendingNewEntries={[]}
-      onAddQuestion={() => {}}
       domains={domains}
     />,
   );
@@ -87,7 +86,9 @@ function renderList(entries: Array<Partial<Entry>>, domains: Domain[] = DOMAINS)
 describe("entry list — areas are shown by their Czech name", () => {
   it("renders the catalog label, not the stable code", () => {
     renderList([{ domains: ["ATTENDANCE", "BULLYING"] }]);
-    expect(screen.getByText(/Docházka, Šikana/)).toBeTruthy();
+    // Each area is its own chip.
+    expect(screen.getByText("Docházka")).toBeTruthy();
+    expect(screen.getByText("Šikana")).toBeTruthy();
     expect(screen.queryByText(/ATTENDANCE/)).toBeNull();
     expect(screen.queryByText(/BULLYING/)).toBeNull();
   });
@@ -95,7 +96,8 @@ describe("entry list — areas are shown by their Czech name", () => {
   it("keeps showing the code when the catalog does not know it", () => {
     // A stale or narrower catalog must never hide what an entry is tagged with.
     renderList([{ domains: ["ATTENDANCE", "MYSTERY"] }]);
-    expect(screen.getByText(/Docházka, MYSTERY/)).toBeTruthy();
+    expect(screen.getByText("Docházka")).toBeTruthy();
+    expect(screen.getByText("MYSTERY")).toBeTruthy();
   });
 
   it("falls back to the code the API supplied for a missing translation", () => {
@@ -103,9 +105,10 @@ describe("entry list — areas are shown by their Czech name", () => {
     expect(screen.getByText(/SAFETY/)).toBeTruthy();
   });
 
-  it("says so plainly when an entry has no area at all", () => {
+  it("shows no chip at all for an entry without an area (the list filter finds them instead)", () => {
     renderList([{ domains: [] }]);
-    expect(screen.getByText(strings.list.noAreas)).toBeTruthy();
+    expect(document.querySelector(".entry-list-item .chip")).toBeNull();
+    expect(screen.queryByText("Bez oblasti")).toBeNull();
   });
 
   it("renders nothing about areas from an empty catalog beyond the codes", () => {

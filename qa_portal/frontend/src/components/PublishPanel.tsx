@@ -170,12 +170,16 @@ export function PublishPanel({
   return (
     <section className="publish-panel" aria-label={strings.actions.publish}>
       {stage.kind === "idle" && (
-        <>
-          <p className="qa-muted">{hasPending ? strings.footer.draftNote : strings.footer.idleNote}</p>
-          <button type="button" disabled={!hasPending} onClick={handlePreview}>
+        <div className="publish-bar">
+          <p className="qa-muted">
+            <span className="publish-count">{strings.publish.pendingCount(pending.length)}</span>
+            {" · "}
+            {hasPending ? strings.footer.draftNote : strings.footer.idleNote}
+          </p>
+          <button type="button" className="btn btn--primary" disabled={!hasPending} onClick={handlePreview}>
             {strings.actions.publish}
           </button>
-        </>
+        </div>
       )}
 
       {stage.kind === "previewing" && <p role="status">{strings.operation.validating}</p>}
@@ -188,10 +192,10 @@ export function PublishPanel({
             <p role="status">{strings.operation.processing}</p>
           ) : (
             <div className="publish-preview-actions">
-              <button type="button" onClick={handleConfirmPublish}>
+              <button type="button" className="btn btn--primary" onClick={handleConfirmPublish}>
                 {strings.actions.confirm}
               </button>
-              <button type="button" onClick={handleCancelPreview}>
+              <button type="button" className="btn btn--secondary" onClick={handleCancelPreview}>
                 {strings.actions.cancel}
               </button>
             </div>
@@ -203,7 +207,7 @@ export function PublishPanel({
         <div role="alert" className="publish-conflict">
           <h3>{strings.conflict.title}</h3>
           <p>{strings.conflict.body}</p>
-          <button type="button" onClick={handleReloadAndCompare}>
+          <button type="button" className="btn btn--secondary" onClick={handleReloadAndCompare}>
             {strings.conflict.reload}
           </button>
         </div>

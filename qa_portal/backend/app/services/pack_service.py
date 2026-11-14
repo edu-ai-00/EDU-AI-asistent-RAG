@@ -29,7 +29,7 @@ def is_school_active(search: SearchClient, school: str) -> bool:
     try:
         entities = search.list_active_entities()
     except SearchUnavailable as e:
-        raise errors.unavailable(f"entity register unavailable: {e}")
+        raise errors.search_failure(e, f"entity register unavailable: {e}")
     return any(e["legal_entity_code"] == school for e in entities)
 
 
@@ -37,7 +37,7 @@ def get_school_domains(search: SearchClient, school: str, lang: str | None) -> l
     try:
         raw = search.get_domains(school)
     except SearchUnavailable as e:
-        raise errors.unavailable(f"domain catalog unavailable: {e}")
+        raise errors.search_failure(e, f"domain catalog unavailable: {e}")
     out = []
     for d in raw:
         label, fallback = resolve_label(d.get("labels"), lang, settings.ui_default_lang, d["code"])
@@ -74,7 +74,7 @@ def domain_code_set(search: SearchClient, school: str) -> set[str]:
     try:
         raw = search.get_domains(school)
     except SearchUnavailable as e:
-        raise errors.unavailable(f"domain catalog unavailable: {e}")
+        raise errors.search_failure(e, f"domain catalog unavailable: {e}")
     return {d["code"] for d in raw}
 
 
