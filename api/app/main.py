@@ -7,6 +7,7 @@ import os
 import json
 import re
 import unicodedata
+import hashlib
 import validators
 from urllib.parse import urlparse, urljoin, quote
 from bs4 import BeautifulSoup
@@ -356,6 +357,26 @@ def clean_text(text: str) -> str:
     return text.replace("​", "").strip()
 
 
+def bytes_sha256(content: bytes) -> str:
+    """SHA-256 (lowercase hex) of a saved file's bytes (CONTRACT.md sec.14.14)."""
+    return hashlib.sha256(content).hexdigest()
+
+
+def html_text_sha256(html: str) -> str | None:
+    """SHA-256 of a page's cleaned visible text, so markup, whitespace and
+    script/style content (dates, nonces) do not change the hash. None on failure:
+    a missing hash only means "never skipped", it must not fail the ingest."""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        for tag in soup(["script", "style", "noscript", "template"]):
+            tag.decompose()
+        text = " ".join(clean_text(soup.get_text(" ", strip=True)).split())
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    except Exception as e:
+        logger.warning("content hash of a page failed (%s)", type(e).__name__)
+        return None
+
+
 def detect_source_type(file_path: str) -> str:
     """Detect source type from file extension."""
     ext = Path(file_path).suffix.lower()
@@ -596,6 +617,13 @@ def _prune_navigation(root) -> None:
             break
 
 
+def _site_host(url: str) -> str:
+    """Host for the same-site check: lowercase, no port, no leading "www.".
+    A page at www.x.cz linking to x.cz is the same site (it dropped every link)."""
+    host = (urlparse(url).hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
 def extract_links(html: str, source_url: str, max_links: int = MAX_CHILD_LINKS) -> list[dict]:
     """Extract same-domain links from the main content area."""
     soup = BeautifulSoup(html, "lxml")
@@ -606,8 +634,7 @@ def extract_links(html: str, source_url: str, max_links: int = MAX_CHILD_LINKS) 
 
     _prune_navigation(main)
 
-    source_parsed = urlparse(source_url)
-    source_domain = source_parsed.netloc.lower()
+    source_domain = _site_host(source_url)
 
     seen = set()
     links = []
@@ -621,7 +648,7 @@ def extract_links(html: str, source_url: str, max_links: int = MAX_CHILD_LINKS) 
         full_url = urljoin(source_url, href)
         parsed = urlparse(full_url)
 
-        if parsed.netloc.lower() != source_domain:
+        if _site_host(full_url) != source_domain:
             continue
 
         # canonical URL (lowercase scheme+host, drop query/fragment, strip
@@ -709,6 +736,7 @@ def fetch_and_save_children(
 
                 with open(file_path, "wb") as f:
                     f.write(content)
+                content_sha256 = bytes_sha256(content)
 
             else:
                 # Fetch HTML page
@@ -730,6 +758,7 @@ def fetch_and_save_children(
 
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(html)
+                content_sha256 = html_text_sha256(html)
 
             source_type = detect_source_type(str(file_path))
 
@@ -741,6 +770,7 @@ def fetch_and_save_children(
                 "source_type": source_type,
                 "page_role": "child",
                 "anchor_text": link.get("anchor_text", ""),
+                "content_sha256": content_sha256,
             })
 
             logger.info(
@@ -1115,6 +1145,127 @@ def ingest_status(processing_uuid: str | None = None,
         raise HTTPException(status_code=503, detail="Ingest status unavailable")
 
 
+def _remove_upload_files(file_uuids: list) -> tuple[int, list[str]]:
+    """Unlink UPLOAD_DIR/<uuid>_* for each uuid. Only canonical UUID strings
+    become a glob prefix; a failed unlink is a warning, never an error."""
+    removed, warnings = 0, []
+    for raw in file_uuids:
+        try:
+            fu = str(uuid.UUID(str(raw)))
+        except (ValueError, TypeError):
+            warnings.append("search returned a file_uuid that is not a UUID")
+            continue
+        for path in UPLOAD_DIR.glob(f"{fu}_*"):
+            try:
+                if path.is_file():
+                    path.unlink()
+                    removed += 1
+            except OSError as e:
+                logger.warning("document delete: unlink failed file_uuid=%s (%s)",
+                               fu, type(e).__name__)
+                warnings.append(f"a file of {fu} could not be removed")
+    return removed, warnings
+
+
+def _remove_saved_files(files: list[dict]) -> int:
+    """Unlink exactly the files this request saved (dry-run cleanup); a failed
+    unlink is only logged. Returns how many were removed."""
+    removed = 0
+    for info in files:
+        try:
+            Path(info["file_path"]).unlink()
+            removed += 1
+        except OSError as e:
+            logger.warning("dry run: unlink failed file_uuid=%s (%s)",
+                           info.get("file_uuid"), type(e).__name__)
+    return removed
+
+
+@app.get("/v1/documents/{file_uuid}/file")
+def download_document_file(file_uuid: str, legal_entity: str):
+    """The stored file of ONE version (original upload or saved web page), as a
+    download. Search confirms the version belongs to the school (sec.14.10)."""
+    from fastapi.responses import FileResponse
+    try:
+        fu = str(uuid.UUID(file_uuid))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="file_uuid must be a UUID")
+    try:
+        resp = requests.get(f"{SEARCH_URL}/internal/qa-admin/documents/{fu}",
+                            params={"legal_entity": legal_entity}, timeout=30)
+    except requests.RequestException as e:
+        logger.warning("document file: search unreachable (%s)", type(e).__name__)
+        raise HTTPException(status_code=503, detail="Search service unavailable")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="no such document for this school")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=503, detail="Search service unavailable")
+    version = next((v for v in (resp.json().get("versions") or [])
+                    if v.get("file_uuid") == fu), None)
+    name = (version or {}).get("file_name") or ""
+    # Only a plain name of THIS version's file; never a path from anywhere.
+    if not name.startswith(f"{fu}_") or "/" in name or "\\" in name or "\0" in name:
+        raise HTTPException(status_code=404, detail="no stored file for this version")
+    path = UPLOAD_DIR / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="the file is no longer stored")
+    logger.info("document file: legal_entity=%s file_uuid=%s", legal_entity, fu)
+    return FileResponse(path, media_type="application/octet-stream",
+                        filename=name[len(fu) + 1:] or name,
+                        headers={"X-Content-Type-Options": "nosniff"})
+
+
+@app.delete("/v1/documents/{file_uuid}")
+def delete_document(file_uuid: str, legal_entity: str):
+    """Permanently delete a document (every version) of one school.
+
+    The rows go first, through search (one transaction there); only after a 200
+    are the uploaded files removed. An orphaned file is harmless, orphaned
+    chunks are not. CONTRACT.md (qa-portal) sec.14.3.
+    """
+    try:
+        fu = str(uuid.UUID(file_uuid))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="file_uuid must be a UUID")
+    try:
+        resp = requests.delete(f"{SEARCH_URL}/internal/qa-admin/documents",
+                               params={"legal_entity": legal_entity,
+                                       "file_uuid": fu},
+                               timeout=60)
+    except Exception as e:
+        logger.warning("document delete: search unreachable (%s)", type(e).__name__)
+        raise HTTPException(status_code=503, detail="document delete unavailable")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail=(
+            f"no document '{fu}' for '{legal_entity}'"))
+    if resp.status_code == 400:
+        raise HTTPException(status_code=400, detail="file_uuid must be a UUID")
+    if resp.status_code != 200:
+        logger.warning("document delete: search returned HTTP %s", resp.status_code)
+        raise HTTPException(status_code=503, detail="document delete unavailable")
+    extra = []
+    try:
+        body = resp.json()
+        deleted = body["deleted"]
+        file_uuids = list(body["file_uuids"])
+    except Exception:
+        # The rows are already gone: report success and clean what is known.
+        logger.warning("document delete: unreadable search response legal_entity=%s "
+                       "file_uuid=%s", legal_entity, fu)
+        deleted, file_uuids = {}, [fu]
+        extra = ["search confirmed the delete without details; only the files of "
+                 "the requested version were removed"]
+
+    files_removed, warnings = _remove_upload_files(file_uuids)
+    warnings = extra + warnings
+    logger.info("document delete: legal_entity=%s file_uuid=%s versions=%s "
+                "chunks=%s files_removed=%d warnings=%d", legal_entity, fu,
+                deleted.get("versions"), deleted.get("chunks"),
+                files_removed, len(warnings))
+    return {"deleted": deleted, "file_uuids": file_uuids,
+            "files_removed": files_removed, "warnings": warnings}
+
+
 @app.post("/v1/ingest")
 async def ingest(
     file: UploadFile = File(None),
@@ -1349,6 +1500,7 @@ async def ingest(
             "source_url": None,
             "source_type": source_type,
             "page_role": "upload",
+            "content_sha256": bytes_sha256(content),
         })
 
         if save_level_1_child:
@@ -1395,6 +1547,7 @@ async def ingest(
                 "source_url": normalized_url,
                 "source_type": detect_source_type(final_filename),
                 "page_role": "parent",
+                "content_sha256": bytes_sha256(resp.content),
             })
 
         else:
@@ -1420,6 +1573,7 @@ async def ingest(
                 "source_url": normalized_url,
                 "source_type": "web",
                 "page_role": "parent",
+                "content_sha256": html_text_sha256(html),
             })
 
             # ── 2) Fetch and save child pages/files ─────────────
@@ -1449,8 +1603,13 @@ async def ingest(
                 "source_url": file_info.get("source_url"),
                 "source_type": file_info["source_type"],
                 "page_role": file_info["page_role"],
+                "content_sha256": file_info.get("content_sha256"),
                 "status": "dry_run",
             })
+        # A preview leaves nothing in UPLOAD_DIR (CONTRACT.md sec.14.8).
+        removed = _remove_saved_files(files_to_process)
+        logger.info("dry run: removed %d of %d saved file(s)",
+                    removed, len(files_to_process))
     else:
         for file_info in files_to_process:
             result = process_file(
@@ -1480,6 +1639,7 @@ async def ingest(
                 valid_from=valid_from,
                 valid_to=valid_to,
             )
+            result["content_sha256"] = file_info.get("content_sha256")
             results.append(result)
 
     # ── RESPONSE ─────────────────────────────────────────────
