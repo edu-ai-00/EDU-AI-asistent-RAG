@@ -172,9 +172,10 @@ SHORTEST curated questions as topics, so uncategorised small talk ("Ahoj",
 "Pardon") would become its first topics.
 
 **Rollout order.** First the search image with the parameters and migrations
-229–233 (`setup.py install` applies release R233; 233 makes the capabilities
-answer introduce the assistant as EDU-AI's instead of the school's), then the
-packs with the category. An entry of a category that is excluded but whose code the portal does
+229–234 (`setup.py install` applies release R234; 233 makes the capabilities
+answer introduce the assistant as EDU-AI's instead of the school's, 234 takes
+the admission exam out of the refusal of rude words, which every chat shows), then
+the packs with the category. An entry of a category that is excluded but whose code the portal does
 not know yet is rejected at import.
 
 Measured with the regression set of the lab tools (branch `lab/search-quality`,
