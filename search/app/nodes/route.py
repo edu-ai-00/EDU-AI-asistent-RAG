@@ -219,7 +219,7 @@ def _identity_phrases() -> set:
         return {r[0] for r in cur.fetchall()}
 
 
-def _corpus_topics(state: SearchState, top_n: int = 6):
+def _corpus_topics(state: SearchState, top_n: int = 6, exclude=()):
     """(topics, suggestions) — the most frequent section headings of the
     organisation's non-private documents. Live: the message grows with the
     corpus and an empty corpus yields an honest 'zatím žádná témata'."""
@@ -257,6 +257,11 @@ def _corpus_topics(state: SearchState, top_n: int = 6):
             "e", state.get("entity_scope") or [], orgs, state.get("user_id"),
             state.get("user_role"), validity=True)
         heads: list = []
+        # offer_exclude_categories (migration 231): a conversational entry is no topic
+        _cat, _cat_p = ((f" AND NOT EXISTS (SELECT 1 FROM {config.PG_SCHEMA}.code_list cl"
+                         f" WHERE cl.id = e.category_id AND cl.list_code = 'qa_category'"
+                         f" AND cl.code = ANY(%s))", [list(exclude)])
+                        if exclude else ("", []))
         try:
             cur.execute(
                 # DISTINCT on the TEXT: one question legitimately sits in
@@ -266,10 +271,10 @@ def _corpus_topics(state: SearchState, top_n: int = 6):
                 f"""SELECT e.canonical_q
                       FROM {config.QA_ENTRIES_TABLE} e
                      WHERE e.is_active AND e.canonical_q IS NOT NULL
-                       {_qa_scope}{dom_e}
+                       {_qa_scope}{dom_e}{_cat}
                      GROUP BY e.canonical_q
                      ORDER BY min(length(e.canonical_q)) LIMIT %s""",
-                (*_qa_params, *dom_ep, top_n))
+                (*_qa_params, *dom_ep, *_cat_p, top_n))
             heads = [r[0] for r in cur.fetchall()]
         except Exception as e:
             logger.warning("route.meta: curated topics failed (%s) — headings", e)
@@ -404,7 +409,8 @@ def _meta_check(state: SearchState, params: dict | None = None):
                 row = cur.fetchone()
                 if row:
                     school = row[0]
-            topics, sugg = _corpus_topics(state)
+            from .qa_common import offer_codes
+            topics, sugg = _corpus_topics(state, exclude=offer_codes(params))
         except Exception as e:
             logger.warning("route.meta: topics lookup failed (%s)", e)
         msg = (system_message("capabilities", lang)
@@ -567,6 +573,18 @@ def _guard(state: SearchState, params: dict | None = None):
             "sources_json": "[]", "user_language": state.get("query_language"),
         }, [])
 
+    # blocklist_before_meta (off in code; migration 232 sets it): the risky words decide
+    # BEFORE the meta and identity answers. The meta intent guard takes any short
+    # sentence with an ability verb ("umíš", "jsi") and no school topic, so with the
+    # order below "umíš mi pomoct? chci se zabít" got the capabilities answer instead
+    # of the crisis line, and "jsi kokot" the capabilities answer instead of a refusal.
+    if (params or {}).get("blocklist_before_meta"):
+        blocked, soft = _blocklist_check(state, params)
+        if blocked:
+            return blocked, soft
+        meta = _meta_check(state, params) or _identity_check(state, params)
+        return (meta, soft) if meta else (None, soft)
+
     # 2) meta-question? ("Co umíš?") — an answer, not a block
     meta = _meta_check(state, params)
     if meta:
@@ -578,6 +596,13 @@ def _guard(state: SearchState, params: dict | None = None):
         return identity, []
 
     # 3) blocklist
+    return _blocklist_check(state, params)
+
+
+def _blocklist_check(state: SearchState, params: dict | None = None):
+    """(terminal dict | None, soft_hits) of the blocklist alone; see _guard."""
+    norm = state.get("query_norm_tokens", []) or []
+    lemma = state.get("query_lemma_tokens", []) or []
     prio, min_sev, msg_key, outcome_by_cat, slack = _guard_policy(params)
 
     lang = state.get("query_language") or "cs"
@@ -819,6 +844,10 @@ def _scope(state: SearchState) -> list[str]:
 def route(state: SearchState, params: dict | None = None) -> dict:
     blocked, soft_hits = _guard(state, params)
     if blocked is not None:
+        if soft_hits:   # below-threshold hits beside a terminal answer (blocklist_before_meta)
+            blocked = {**blocked, "trace_detail": {
+                **(blocked.get("trace_detail") or {}),
+                "guard_soft_hits": [{"category": c, "severity": s} for c, s in soft_hits]}}
         return blocked
     try:
         pack_ids, _ex_ids, _un_ids, _offer = _scope(state)

@@ -13,7 +13,7 @@ sources:
   - search/app/conversation.py
   - search/app/settings.py
   - search/app/config.py
-last_verified: 2026-09-18
+last_verified: 2026-11-15
 ---
 
 # Routing
@@ -83,8 +83,10 @@ message table. No retrieval runs.
 Two kinds of question are not questions for the corpus, and both are answered
 here without retrieval or an LLM:
 
-- **"Co umíš?"** — the capabilities message, with the school's name and the live
-  section headings of its own documents.
+- **"Co umíš?"** — the capabilities message: the assistant introduces itself as
+  EDU-AI's (migration 233; it named the school before, which was wrong where one
+  school runs several chats) and lists live topics, the shortest curated questions
+  and the section headings of the school's documents.
 - **"Jak se jmenuje naše škola?"** — the school's name, read from
   `legal_entity.display_name`.
 
@@ -94,6 +96,12 @@ both categories, since they are detection vocabulary and not terms to block on.
 Matching is stricter than the blocklist: the **whole** query, after its filler
 words are stripped, must equal a phrase. "Co umíš spočítat?" and "Jak se jmenuje
 školník?" are real questions and stay on the cascade.
+
+Questions about the assistant itself ("Kolik ti je let?", "Jak se máš?", "Žiješ?",
+"Jak se jmenuješ?")
+get the capabilities message too (migration 229, cs/en/de/es). They belong here and
+not in a school's QA pack: the meta list is global, so every organisation answers
+them, and a curated entry for them could be offered among the questions of real ones.
 
 The identity path exists because the name is **metadata, not corpus**. It is in
 no index, so no wording can retrieve it — measured on production 2026-09-11,
@@ -131,6 +139,12 @@ wording, or which categories block, requires no deployment.
 
 **Failure behaviour:** if the blocklist cannot be read, the guard is skipped and
 the query proceeds, logged. Availability over enforcement.
+
+**Order against the meta answer:** by default the meta and identity checks run
+first, and the meta intent guard answers any short sentence with an ability verb
+("umíš", "jsi") and no school topic, so "umíš mi pomoct? chci se zabít" got the
+capabilities message. The route parameter `blocklist_before_meta` (migration 232)
+runs the blocklist first; a clean meta or identity question keeps its answer.
 
 ### 4. Pack and entity scope (`enforced`)
 

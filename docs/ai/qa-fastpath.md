@@ -16,7 +16,7 @@ sources:
   - search/app/config.py
   - postgres/init/140_qa_pack_school_grades_domains.sql
   - postgres/init/144_qa_scan_surface_parity.sql
-last_verified: 2026-11-07
+last_verified: 2026-11-15
 ---
 
 # QA fast-path (curated answers)
@@ -148,6 +148,50 @@ negations the lemmatizer made.
 Known interaction: with a key, `qa_vector` and the generated answer reuse the
 offer parked by `qa_lexical` as related questions, so `offer_ngram` can show its
 chip beside those answers too. That is not measured (no key in the lab).
+
+### Small talk and questions about the assistant (`evaluated`)
+
+Short conversational messages are handled in four places. A school needs no QA
+entry for what is about the assistant itself, and the small talk it does curate
+never crowds out real questions.
+
+| Message | Handled by | Migration |
+|---|---|---|
+| About the assistant: "Kolik ti je let?", "Jak se máš?", "Jak se jmenuješ?" | global meta list, answered with the capabilities message for every organisation ([routing.md](routing.md) §2) | 229 |
+| A real question wrapped in a greeting or thanks: "Ahoj, kdy jsou přijímačky?" | coverage stop-words: matched like the bare question | 230 |
+| Curated small talk: "Ahoj", "Děkuji", "Nashledanou" | QA entries in the category `CONVERSATION`: the answer when they match, never an offered question (`offer_exclude_categories`) | 231 |
+| A risky word in a sentence that looks like a meta question: "umíš mi pomoct? chci se zabít" | blocklist before the meta answer (`blocklist_before_meta`, [routing.md](routing.md) §3) | 232 |
+
+**Curating small talk.** Set `category_code` to `CONVERSATION` in the pack CSV
+(or pick the category in the portal); the code has to exist (migration 231) before
+such a file is imported. One entry per intent, the canonical question in its
+plainest form, at most four alternatives taken from real messages. Do not curate
+questions about the assistant: they belong in the meta list. An entry without the
+category is offered like any other, and the capabilities answer lists the
+SHORTEST curated questions as topics, so uncategorised small talk ("Ahoj",
+"Pardon") would become its first topics.
+
+**Rollout order.** First the search image with the parameters and migrations
+229–234 (`setup.py install` applies release R234; 233 makes the capabilities
+answer introduce the assistant as EDU-AI's instead of the school's, 234 takes
+the admission exam out of the refusal of rude words, which every chat shows), then
+the packs with the category. An entry of a category that is excluded but whose code the portal does
+not know yet is rejected at import.
+
+Measured with the regression set of the lab tools (branch `lab/search-quality`,
+13–15 Nov 2026), on a school's two packs with 20 conversational entries:
+
+| Change | Effect | Unchanged |
+|---|---|---|
+| 229 | no query of the regression sets equals a phrase | everything else (whole-query match) |
+| 230 | a verified question with a greeting or thanks around it: 10 → 20 confident right answers out of 198, confident wrong 3 → 3 | sets A–N and G |
+| 231 | conversational chips 143 → 0 among 2,986 real questions, 98 → 0 among 888 out-of-content ones | confident right and wrong answers in every set |
+| 232 | the guard outcome of 7,582 distinct messages: 24 move from the capabilities answer to a refusal (insults of the form "jsi …", sexual questions) | every query of the regression sets and of the production log |
+
+What it does not cover: a greeting with a content word ("Dobrý den, …" keeps
+`den`, see 218), insults the blocklist does not list, and a short message inside
+a conversation, which with a chat model is rewritten by `resolve_context` before
+the guard runs ([routing.md](routing.md), "Before the cascade").
 
 ### qa_vector (`enforced`)
 

@@ -30,6 +30,7 @@ from .qa_common import (
     fetch_answer, sources_json,
     load_thresholds_by_pack, default_thresholds, resolve_form, form_ts, form_query_tokens,
     content_tokens, form_text_concat, negation_conflict, entry_lemma_tokens, polarity_tokens,
+    offer_codes, no_offer_ids,
 )
 
 logger = logging.getLogger(__name__)
@@ -278,6 +279,16 @@ def qa_lexical(state: SearchState, params: dict | None = None) -> dict:
     """
     out = _qa_lexical_decision(state, params) or {}
     offered = _other_grade_suggestions(state, params)
+    if offered and offer_codes(params):         # migration 231
+        try:
+            with get_cursor() as cur:
+                _skip = no_offer_ids(cur, [o.get("entry_id") for o in offered],
+                                     offer_codes(params))
+            offered = [o for o in offered if str(o.get("entry_id") or "") not in _skip]
+        except Exception as e:
+            logger.warning("qa_lexical: offer category check failed (%s) — other-grade "
+                           "offer dropped", e)
+            offered = []
     if not offered:
         return out
     out["other_grade_suggestions"] = offered
@@ -406,13 +417,17 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                     ORDER BY {_trgm_order(_rank_ties)}
                     LIMIT %s
                 """
-                cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params,
-                                       joined_norm, suggest_top_n])
+                # with offer_exclude_categories some rows may be dropped below: fetch a few
+                # more so the offer is still full
+                cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params, joined_norm,
+                                       suggest_top_n * (3 if offer_codes(params) else 1)])
                 trows = cur.fetchall()
-                best_sim = float(trows[0][3]) if trows else 0.0
-                logger.info("qa_lexical: no ts match; trgm best sim=%.3f", best_sim)
                 _triples = [(str(r[0]), r[2], float(r[3])) for r in trows]
-                if trows and best_sim >= trgm_min:
+                _skip = no_offer_ids(cur, [t[0] for t in _triples], offer_codes(params))
+                _triples = [t for t in _triples if t[0] not in _skip][:suggest_top_n]  # migration 231
+                best_sim = _triples[0][2] if _triples else 0.0
+                logger.info("qa_lexical: no ts match; trgm best sim=%.3f", best_sim)
+                if _triples and best_sim >= trgm_min:
                     # typo fallback: deferred like decision B — RAG gets a chance
                     return {"resolved": False, "decision": "B-deferred", "match_score": 0.0,
                             "deferred_suggest": _suggest(_triples, suggest_top_n, lang)}
@@ -524,6 +539,10 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # every ranked entry as a (id, question, score) triple, best first —
             # the suggestion source for all three decisions below
             _triples = [(eid, e["canonical_q"], e["cov"]) for eid, e in ranked]
+            # offer_exclude_categories (migration 231): an entry of an excluded category
+            # may still be the answer (top_id), never one of the offered questions
+            _skip = no_offer_ids(cur, [t[0] for t in _triples], offer_codes(params))
+            _offer = [t for t in _triples if t[0] not in _skip]
 
             # ── TOPICAL ADMISSION, the rule the document path already has ──
             # Coverage says HOW MUCH of the query an entry matched, never WHICH
@@ -614,7 +633,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # 0.34-0.41 and the good ones at 1.00, so the two separate cleanly by
             # score where they did not separate by pack.
             _xpack_min = float(params.get("related_cross_pack_min", 0.7) or 0.0)
-            _related = [t for t in _triples if t[0] != top_id and t[2] >= t_suggest
+            _related = [t for t in _offer if t[0] != top_id and t[2] >= t_suggest
                         and (agg[t[0]].get("pack_id") == top.get("pack_id")
                              or t[2] >= _xpack_min)]
             # By the number the chip SHOWS. `ranked` is ordered by ts_rank and tier
@@ -672,7 +691,9 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                     _sib = category_siblings(
                         cur, top_id, frag, pack_params, cand_cond, cand_params,
                         form, concept_sets, idf_w)
-                    _rel_items = _qa_items(_sib, suggest_top_n)
+                    _sskip = no_offer_ids(cur, [t[0] for t in _sib], offer_codes(params))
+                    _rel_items = _qa_items([t for t in _sib if str(t[0]) not in _sskip],
+                                           suggest_top_n)
                     _detail["category_fill"] = len(_rel_items)
                 return {
                     "trace_detail": _detail,
@@ -693,8 +714,10 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
             # resolve_unanswered() emits it at the end IF the document
             # retrievers found nothing. Cost measured: +~330 ms when RAG stays
             # empty (no LLM call), ~1.7 s when RAG answers — which is the point.
-            if top_cov >= t_suggest:
-                out = _suggest(_triples, suggest_top_n, lang, min_score=t_suggest)
+            out = (_suggest(_offer, suggest_top_n, lang, min_score=t_suggest)
+                   if top_cov >= t_suggest else None)
+            # an offer left empty by offer_exclude_categories is no offer: C below
+            if out and out["suggestions"]:
                 out.update({"decision": "B", "match_score": round(top_cov, 4),
                             "match_margin": round(margin, 4), "matched_entry_id": top_id})
                 logger.info("qa_lexical: suggest DEFERRED (cov=%.3f) — cascade continues", top_cov)
@@ -717,7 +740,7 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                     # no_answer with nothing to offer offers nothing, which is the
                     # honest outcome and no longer an accident.
                     "fallback_suggestions": _qa_items(
-                        [t for t in _triples
+                        [t for t in _offer
                          if (t[2] or 0.0) > 0.0
                          and (not _ntot_adm
                               or _covers_rare_concept(concept_sets,
