@@ -50,6 +50,7 @@ This checkout does not contain the deployment record, [docs/plans](../docs/plans
 | Script | Purpose |
 |---|---|
 | `reingest.py` | bulk re-upload of documents via `POST /v1/ingest` (after a chunking change) |
+| `reingest_content.py` | re-ingest every active QA pack and web document after a normalization change; runs inside `edu_ai_qa_admin` |
 | `upload_qa_packs.py` | upload of generated QA packs via `/v1/ingest`; metadata from `_manifest.json` |
 | `qa_deactivate_packs.py` | listing and deactivation of QA packs (there is no API for it) |
 | `qa_set_categories.py` | setting `tags->>'category'` of one pack from a CSV |
