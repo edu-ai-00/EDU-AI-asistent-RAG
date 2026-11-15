@@ -13,7 +13,7 @@ sources:
   - search/app/conversation.py
   - search/app/settings.py
   - search/app/config.py
-last_verified: 2026-09-18
+last_verified: 2026-11-15
 ---
 
 # Routing
@@ -83,8 +83,10 @@ message table. No retrieval runs.
 Two kinds of question are not questions for the corpus, and both are answered
 here without retrieval or an LLM:
 
-- **"Co umíš?"** — the capabilities message, with the school's name and the live
-  section headings of its own documents.
+- **"Co umíš?"** — the capabilities message: the assistant introduces itself as
+  EDU-AI's (migration 233; it named the school before, which was wrong where one
+  school runs several chats) and lists live topics, the shortest curated questions
+  and the section headings of the school's documents.
 - **"Jak se jmenuje naše škola?"** — the school's name, read from
   `legal_entity.display_name`.
 

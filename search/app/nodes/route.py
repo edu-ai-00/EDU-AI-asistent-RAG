@@ -844,6 +844,10 @@ def _scope(state: SearchState) -> list[str]:
 def route(state: SearchState, params: dict | None = None) -> dict:
     blocked, soft_hits = _guard(state, params)
     if blocked is not None:
+        if soft_hits:   # below-threshold hits beside a terminal answer (blocklist_before_meta)
+            blocked = {**blocked, "trace_detail": {
+                **(blocked.get("trace_detail") or {}),
+                "guard_soft_hits": [{"category": c, "severity": s} for c, s in soft_hits]}}
         return blocked
     try:
         pack_ids, _ex_ids, _un_ids, _offer = _scope(state)

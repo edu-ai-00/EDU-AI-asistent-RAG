@@ -37,11 +37,11 @@ VALUES
  ('dik',    'cs', true, '230: pozdravy a díky', 'coverage', 'dik',    'dik',    'dik')
 ON CONFLICT (lang, term, scope) DO NOTHING;
 
--- self-check: all five are active coverage stop-words
+-- self-check: all five are coverage stop-words (a row an operator switched off stays off)
 DO $$
 BEGIN
   IF (SELECT count(DISTINCT term) FROM edu_ai.qa_stopword
-       WHERE scope = 'coverage' AND lang = 'cs' AND is_active
+       WHERE scope = 'coverage' AND lang = 'cs'
          AND term IN ('ahoj', 'cau', 'nazdar', 'diky', 'dik')) <> 5 THEN
     RAISE EXCEPTION '230: greeting coverage stop-words missing';
   END IF;

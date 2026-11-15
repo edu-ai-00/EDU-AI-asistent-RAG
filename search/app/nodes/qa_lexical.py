@@ -417,12 +417,14 @@ def _qa_lexical_ranked(state: SearchState, params: dict | None = None) -> dict:
                     ORDER BY {_trgm_order(_rank_ties)}
                     LIMIT %s
                 """
-                cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params,
-                                       joined_norm, suggest_top_n])
+                # with offer_exclude_categories some rows may be dropped below: fetch a few
+                # more so the offer is still full
+                cur.execute(trgm_sql, [joined_norm, *pack_params, *cand_params, joined_norm,
+                                       suggest_top_n * (3 if offer_codes(params) else 1)])
                 trows = cur.fetchall()
                 _triples = [(str(r[0]), r[2], float(r[3])) for r in trows]
                 _skip = no_offer_ids(cur, [t[0] for t in _triples], offer_codes(params))
-                _triples = [t for t in _triples if t[0] not in _skip]   # migration 231
+                _triples = [t for t in _triples if t[0] not in _skip][:suggest_top_n]  # migration 231
                 best_sim = _triples[0][2] if _triples else 0.0
                 logger.info("qa_lexical: no ts match; trgm best sim=%.3f", best_sim)
                 if _triples and best_sim >= trgm_min:

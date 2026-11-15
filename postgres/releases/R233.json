@@ -73,7 +73,22 @@
     {
       "id": "230_coverage_stop_greetings",
       "schema_after": "dc3bf000b3ee878ece0fc82345327dca682cf685edc1791b44fbf858d62a5290",
-      "sha256": "db618c6e88bbabad8f053f296717865ba0dafa6d6c86923d6b06a2f9f61ea507"
+      "sha256": "266d4d582dd9daa6322f12800f3f390e4f65050de2e087b2f1c516c48a7e037a"
+    },
+    {
+      "id": "231_qa_offer_exclude_conversation",
+      "schema_after": "dc3bf000b3ee878ece0fc82345327dca682cf685edc1791b44fbf858d62a5290",
+      "sha256": "90ec65bd0f2fa89254cdcbf5f2f3aa34800d87918cb499b7d14f0469f6539dfd"
+    },
+    {
+      "id": "232_guard_blocklist_before_meta",
+      "schema_after": "dc3bf000b3ee878ece0fc82345327dca682cf685edc1791b44fbf858d62a5290",
+      "sha256": "7d34f9ae6201c4752a0ad05fdb41ee376b1152333e0d4f70c663adaac39d1d11"
+    },
+    {
+      "id": "233_capabilities_edu_ai_assistant",
+      "schema_after": "dc3bf000b3ee878ece0fc82345327dca682cf685edc1791b44fbf858d62a5290",
+      "sha256": "24878ca5244e2d5ce938433d6d7718328917dc09e18a7299bf5d2286198f1757"
     }
   ],
   "postgres": {
@@ -88,5 +103,5 @@
     "pg_dump_version": "18.6",
     "server_version": "18.6"
   },
-  "release": "R230"
+  "release": "R233"
 }

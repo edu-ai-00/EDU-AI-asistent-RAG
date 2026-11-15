@@ -51,12 +51,13 @@ UPDATE edu_ai.settings s
                   AND jsonb_typeof(st->'params') = 'object'
                   AND NOT (st->'params' ? 'offer_exclude_categories'));
 
--- self-check: the category exists and is active; every active step of the four has the key
+-- self-check: the category exists (an operator may switch it off); every active step of
+-- the four has the key
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM edu_ai.code_list
-                  WHERE list_code = 'qa_category' AND code = 'CONVERSATION' AND is_active) THEN
-    RAISE EXCEPTION '231: qa_category CONVERSATION is missing or inactive';
+                  WHERE list_code = 'qa_category' AND code = 'CONVERSATION') THEN
+    RAISE EXCEPTION '231: qa_category CONVERSATION is missing';
   END IF;
   IF EXISTS (SELECT 1 FROM edu_ai.settings s, jsonb_array_elements(s.config->'pipeline') st
               WHERE s.is_active
