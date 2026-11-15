@@ -1,5 +1,5 @@
--- 229: questions about the assistant itself ("how old are you", "how are you") get the
--- capabilities answer, for every organisation.
+-- 229: questions about the assistant itself ("how old are you", "how are you", "what is your
+-- name") get the capabilities answer, for every organisation.
 --
 -- These questions are about the assistant, not about a school, so a school's QA pack is the
 -- wrong place for them: an entry like "Kolik ti je let?" exists only where someone wrote it,
@@ -14,7 +14,7 @@
 -- Checked before release: no query of the regression sets (A, B, C, D, L, N, G) equals a
 -- phrase; in the production query log (Aug-Oct 2026) 2 queries do, both small talk; in a
 -- sample of 3,361 conversational messages from a children's chat 14 do (how are you, how
--- old are you, are you alive).
+-- old are you, are you alive) and 4 more ask the assistant's name.
 --
 -- Rows of this migration are marked source '229'. A phrase already in the meta list is not
 -- inserted twice. Undo: DELETE FROM edu_ai.qa_blocklist WHERE source = '229'.
@@ -44,16 +44,27 @@ SELECT v.term, v.term_norm, NULL, 'meta', 0, true, true, v.lang, '229',
         ('jak je',              'jak je',              'cs'),
         ('jak se vede',         'jak se vede',         'cs'),
         ('jak se daří',         'jak se dari',         'cs'),
+        -- cs: the assistant's name (the answer introduces it, migration 233)
+        ('jak se jmenuješ',     'jak se jmenujes',     'cs'),
+        ('jak se jmenujete',    'jak se jmenujete',    'cs'),
+        ('jaké máš jméno',      'jake mas jmeno',      'cs'),
+        ('jaké je tvoje jméno', 'jake je tvoje jmeno', 'cs'),
         -- en, de, es: the same questions in the other languages the code supports
         ('how old are you',     'how old are you',     'en'),
         ('how are you',         'how are you',         'en'),
         ('are you alive',       'are you alive',       'en'),
+        ('what is your name',   'what is your name',   'en'),
+        ('what''s your name',   'what s your name',    'en'),
         ('wie alt bist du',     'wie alt bist du',     'de'),
         ('wie geht es dir',     'wie geht es dir',     'de'),
         ('lebst du',            'lebst du',            'de'),
+        -- route._fold_q drops "ß" (not in its letter class), so "heißt" folds to "hei t"
+        ('wie heißt du',        'wie hei t du',        'de'),
+        ('wie heisst du',       'wie heisst du',       'de'),
         ('cuántos años tienes', 'cuantos anos tienes', 'es'),
         ('cómo estás',          'como estas',          'es'),
-        ('estás vivo',          'estas vivo',          'es')
+        ('estás vivo',          'estas vivo',          'es'),
+        ('cómo te llamas',      'como te llamas',      'es')
        ) AS v(term, term_norm, lang)
  WHERE NOT EXISTS (SELECT 1 FROM edu_ai.qa_blocklist b
                     WHERE b.category = 'meta' AND b.is_active
@@ -70,7 +81,10 @@ BEGIN
                       'jak se dnes mas', 'jak se mas dneska', 'jak je', 'jak se vede',
                       'jak se dari', 'how old are you', 'how are you', 'are you alive',
                       'wie alt bist du', 'wie geht es dir', 'lebst du', 'cuantos anos tienes',
-                      'como estas', 'estas vivo']) AS p
+                      'como estas', 'estas vivo', 'jak se jmenujes', 'jak se jmenujete',
+                      'jake mas jmeno', 'jake je tvoje jmeno', 'what is your name',
+                      'what s your name', 'wie hei t du', 'wie heisst du',
+                      'como te llamas']) AS p
    WHERE NOT EXISTS (SELECT 1 FROM edu_ai.qa_blocklist b
                       WHERE b.category = 'meta' AND b.is_active AND b.term_norm = p);
   IF missing IS NOT NULL THEN

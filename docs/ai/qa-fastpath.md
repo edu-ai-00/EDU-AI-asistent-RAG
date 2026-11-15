@@ -157,7 +157,7 @@ never crowds out real questions.
 
 | Message | Handled by | Migration |
 |---|---|---|
-| About the assistant: "Kolik ti je let?", "Jak se máš?", "Žiješ?" | global meta list, answered with the capabilities message for every organisation ([routing.md](routing.md) §2) | 229 |
+| About the assistant: "Kolik ti je let?", "Jak se máš?", "Jak se jmenuješ?" | global meta list, answered with the capabilities message for every organisation ([routing.md](routing.md) §2) | 229 |
 | A real question wrapped in a greeting or thanks: "Ahoj, kdy jsou přijímačky?" | coverage stop-words: matched like the bare question | 230 |
 | Curated small talk: "Ahoj", "Děkuji", "Nashledanou" | QA entries in the category `CONVERSATION`: the answer when they match, never an offered question (`offer_exclude_categories`) | 231 |
 | A risky word in a sentence that looks like a meta question: "umíš mi pomoct? chci se zabít" | blocklist before the meta answer (`blocklist_before_meta`, [routing.md](routing.md) §3) | 232 |
