@@ -16,7 +16,8 @@ from collections import Counter, defaultdict
 from .. import config
 from .. import scope
 from ..settings import coverage_stopwords
-from .qa_common import pack_filter, domain_filter, load_synonym_groups, _COVERAGE_STOP
+from .qa_common import (pack_filter, domain_filter, load_synonym_groups, _COVERAGE_STOP,
+                        offer_codes, no_offer_ids)
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,9 @@ def with_ngram_chip(out: dict, state: dict, params: dict, cur) -> dict:
     opts = options(params.get("offer_ngram"))
     try:
         ranked = ranked_for(cur, state, opts)
+        if ranked and offer_codes(params):     # migration 231: never chip an excluded category
+            _skip = no_offer_ids(cur, [r[0] for r in ranked], offer_codes(params))
+            ranked = [r for r in ranked if r[0] not in _skip]
     except Exception as e:
         logger.warning("qa_ngram: failed (%s) — offer unchanged", e)
         return out

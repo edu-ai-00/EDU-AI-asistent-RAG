@@ -465,6 +465,29 @@ def packs_of(cur, entry_ids) -> dict:
     return {r[0]: r[1] for r in cur.fetchall()}
 
 
+def offer_codes(params) -> list[str]:
+    """The QA categories (code_list 'qa_category' codes) a step never offers as a chip:
+    `offer_exclude_categories` (migration 231). Off when absent or empty."""
+    spec = (params or {}).get("offer_exclude_categories") or []
+    if not isinstance(spec, (list, tuple)):
+        return []
+    return [str(c).strip().upper() for c in spec if str(c).strip()]
+
+
+def no_offer_ids(cur, entry_ids, codes) -> set[str]:
+    """Which of `entry_ids` are in an excluded category. Such an entry may still be the
+    answer; it is never offered among the questions of another one: a conversational
+    entry ("Ahoj", "Děkuji") offered as "did you mean" for a real question wastes a chip."""
+    ids = [str(e) for e in (entry_ids or []) if e]
+    if not codes or not ids:
+        return set()
+    cur.execute(f"SELECT e.entry_id::text FROM {config.QA_ENTRIES_TABLE} e"
+                f"  JOIN {config.PG_SCHEMA}.code_list c ON c.id = e.category_id"
+                f" WHERE c.list_code = 'qa_category' AND c.code = ANY(%s)"
+                f"   AND e.entry_id::text = ANY(%s)", (list(codes), ids))
+    return {r[0] for r in cur.fetchall()}
+
+
 def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> list[dict]:
     """The chip row for an answer, from whatever chips were parked for it.
 
@@ -483,6 +506,10 @@ def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> li
     deferred list a later step inherited.
     """
     items = list(parked or [])
+    _codes = offer_codes(params)
+    if _codes and items:
+        _skip = no_offer_ids(cur, [i.get("entry_id") for i in items], _codes)
+        items = [i for i in items if str(i.get("entry_id") or "") not in _skip]
     xmin = float(params.get("related_cross_pack_min", 0.7) or 0.0)
     by_pack = packs_of(cur, [i.get("entry_id") for i in items] + [entry_id])
     own = by_pack.get(str(entry_id))
@@ -498,10 +525,11 @@ def finalize_chips(cur, state, params, entry_id, parked, top_n, form=None) -> li
         extra = category_siblings(cur, entry_id, *_scope_frags(state), form,
                                   [{t} for t in content_tokens(state, form or
                                                                _DEFAULT_FORM) if t])
+        _skip = no_offer_ids(cur, [t[0] for t in extra], _codes)
         items += [{"kind": "qa", "entry_id": eid, "question": q,
                    "score": round(float(cov), 4) if cov is not None else None}
                   for eid, q, cov in extra
-                  if eid not in seen
+                  if eid not in seen and str(eid) not in _skip
                   and (q or "").strip().casefold() not in seen_q][:want - len(items)]
     if items and all(i.get("score") is not None for i in items):
         items.sort(key=lambda i: -float(i["score"]))

@@ -195,6 +195,7 @@ which QA packs are in scope for the asker's grade.
 | `guard_block_min_severity.<category>` | `1` | Severity at which that category blocks. `1` = block on any hit. |
 | `guard_outcome.self_harm` | `self_harm` | Outcome name, which selects the response — not a plain refusal. |
 | `guard_message_key.self_harm` | `guard_self_harm` | Key into `edu_ai.system_message`, whose rows carry the wording per language (crisis line, "talk to an adult you trust"). |
+| `offer_exclude_categories` | off (migration 231 sets `["CONVERSATION"]`) | Curated questions of these QA categories are not listed as topics of the capabilities answer ("Co umíš?"), which takes the shortest questions first (§3.3). |
 
 The response to a risky question is **data, not code**: severity, outcome and
 message key live here, and the wording lives in `system_message` rows — one per
@@ -208,6 +209,7 @@ A normalized exact question match answers immediately.
 |---|---|---|
 | `related_suggestions` | `true` | Offer related curated questions beside the exact answer. They are ranked by `qa_lexical` with **its** configured thresholds (§3.3), so they are the same questions it would have offered next to its own answer; off, and an exact hit offers nothing (the behaviour before 2026-09-03). Costs the fast path the lexical stage's queries. |
 | `suggest_top_n` | `3` | How many of them are shown. Falls back to the `qa_lexical` value. |
+| `offer_exclude_categories` | off (migration 231 sets `["CONVERSATION"]`) | As in §3.3: an entry of these categories is never a related chip beside the exact answer. |
 
 ### 3.3 `qa_lexical` — curated pairs, lexical match
 
@@ -222,6 +224,7 @@ Reference values below are not a substitute for the resolved organisation profil
 | `offer_ngram` | off (migration 222 sets `{"min_sim": 0.30, "max_df_share": 0.10}`) | `true` or `{"min_sim": 0.30, "max_df_share": 0.10, "min_len": 3}`. When there is no confident answer, the LAST chip of the offer (the "did you mean" list or the dead-end fallback) goes to the curated question closest in character 3-5-grams (TF-IDF over the packs in scope, each wording of an entry scored separately), if it reaches `min_sim`; words shorter than `min_len`, numbers, stop-words, question words and words held by more than `max_df_share` of the entries do not count. Confident answers and the chips beside an answer are never changed. Catches derived and colloquial forms the lemma misses ("třídnické" → "třídní"). See `search/app/nodes/qa_ngram.py`; measured with the lab tools (branch `lab/search-quality`). An exact tie of similarity is settled by the question text, then the entry id, so a re-upload of the packs cannot change the chip. |
 | `negation_conflict` | off (migration 224 sets `true`) | No confident answer when the query and the best entry hold the same word with opposite polarity ("Co když pozvánka nepřijde?" against "…přijde?"); the entry may still be offered. A word is a negation only when the lemmatizer made it one (`eduai_normalize.is_negation`, 3.4.0, a set generated over its dictionary), compared on the entry's LEMMA tokens: "někdy" or "nemoc" no longer read as "ne-kdy" and "ne-moc". Languages without a negation prefix (en, de, es) are never checked. The same parameter on `qa_vector` (§3.6). |
 | `rank_ties` | off (migration 225 sets `true`) | `true` pulls every candidate variant tied with the last one at the `fetch_k` cut (`FETCH FIRST n ROWS WITH TIES`) and settles an exact tie of tier, rank and coverage by the question text, then the id. Without it such ties are broken by the physical row order, so the result of a few questions can change after a re-upload of the packs. Measured: identical runs agree completely; quality unchanged (confident right and wrong answers equal, the other differences are the same size as between two runs without it), measured with the lab tools (branch `lab/search-quality`). The same rule orders the typo fallback (pg_trgm distance, then the question text, then the id), whose chips the database otherwise picks on a tie. |
+| `offer_exclude_categories` | off (migration 231 sets `["CONVERSATION"]`) | QA categories (`code_list` `qa_category` codes, the `category_code` column of a pack CSV) whose entries may be the confident answer but are never offered as a chip: not in the "did you mean" list, the dead-end fallback, the related chips of an answer, the n-gram chip or the other-ročník offer. An offer left empty by it becomes no offer (decision C). Meant for small talk ("Ahoj", "Děkuji"): such short entries were offered beside real questions, about one in twelve on the measured packs. The same parameter on `route` (§3.1), `qa_exact` (§3.2) and `qa_vector` (§3.6). |
 | `fetch_k` | `50` (code default; migration 221 sets `200`) | Candidate QA **variants** (the canonical question and every alternative) pulled by `ts_rank_cd` before they are aggregated to entries. Coverage is computed against the union of the lemmas of the variants pulled, so a value that is low for the number of variants per entry leaves the union of the right entry incomplete and under-estimates its coverage. Raise it when entries get more alternatives. |
 | `synonyms` | `true` | Expand the query through `edu_ai.qa_synonym` groups (abbreviations, local names). |
 | `suggest_top_n` | `3` | How many near misses are offered as "did you mean". |
@@ -280,6 +283,7 @@ the first passage in 2 cases while adding 134 chunks to the pool.
 |---|---|---|
 | `cosine_min` | `0.65` | Similarity floor. Below it the pair is not an answer to this question. |
 | `negation_conflict` | off (migration 224 sets `true`) | As in §3.3: an embedding hardly tells "přijde" from "nepřijde", so a polarity conflict withholds the curated answer and the cascade continues; a check that fails withholds it too (fail closed). |
+| `offer_exclude_categories` | off (migration 231 sets `["CONVERSATION"]`) | As in §3.3: an entry of these categories is never a chip beside the answer. |
 
 ### 3.7 `rag_vector` — document chunks, semantic match
 
