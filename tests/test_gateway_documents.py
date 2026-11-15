@@ -416,3 +416,80 @@ def test_file_download_allows_dots_inside_a_name(uploads, detail, client):
     detail["result"] = FakeResponse(200, _versions(f"{FU}_a..b.pdf"))
     resp = client.get(f"/v1/documents/{FU}/file", params={"legal_entity": "ZS_A"})
     assert resp.status_code == 200 and 'filename="a..b.pdf"' in resp.headers["content-disposition"]
+
+
+# ---------------------------------------------------------------------------
+# A running ingest does not block the rest of the gateway
+# ---------------------------------------------------------------------------
+
+import threading
+
+
+def test_health_and_status_answer_while_an_ingest_runs(ingest_env, monkeypatch):
+    entered, release, done = threading.Event(), threading.Event(), threading.Event()
+
+    def slow_process_file(**kw):
+        entered.set()
+        release.wait(5)
+        done.set()
+        return {"file_uuid": kw["file_uuid"], "status": "ok"}
+
+    monkeypatch.setattr(gateway, "process_file", slow_process_file)
+    with TestClient(gateway.app) as c:          # one event loop for every request
+        t = threading.Thread(target=lambda: c.post(
+            "/v1/ingest", data=FORM, files={"file": ("rad.pdf", b"%PDF-1.4 x", "application/pdf")}))
+        t.start()
+        assert entered.wait(5)
+        assert c.get("/health").status_code == 200   # an async handler would hang here
+        assert not done.is_set()                     # it answered while the ingest still ran
+        release.set()
+        t.join(10)
+
+
+def test_ingests_still_run_one_at_a_time(ingest_env, monkeypatch):
+    running, overlap = [0], []
+
+    def counting_process_file(**kw):
+        running[0] += 1
+        overlap.append(running[0])
+        threading.Event().wait(0.2)
+        running[0] -= 1
+        return {"file_uuid": kw["file_uuid"], "status": "ok"}
+
+    monkeypatch.setattr(gateway, "process_file", counting_process_file)
+    with TestClient(gateway.app) as c:
+        threads = [threading.Thread(target=lambda: c.post(
+            "/v1/ingest", data=FORM, files={"file": ("rad.pdf", b"%PDF-1.4 x", "application/pdf")}))
+            for _ in range(3)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(10)
+    assert overlap and max(overlap) == 1
+
+
+def test_a_delete_waits_for_a_running_ingest(ingest_env, calls, monkeypatch):
+    entered, release, order = threading.Event(), threading.Event(), []
+
+    def slow_process_file(**kw):
+        entered.set()
+        release.wait(5)
+        order.append("ingest done")
+        return {"file_uuid": kw["file_uuid"], "status": "ok"}
+
+    monkeypatch.setattr(gateway, "process_file", slow_process_file)
+    calls["result"] = FakeResponse(200, {"deleted": DELETED, "file_uuids": [FU]})
+    with TestClient(gateway.app) as c:
+        t = threading.Thread(target=lambda: c.post(
+            "/v1/ingest", data=FORM, files={"file": ("rad.pdf", b"%PDF-1.4 x", "application/pdf")}))
+        t.start()
+        assert entered.wait(5)
+        d = threading.Thread(target=lambda: (c.delete(_url(), params={"legal_entity": ENTITY}),
+                                             order.append("delete done")))
+        d.start()
+        d.join(0.5)
+        assert order == [] and calls["calls"] == []      # the delete has not reached search yet
+        release.set()
+        t.join(10)
+        d.join(10)
+    assert order == ["ingest done", "delete done"]

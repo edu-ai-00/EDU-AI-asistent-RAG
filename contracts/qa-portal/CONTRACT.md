@@ -867,6 +867,10 @@ DocumentJob = {
   or 0 finished less than 10 minutes ago, the portal asks `ingest-status` by the
   job's KNOWN `processing_uuid` (never `since_seconds`, §6), sums `chunks`
   over its files and stores a positive value. Lookup failures leave it unchanged.
+  A listing never waits long for the gateway: 3 s per lookup and 4 s in total;
+  what is left is looked up by a later listing.
+- The gateway runs one `POST /v1/ingest` at a time in a worker thread, so its other
+  routes (`/health`, `ingest-status`, delete, download) keep answering meanwhile.
 - Restart: `queued` stays queued; `processing` becomes `unknown` (the gateway
   returns `processing_uuid` only at the end, so nothing can be looked up).
 - Finished jobs older than 7 days are pruned at startup and once an hour.
@@ -1089,7 +1093,8 @@ is an offset. Scoped by `legal_entity_code` like every document route.
   the hash. Crawls with level-1 links are never skipped.
 - **Refresh:** `POST /schools/{school}/documents/{file_uuid}/refresh` (ingest, csrf) on
   a web document enqueues a URL job with the shown version's metadata and no level-1
-  links → `202 {"job": DocumentJob}`; a file document → 422.
+  links → `202 {"job": DocumentJob}`; a file document → 422. `?force=true` ingests the
+  page even when it is unchanged (a re-ingest after a normalization change).
 - `DocumentJob.status` gains `skipped`.
 
 ---

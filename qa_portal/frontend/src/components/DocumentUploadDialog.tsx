@@ -11,7 +11,7 @@ import {
 } from "../api/types";
 import { DOCUMENT_JOBS_POLL_INTERVAL_MS } from "../config";
 import { fileExtension, formatBytes, isHttpUrl } from "../lib/documentFormat";
-import { jobNeedsPoll, jobText } from "../lib/documentJobs";
+import { jobNeedsPoll, jobText, queueAhead } from "../lib/documentJobs";
 import { JobStatus } from "./JobStatus";
 import { strings } from "../strings.cs";
 import { Dialog } from "./Dialog";
@@ -463,7 +463,8 @@ export function DocumentUploadDialog({ client, school, options, uiDefaultLang, o
             </tr>
           </thead>
           <tbody aria-live="polite">
-            {items.map((item) => {
+            {items.map((item, _i, all) => {
+              const sentJobs = all.flatMap((i) => (i.state.kind === "accepted" ? [i.state.job] : []));
               const note = checkNote(checks[`${item.file ? "file" : "url"}:${item.file && originalName ? originalName : item.label}`]);
               return (
                 <tr key={item.id} className={item.state.kind === "rejected" ? "doc-row-error" : undefined}>
@@ -472,7 +473,11 @@ export function DocumentUploadDialog({ client, school, options, uiDefaultLang, o
                     {note && <span className="doc-sub">{note}</span>}
                   </td>
                   <td>
-                    {item.state.kind === "accepted" ? <JobStatus job={item.state.job} now={now} /> : itemText(item.state, now)}
+                    {item.state.kind === "accepted" ? (
+                      <JobStatus job={item.state.job} now={now} ahead={queueAhead(sentJobs, item.state.job)} />
+                    ) : (
+                      itemText(item.state, now)
+                    )}
                     {item.state.kind === "rejected" && item.state.fields.length > 0 && (
                       <ul className="doc-field-errors">
                         {item.state.fields.map((f) => (

@@ -45,6 +45,7 @@ class FakeIngestClient:
         self.download_closed = 0
         self.status_by_uuid: dict[str, dict | None] = {}
         self.status_calls: list[str] = []
+        self.status_timeouts: list[float | None] = []
         self.status_fail = False
 
     def run_ingest(self, *, csv_bytes: bytes, filename: str, legal_entity: str,
@@ -75,8 +76,9 @@ class FakeIngestClient:
                 "status": "ok", "ok_count": len(entries), "error_count": 0,
                 "result_etag": new_etag}
 
-    def get_status(self, processing_uuid: str) -> dict | None:
+    def get_status(self, processing_uuid: str, timeout: float | None = None) -> dict | None:
         self.status_calls.append(processing_uuid)
+        self.status_timeouts.append(timeout)
         if self.status_fail:
             raise IngestUnavailable("fake status outage")
         if processing_uuid in self.status_by_uuid:

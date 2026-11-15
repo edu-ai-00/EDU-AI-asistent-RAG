@@ -259,6 +259,23 @@ def test_stored_chunks_not_looked_up_after_window_or_when_failed(store, ingest):
     assert ingest.status_calls == []
 
 
+
+def test_listing_asks_the_gateway_with_a_short_timeout(store, ingest):
+    _url_job(store)
+    q.process_next_job(store, ingest)
+    q.list_jobs(store, ingest, "ZS_DEMO", None)
+    assert ingest.status_timeouts == [q.settings.document_status_timeout_seconds]
+
+
+def test_listing_stops_asking_when_its_budget_is_spent(store, ingest, monkeypatch):
+    for _ in range(3):
+        _url_job(store)
+        q.process_next_job(store, ingest)
+    monkeypatch.setattr(q.settings, "document_listing_budget_seconds", -1.0)
+    jobs = q.list_jobs(store, ingest, "ZS_DEMO", None)
+    assert ingest.status_calls == [] and len(jobs) == 3     # answered at once, counts come later
+
+
 # ── worker thread and lifespan ──────────────────────────────────────────
 def test_worker_thread_processes_queue(store, ingest):
     worker = q.DocumentQueueWorker(store, ingest, idle_seconds=0.05)

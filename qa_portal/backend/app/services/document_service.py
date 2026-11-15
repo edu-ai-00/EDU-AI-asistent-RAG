@@ -142,9 +142,10 @@ def list_chunks(search: SearchClient, school: str, file_uuid: str, limit: int,
 
 
 def refresh_document(search: SearchClient, store: StateStore, school: str, file_uuid: str,
-                     principal_subject: str) -> dict:
+                     principal_subject: str, force: bool = False) -> dict:
     """POST refresh (§14.14): re-ingest a web document with the shown version's
-    metadata and no level-1 links. A file document is 422."""
+    metadata and no level-1 links. A file document is 422. `force` ingests even an
+    unchanged page (after a normalization change)."""
     fu = canonical_uuid(file_uuid)
     document = _call_search(search.get_document, school, fu).get("document") or {}
     source_url = document.get("source_url")
@@ -162,7 +163,7 @@ def refresh_document(search: SearchClient, store: StateStore, school: str, file_
     params = {k: document.get(k) for k in REFRESH_KEYS}
     for key in ("audience_roles", "school_grade_codes", "domain_codes"):
         params[key] = list(params[key] or [])
-    params.update(file_name=None, save_level_1_child=False, max_child_links=None)
+    params.update(file_name=None, save_level_1_child=False, max_child_links=None, force=bool(force))
     job = document_queue.enqueue_job(
         store, job_id=document_queue.new_job_id(), school=school, batch_id=batch_id,
         source_kind="url", source=source_url, params=params, user_id=uploader["user_id"],

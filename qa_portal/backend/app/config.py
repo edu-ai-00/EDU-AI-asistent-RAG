@@ -70,6 +70,9 @@ class Settings:
     document_job_retention_seconds: int = 7 * 24 * 3600
     document_job_prune_interval_seconds: int = 3600
     document_stored_chunks_window_seconds: int = 600
+    # A job listing never waits long for the gateway: per status call, and in total.
+    document_status_timeout_seconds: float = 3.0
+    document_listing_budget_seconds: float = 4.0
     # Only 1 is supported (§14.5); any other value is logged and ignored.
     ingest_concurrency: str = os.environ.get("QA_PORTAL_INGEST_CONCURRENCY", "1")
     # "0" keeps lifespan from starting the queue worker thread.

@@ -84,12 +84,13 @@ def document_chunks(file_uuid: str,
 @router.post("/schools/{school}/documents/{file_uuid}/refresh",
              dependencies=[Depends(csrf_guard)])
 def refresh_document(file_uuid: str,
+                     force: bool = Query(False),
                      school: str = Depends(require_school_ingest),
                      principal: Principal = Depends(get_principal),
                      search: SearchClient = Depends(get_search_client),
                      store: StateStore = Depends(get_store)) -> JSONResponse:
     body = document_service.refresh_document(search, store, school, file_uuid,
-                                             principal.subject)
+                                             principal.subject, force=force)
     return JSONResponse(status_code=202, content=body)
 
 

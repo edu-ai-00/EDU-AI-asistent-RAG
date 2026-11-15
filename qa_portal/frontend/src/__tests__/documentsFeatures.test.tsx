@@ -429,6 +429,22 @@ function job(over: Partial<DocumentJob>): DocumentJob {
 }
 
 describe("DocumentsPage — jobs panel", () => {
+  it("keeps polling a fresh completion until its chunk count arrives", async () => {
+    const done = new Date().toISOString();
+    const stages: DocumentJob[][] = [
+      [job({ job_id: "j1", source: "Novy.pdf", status: "completed", finished_at: done, stored_chunks: null })],
+      [job({ job_id: "j1", source: "Novy.pdf", status: "completed", finished_at: done, stored_chunks: 6 })],
+    ];
+    let call = 0;
+    const real = createMockClient();
+    const listDocumentJobs = vi.fn(async () => stages[Math.min(call++, stages.length - 1)]);
+    await renderPage(KAVCI, { ...real, listDocumentJobs });
+    const panel = await screen.findByRole("region", { name: strings.documentJobs.heading });
+    expect(within(panel).getByText(strings.documentUpload.jobCompletedWaiting)).toBeTruthy();
+    expect(within(panel).queryByText(strings.documentJobs.activeHint)).toBeNull(); // nothing runs
+    expect(await within(panel).findByText(strings.documentUpload.jobCompletedChunks(6), {}, { timeout: 4000 })).toBeTruthy();
+  });
+
   it("lists queued, processing and recently finished jobs and polls only while something is active", async () => {
     const hour = 60 * 60 * 1000;
     const stages: DocumentJob[][] = [
@@ -457,6 +473,8 @@ describe("DocumentsPage — jobs panel", () => {
     expect(within(panel).getByText("Hotovo.pdf")).toBeTruthy();
     expect(within(panel).queryByText("Stare.pdf")).toBeNull(); // finished more than 24 h ago
     expect(within(panel).getByText(strings.documentUpload.jobQueued)).toBeTruthy();
+    expect(within(panel).getByText(strings.documentUpload.jobNext)).toBeTruthy(); // nothing ahead of it
+    expect(within(panel).getByText(strings.documentJobs.activeHint)).toBeTruthy();
 
     expect(await within(panel).findByText(strings.documentUpload.jobCompletedChunks(9))).toBeTruthy();
     const listCallsBefore = listDocuments.mock.calls.length;

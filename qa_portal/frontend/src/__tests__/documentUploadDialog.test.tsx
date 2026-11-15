@@ -229,7 +229,7 @@ describe("DocumentUploadDialog — sending", () => {
     fillMetadata();
     fireEvent.click(submitButton());
 
-    expect(await screen.findByText(/hotovo · uloženo \d+ chunků/, {}, { timeout: 4000 })).toBeTruthy();
+    expect(await screen.findByText(/hotovo · uložen[oy]? \d+ chunk(y|ů)?$/, {}, { timeout: 4000 })).toBeTruthy();
     expect(await screen.findByText(/^selhalo:/, {}, { timeout: 4000 })).toBeTruthy();
     await new Promise((r) => setTimeout(r, 100));
     const settled = listDocumentJobs.mock.calls.length;

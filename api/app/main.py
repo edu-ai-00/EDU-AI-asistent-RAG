@@ -7,7 +7,9 @@ import os
 import json
 import re
 import unicodedata
+import functools
 import hashlib
+import threading
 import validators
 from urllib.parse import urlparse, urljoin, quote
 from bs4 import BeautifulSoup
@@ -188,7 +190,7 @@ def _require_langflow() -> tuple[str, str]:
 
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:   # no I/O: answers on the event loop, never queues for a thread
     """Liveness + configuration readiness. Always 200 so the payload is readable;
     `status` distinguishes a healthy instance from a misconfigured one."""
     missing = _missing_config()
@@ -1215,7 +1217,22 @@ def download_document_file(file_uuid: str, legal_entity: str):
                         headers={"X-Content-Type-Options": "nosniff"})
 
 
+# One ingest at a time, as before; it now runs in a worker thread, so the event loop
+# keeps answering /health, ingest-status and downloads meanwhile. A delete waits
+# for a running ingest, so it never removes rows an ingest is still writing.
+_INGEST_LOCK = threading.Lock()
+
+
+def _one_at_a_time(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with _INGEST_LOCK:
+            return fn(*args, **kwargs)
+    return wrapper
+
+
 @app.delete("/v1/documents/{file_uuid}")
+@_one_at_a_time
 def delete_document(file_uuid: str, legal_entity: str):
     """Permanently delete a document (every version) of one school.
 
@@ -1267,7 +1284,8 @@ def delete_document(file_uuid: str, legal_entity: str):
 
 
 @app.post("/v1/ingest")
-async def ingest(
+@_one_at_a_time
+def ingest(
     file: UploadFile = File(None),
     url: str | None = Form(None),
 
@@ -1460,7 +1478,7 @@ async def ingest(
         final_filename = f"{file_uuid}_{safe_filename}"
         file_path = UPLOAD_DIR / final_filename
 
-        content = await file.read()
+        content = file.file.read()
 
         if not content:
             raise HTTPException(status_code=400, detail="Empty file")

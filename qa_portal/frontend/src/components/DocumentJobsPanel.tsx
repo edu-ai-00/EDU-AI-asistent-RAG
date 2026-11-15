@@ -3,7 +3,7 @@ import type { ApiClient } from "../api/client";
 import type { DocumentJob } from "../api/types";
 import { DOCUMENT_JOBS_POLL_INTERVAL_MS } from "../config";
 import { formatDateTime, shortenUrl } from "../lib/documentFormat";
-import { isJobActive } from "../lib/documentJobs";
+import { isJobActive, jobNeedsPoll, queueAhead } from "../lib/documentJobs";
 import { strings } from "../strings.cs";
 import { JobStatus } from "./JobStatus";
 
@@ -25,7 +25,8 @@ function isRecent(job: DocumentJob, now: number): boolean {
 }
 
 /** "Probíhající nahrávání": the school's queued/processing jobs and those finished in the
- *  last 24 h. Polls only while something is queued or processing. */
+ *  last 24 h. Polls while something is queued or processing, or a fresh completion
+ *  still waits for its chunk count. */
 export function DocumentJobsPanel({ client, school, refreshKey, onSettled }: Props) {
   const [jobs, setJobs] = useState<DocumentJob[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -59,9 +60,10 @@ export function DocumentJobsPanel({ client, school, refreshKey, onSettled }: Pro
     return () => controller.abort();
   }, [load, refreshKey]);
 
-  const hasActive = jobs?.some(isJobActive) ?? false;
+  // Also while a fresh completion still waits for its chunk count (§14.5).
+  const needsPoll = jobs?.some((j) => jobNeedsPoll(j, Date.now())) ?? false;
   useEffect(() => {
-    if (!hasActive) return;
+    if (!needsPoll) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       await load(controller.signal);
@@ -71,7 +73,7 @@ export function DocumentJobsPanel({ client, school, refreshKey, onSettled }: Pro
       clearTimeout(timer);
       controller.abort();
     };
-  }, [hasActive, tick, load]);
+  }, [needsPoll, tick, load]);
 
   const now = Date.now();
   const relevant = (jobs ?? []).filter((j) => isJobActive(j) || isRecent(j, now));
@@ -94,6 +96,12 @@ export function DocumentJobsPanel({ client, school, refreshKey, onSettled }: Pro
         </button>
       </div>
       {failed && <p role="alert" className="qa-muted jobs-panel-body">{t.pollError}</p>}
+      {activeCount > 0 && !collapsed && (
+        <p className="qa-muted jobs-panel-body jobs-panel-note">
+          <span aria-hidden="true">ℹ️ </span>
+          {t.activeHint}
+        </p>
+      )}
       {!collapsed && (
         <div id="documents-jobs-body" className="jobs-panel-body doc-table-scroll">
           <table className="doc-table">
@@ -111,7 +119,7 @@ export function DocumentJobsPanel({ client, school, refreshKey, onSettled }: Pro
                     {job.source_kind === "url" ? shortenUrl(job.source) : job.source}
                   </td>
                   <td>
-                    <JobStatus job={job} now={now} />
+                    <JobStatus job={job} now={now} ahead={queueAhead(relevant, job)} />
                   </td>
                   <td>{formatDateTime(job.finished_at ?? job.started_at ?? job.created_at)}</td>
                 </tr>

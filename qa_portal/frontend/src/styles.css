@@ -1200,6 +1200,11 @@ summary:focus-visible {
   padding: 0 12px 10px;
 }
 
+.jobs-panel-note {
+  margin: 0;
+  font-size: 13px;
+}
+
 /* Detail drawer */
 .drawer {
   position: fixed;

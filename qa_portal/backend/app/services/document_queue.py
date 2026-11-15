@@ -238,7 +238,8 @@ def _unchanged_version(store: StateStore, ingest: IngestClient, search: SearchCl
     the same content hash as this job; None otherwise. Any lookup failure means
     "not unchanged" (the job is ingested normally); only identifiers are logged."""
     params = job.get("_params") or {}
-    if search is None or (job["source_kind"] == "url" and params.get("save_level_1_child")):
+    if search is None or params.get("force") or (job["source_kind"] == "url"
+                                                 and params.get("save_level_1_child")):
         return None
     try:
         if job["source_kind"] == "file":
@@ -400,9 +401,12 @@ def _refresh_stored_chunks(store: StateStore, ingest: IngestClient, jobs: list[d
     the count is positive the file hashes are recorded (§14.14), same window."""
     now = _now_dt()
     window = settings.document_stored_chunks_window_seconds
+    deadline = time.monotonic() + settings.document_listing_budget_seconds
     for job in jobs:
         if job.get("status") != "completed":
             continue
+        if time.monotonic() > deadline:   # the rest is filled in by a later listing
+            break
         finished = _parse_ts(job.get("finished_at"))
         in_window = finished is not None and (now - finished).total_seconds() < window
         if job.get("stored_chunks") in (None, 0):
@@ -410,7 +414,8 @@ def _refresh_stored_chunks(store: StateStore, ingest: IngestClient, jobs: list[d
             if not proc_uuid or not in_window:
                 continue
             try:
-                total = _sum_chunks(ingest.get_status(proc_uuid))
+                total = _sum_chunks(ingest.get_status(
+                    proc_uuid, timeout=settings.document_status_timeout_seconds))
             except Exception as e:
                 logger.info("document queue: chunk lookup for job %s failed (%s)",
                             job.get("job_id"), type(e).__name__)

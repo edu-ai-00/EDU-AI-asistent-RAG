@@ -188,7 +188,7 @@ def test_refresh_enqueues_a_url_job_with_the_shown_versions_metadata(client, sto
         "document_type": "OTHER", "document_language": "cs", "school_subject": "MAT",
         "school_grade_codes": ["3", "4"], "domain_codes": ["PROVOZ"],
         "valid_from": "2026-09-01", "valid_to": "2027-08-31", "file_name": None,
-        "save_level_1_child": False, "max_child_links": None}
+        "save_level_1_child": False, "max_child_links": None, "force": False}
     assert stored["_user_id"] == "qa_portal__ZS_DEMO"
     assert set(job) == set(q.PUBLIC_KEYS)
 
@@ -262,6 +262,18 @@ def test_refresh_then_unchanged_page_is_skipped(client, search, store, ingest):
     assert done["status"] == "skipped"
     assert done["result"] == {"reason": "unchanged", "file_uuid": WEB_UUID}
     assert ingest.document_received == []
+
+
+def test_forced_refresh_ingests_an_unchanged_page(client, search, store, ingest):
+    search._documents["ZS_DEMO"][WEB_UUID]["content_sha256"] = HASH
+    ingest.preview_result = {"status": "dry_run", "files": [
+        {"file_uuid": "x", "source_url": URL_, "content_sha256": HASH}]}
+    resp = client.post(f"/qa-api/v1/schools/ZS_DEMO/documents/{WEB_UUID}/refresh?force=true",
+                       headers=HEADERS)
+    assert resp.status_code == 202
+    q.process_next_job(store, ingest, search)
+    assert store.get("jobs", resp.json()["job"]["job_id"])["status"] == "completed"
+    assert len(ingest.document_received) == 1
 
 
 # ── policy ──────────────────────────────────────────────────────────────

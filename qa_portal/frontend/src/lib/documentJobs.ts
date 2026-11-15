@@ -15,6 +15,24 @@ export function jobNeedsPoll(job: DocumentJob, now: number): boolean {
   return now - new Date(job.finished_at).getTime() < CHUNK_WAIT_MS;
 }
 
+/** How many active jobs of the list are before `job` (the queue runs one at a time, oldest first). */
+export function queueAhead(jobs: DocumentJob[], job: DocumentJob): number {
+  if (job.status !== "queued") return 0;
+  return jobs.filter(
+    (j) => j.job_id !== job.job_id && isJobActive(j) && (j.status === "processing" || j.created_at < job.created_at),
+  ).length;
+}
+
+/** A short explanation under the state: the place in the queue, or how long it has run. */
+export function jobDetail(job: DocumentJob, now: number, ahead?: number): string | null {
+  if (job.status === "queued" && ahead !== undefined) return ahead > 0 ? t.jobAhead(ahead) : t.jobNext;
+  if (job.status === "processing" && job.started_at) {
+    const minutes = Math.floor((now - new Date(job.started_at).getTime()) / 60000);
+    return minutes >= 1 ? t.jobRunningFor(minutes) : null;
+  }
+  return null;
+}
+
 export function jobText(job: DocumentJob, now: number): string {
   switch (job.status) {
     case "queued":

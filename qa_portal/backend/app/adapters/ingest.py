@@ -59,7 +59,7 @@ class IngestClient(Protocol):
                     valid_from: str | None = None,
                     valid_to: str | None = None) -> dict: ...
 
-    def get_status(self, processing_uuid: str) -> dict | None: ...
+    def get_status(self, processing_uuid: str, timeout: float | None = None) -> dict | None: ...
 
     def run_document_ingest(self, *, legal_entity: str, user_id: str, visibility: str,
                             audience_roles: list[str],
@@ -276,11 +276,11 @@ class HttpIngestClient:
         return StoredFile(chunks=chunks(), content_disposition=resp.headers.get("Content-Disposition"),
                           close=resp.close)
 
-    def get_status(self, processing_uuid: str) -> dict | None:
+    def get_status(self, processing_uuid: str, timeout: float | None = None) -> dict | None:
         try:
             resp = requests.get(f"{self._base}/v1/ingest-status",
                                  params={"processing_uuid": processing_uuid},
-                                 timeout=settings.http_timeout_seconds)
+                                 timeout=timeout or settings.http_timeout_seconds)
         except requests.RequestException as e:
             raise IngestUnavailable(str(e)) from e
         if resp.status_code == 404:
