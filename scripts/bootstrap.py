@@ -818,9 +818,9 @@ def step_up(services: list[str], label: str, timeout: int = 1800, build: bool = 
 #  4b. Database migrations (clean install only)
 # ───────────────────────────────────────────────────────────────
 
-# The runner (scripts/migrate.py) is approved for a database without school data
-# only. A database with data (production, a school) is never touched here: its
-# migrations from 217 on follow the manual procedure in docs/OPERATIONS_LINUX.md.
+# A new database is registered with `init`; one that already holds school data
+# (production, a school) is taken over with `adopt` when its schema is exactly B216
+# (D11). Then `apply` brings either to the latest release, after a local dump.
 MIGRATION_DUMPS = "db_migration_dumps"
 _MIGRATE_TIMEOUT = 900
 
@@ -842,9 +842,10 @@ def _migration_facts() -> tuple[bool, int] | None:
     return parts[0] == "t", int(parts[1])
 
 
-def _migrate(command: str, container: str, *extra: str) -> int:
+def _migrate(command: str, container: str, *extra: str, installation: bool = False) -> int:
+    confirm = "--confirm-installation" if installation else "--confirm-isolated"
     args = [sys.executable, str(ROOT / "scripts" / "migrate.py"), command,
-            "--container", container, "--repo-root", str(ROOT), "--confirm-isolated", *extra]
+            "--container", container, "--repo-root", str(ROOT), confirm, *extra]
     try:
         result = run(args, timeout=_MIGRATE_TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -865,22 +866,31 @@ def step_migrations() -> None:
         fail("could not read the migration registry state", "check that the postgres service is running")
         return
     registry, content = facts
-    if content:
-        report("skip", f"the database holds school data ({content} rows): migrations from 217 on are "
-                       "applied by the manual procedure in docs/OPERATIONS_LINUX.md, not by bootstrap")
-        return
     ps = run(["docker", "compose", "ps", "-q", "postgres"], timeout=60)
     container = ps.stdout.strip() if ps.returncode == 0 else ""
     if not container or "\n" in container:
         fail("could not find the postgres container")
         return
-    if not registry and _migrate("init", container) != 0:
+    installation = bool(content)
+    if not registry and not installation and _migrate("init", container) != 0:
         fail("the migration registry could not be created (migrate.py init)",
              "this is not a clean B216 database; see the lines above")
         return
+    if not registry and installation:
+        report("ok", f"the database holds school data ({content} rows): taking it over (migrate.py adopt)")
+        rc = _migrate("adopt", container, installation=True)
+        if rc != 0:
+            state = ("it refused, nothing was changed" if rc == 1 else
+                     "its outcome is not certain; run `python3 scripts/migrate.py status "
+                     f"--container {container}` before anything else")
+            fail(f"the installation could not be taken over by the migration registry (migrate.py adopt): {state}",
+                 "the new services were not started; see the lines above and "
+                 "docs/OPERATIONS_LINUX.md (Database migrations)")
+            return
     dumps = STATE_DIR / MIGRATION_DUMPS
     dumps.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if _migrate("apply", container, "--release", release, "--dump-dir", str(dumps)) != 0:
+    if _migrate("apply", container, "--release", release, "--dump-dir", str(dumps),
+                installation=installation) != 0:
         fail(f"migrations of release {release} were not applied (migrate.py apply)",
              f"see the lines above; `python3 scripts/migrate.py status --container {container}` "
              "shows the state")

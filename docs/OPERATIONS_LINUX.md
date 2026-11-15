@@ -81,13 +81,16 @@ secrets.
 3. In ONE transaction, as the database superuser of the target container: `TRUNCATE`
    every table of schema `edu_ai` (`RESTART IDENTITY CASCADE`), then load the SQL that
    `pg_restore --data-only --disable-triggers` produces from the dump. A failure leaves
-   the target unchanged. This empties the target's migration registry too: from now on
-   the target holds the source's data, including its settings, and is an installation
-   with data like the source.
+   the target unchanged. This replaces the target's migration registry rows with the
+   source's: from now on the target holds the source's data, including its settings, and
+   is an installation with data like the source. A source without a registry (never taken
+   over) leaves the target's registry empty; drop that empty table
+   (`DROP TABLE edu_ai.schema_migration;`) so that step 4b takes the target over, which
+   needs the B216 schema (a source and target of a release from 228 on are not B216).
 4. Compare the row counts of every table with the source.
 5. `python3 scripts/setup.py install` brings the services back and verifies them
-   (bootstrap, smoke, roles); bootstrap step 4b reports `skip` (the database holds data).
-6. Migrations from 217 on that the source did not have: the manual procedure below.
+   (bootstrap, smoke, roles); bootstrap step 4b brings the database to the latest
+   release (below).
 
 The dump holds real personal data (including logged questions): keep it off Git and
 shared storage, and delete every copy when the transfer is verified.
@@ -124,33 +127,41 @@ imported) and a Compose change of a service's mounts, which the wizard refuses
 
 ### Database migrations from 217 on (an installation with data)
 
-Bootstrap step 4b never touches a database that holds school data (`document_metadata`,
-`qa_entries` or `question_answer_log` rows): it reports `skip`, and `setup.py install`
-continues. Production and a school in use therefore get the files of
-`postgres/migrations/` by hand, after the new images are running, each file in its own
-transaction, in ascending order, only those not applied yet (the deployment note of the
-change names them):
+`setup.py install` brings an installation that holds school data (`document_metadata`,
+`qa_entries` or `question_answer_log` rows) to the latest release itself, in bootstrap
+step 4b, before the new services start:
+
+- **Takeover (once).** Without a migration registry the step runs `migrate.py adopt`: it
+  checks that the schema is exactly baseline B216 (the clean-install schema), creates the
+  registry and records the takeover in one transaction. Configuration and data stay as
+  they are; the configuration fingerprint is recorded, not compared.
+- **Apply.** `migrate.py apply` writes a local dump to `<state>/db_migration_dumps/`, then
+  applies the pending migrations of the highest release manifest, each file and its
+  registry row in one transaction, the schema checked after each. A re-run applies nothing.
+
+Check first, read-only (it changes nothing):
 
 ```bash
-# back up first (at least the tables the files change; the deployment note names them)
+python3 scripts/migrate.py adopt --check --container edu_ai_postgres
+python3 scripts/migrate.py status --container edu_ai_postgres     # once a registry exists
+```
+
+If the takeover is refused (the schema is not B216: a manual schema change, or a schema
+migration such as 228 applied by hand), step 4b stops the update before the new services
+start; nothing in the database was changed. Every migration from 217 on is idempotent, so
+a data migration applied by hand earlier does not block the takeover and is applied again
+harmlessly. A refused takeover is an owner's decision; the old manual way, one file per
+transaction, is:
+
+```bash
 docker exec -i edu_ai_postgres sh -c \
   'psql -X -1 -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   < postgres/migrations/217_synonyms_meeting_groups.sql
 ```
 
-A file that changes data checks its own result and stops with `RAISE EXCEPTION`; with
-`-1` and `ON_ERROR_STOP` nothing of that file remains, and the following files are not
-started. No migration registry is created on such a database (taking over an existing
-installation, D11, is not decided).
-
-A file that only grants privileges (226: the search role may deactivate and delete
-documents; 227: it may also edit their validity dates) makes the role contract expect
-them at once: until it is applied, the smoke test of `setup.py install` reports
-"role contract deviates" and step 8b is skipped.
-Apply the file, then run `python3 scripts/db_roles.py verify --container edu_ai_postgres`
-(expect `MATCH`) and the installation again (VM 507, 2026-11-14).
-228 adds the column `document_metadata.content_sha256`; it is a schema change applied by
-hand like 226 and 227, and it changes no grant.
+The dumps in `db_migration_dumps/` hold real personal data: delete them once the update is
+verified. Migrations do not re-ingest content; when a deployment note asks for a re-ingest
+(a normalization change), it is a separate step after the update.
 
 `setup.py install` does not reload nginx when only `nginx/conf/nginx.conf` changed
 (e.g. the QA portal address `/knowledge/`, which replaced `/qa/`; the old address

@@ -21,17 +21,17 @@ sources:
   - tests/test_migrate_fingerprint.py
   - tests/test_migrate_runner.py
   - tests/test_bootstrap_migrations.py
-last_verified: 2026-10-01
+last_verified: 2026-11-14
 ---
 
 # Migration registry and runner (B03e-1)
 
-Scope: **isolated, synthetic databases only.** The owner approved D07–D10 for
-this scope on 2026-09-30. Production, school installations and the takeover of
-old installations (D11) are **not** covered, and no school upgrade is supported
-by this spec. One extension, approved by the owner on 2026-11-12: the clean
-install (below) runs `init` and `apply` on a new database before it holds any
-school data. Backups (B02) are deferred; the local dump below is a precondition
+Scope: the owner approved D07–D10 for isolated, synthetic databases on
+2026-09-30; on 2026-11-12 the clean install (below), which runs `init` and
+`apply` on a new database before it holds any school data; and on 2026-11-14
+**D11, the takeover of an installation that holds school data** (production, a
+school), when its schema is exactly B216 (`adopt`, below). Older installations
+whose schema is not B216 are not covered. Backups (B02) are deferred; the local dump below is a precondition
 of a run, not a backup policy. This page is self-contained; it does not depend
 on planning notes outside the tracked tree.
 
@@ -47,13 +47,12 @@ creates it (`init`), so the baseline stays unchanged.
 before the rest of the stack starts, reads whether the registry exists and how
 many rows the content tables (`fingerprint.CONTENT_TABLES`) hold:
 
-- rows > 0 (production, a school in use, a database after a data transfer):
-  nothing runs, the step reports `skip`; migrations from 217 on follow the
-  manual procedure in `docs/OPERATIONS_LINUX.md`;
 - no rows, no registry: `init`, then `apply` of the release manifest with the
-  highest number; no rows, registry present: `apply` only (a re-run applies
-  nothing more);
-- a refusal or failure of either stops bootstrap before the other services start.
+  highest number; registry present: `apply` only (a re-run applies nothing more);
+- rows > 0 (production, a school in use, a database after a data transfer), no
+  registry: `adopt`, then `apply`, both with `--confirm-installation`;
+- a refusal or failure of any of them stops bootstrap before the other services
+  start; a refused `adopt` changed nothing.
 
 Every check of `init` and `apply` below applies unchanged, including the server
 and extension versions of the baseline: a new `Dockerfile.postgres` needs a
@@ -114,8 +113,10 @@ edu_ai.schema_migration(migration_id PK, kind baseline|migration|adopted,
 
 ## Runner commands
 
-Common rules: no default container (always explicit); every write command also
-needs `--confirm-isolated`, which exists only until D11 is decided.
+Common rules: no default container (always explicit); every write command names
+what it writes to. `init`, `gen-baseline` and `gen-release` need
+`--confirm-isolated`; `adopt` needs `--confirm-installation`; `apply` needs one of
+them, and `--confirm-installation` when the content tables hold rows.
 
 - `status`, `plan` — **read-only** (session is `default_transaction_read_only`).
   A database without registry gets a clear error and nothing is converted.
@@ -131,7 +132,20 @@ needs `--confirm-isolated`, which exists only until D11 is decided.
 - `apply` — see below.
 - `gen-baseline`, `gen-release` — generators; reference databases only.
 
-`adopt --check` is **not implemented** (D11 open).
+- `adopt` (D11) — an installation that holds school data and has no registry.
+  Verifies file hashes, extension versions, that the content tables are **not**
+  empty (an empty one is for `init`) and that the **schema fingerprint equals
+  B216**. The configuration fingerprint is not compared, only recorded: a school
+  changes its configuration. Then the same transaction and checks as `init`, with
+  one row of kind `adopted` (checksum = the B216 schema fingerprint). A schema
+  that differs (a manual change, a schema migration applied by hand, an older
+  installation) is refused and nothing is changed. `--check` answers the same
+  question read-only. The registry check of `status` and `apply` treats the
+  `adopted` row like the `baseline` row.
+- **Idempotent migrations.** Because a data migration may have been applied by
+  hand before the takeover (the schema fingerprint does not see data), every
+  migration from 217 on must give the same result when run twice and pass its own
+  self-check again; `apply` then runs it once more, harmlessly.
 
 ## Migration files (≥ 217)
 
@@ -180,6 +194,8 @@ needs `--confirm-isolated`, which exists only until D11 is decided.
 
 ## Not covered
 
-Takeover of existing installations, production use, backup policy (B02), service
-compatibility during a migration (B06), distribution of the 193 historical files
-(B05), down migrations (return = restore the dump and the image).
+Takeover of installations whose schema is not B216, backup policy (B02), service
+compatibility during a migration (B06; on an update the old services keep running
+while step 4b applies the files), distribution of the 193 historical files (B05),
+re-ingest of content after a normalization change (a separate operator step), down
+migrations (return = restore the dump and the image).

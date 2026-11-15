@@ -1,4 +1,5 @@
-"""Offline: bootstrap step 4b runs the migration runner on a database without school data only. No Docker.
+"""Offline: bootstrap step 4b registers a new database (init) or takes over one with school data (adopt),
+then applies the latest release. No Docker.
 
     python3 tests/test_bootstrap_migrations.py
 """
@@ -20,16 +21,18 @@ def done(rc=0, out=""):
 class FakeStack:
     """Answers the registry/content query, `compose ps` and migrate.py calls."""
 
-    def __init__(self, registry=False, content=0, init_rc=0, apply_rc=0, facts_rc=0):
+    def __init__(self, registry=False, content=0, init_rc=0, apply_rc=0, facts_rc=0, adopt_rc=0):
         self.registry, self.content = registry, content
         self.init_rc, self.apply_rc, self.facts_rc = init_rc, apply_rc, facts_rc
+        self.adopt_rc = adopt_rc
         self.migrate = []
 
     def __call__(self, args, **kwargs):
         if "migrate.py" in " ".join(map(str, args)):
             cmd = args[2]
             self.migrate.append(args[2:])
-            return done(self.init_rc if cmd == "init" else self.apply_rc, f"{cmd} output\n")
+            rc = {"init": self.init_rc, "adopt": self.adopt_rc}.get(cmd, self.apply_rc)
+            return done(rc, f"{cmd} output\n")
         if args[:4] == ["docker", "compose", "ps", "-q"]:
             return done(0, "c0ffee\n")
         if "schema_migration" in kwargs.get("input", ""):
@@ -54,20 +57,41 @@ class StepMigrations(unittest.TestCase):
             bootstrap.step_migrations()
         return "\n".join(str(c.args[0]) for c in out.call_args_list if c.args)
 
-    def test_database_with_school_data_is_never_touched(self):
-        # production: no registry, data present — an update must pass without the runner
+    def test_database_with_school_data_is_adopted_then_applied(self):
+        # production: no registry, data present (D11)
         stack = FakeStack(registry=False, content=4442)
         text = self.step(stack)
-        self.assertEqual([], stack.migrate)
-        self.assertIn("[skip]", text)
-        self.assertIn("manual procedure", text)
+        self.assertEqual(["adopt", "apply"], stack.commands())
+        for call in stack.migrate:
+            self.assertIn("--confirm-installation", call)
+            self.assertNotIn("--confirm-isolated", call)
+        self.assertIn("taking it over", text)
+        self.assertIn("[ok  ] database at release", text)
         self.assertFalse(bootstrap._failed)
 
-    def test_registered_database_with_data_is_never_touched(self):
+    def test_registered_database_with_data_only_applies_as_an_installation(self):
         stack = FakeStack(registry=True, content=1)
         self.step(stack)
-        self.assertEqual([], stack.migrate)
+        self.assertEqual(["apply"], stack.commands())
+        self.assertIn("--confirm-installation", stack.migrate[0])
         self.assertFalse(bootstrap._failed)
+
+    def test_refused_adopt_fails_and_applies_nothing(self):
+        stack = FakeStack(registry=False, content=7, adopt_rc=1)
+        text = self.step(stack)
+        self.assertEqual(["adopt"], stack.commands())
+        self.assertIn("[fail]", text)
+        self.assertIn("OPERATIONS_LINUX", text)
+        self.assertIn("nothing was changed", text)
+        self.assertTrue(bootstrap._failed)
+
+    def test_adopt_with_an_uncertain_outcome_says_so(self):
+        stack = FakeStack(registry=False, content=7, adopt_rc=6)
+        text = self.step(stack)
+        self.assertEqual(["adopt"], stack.commands())
+        self.assertIn("not certain", text)
+        self.assertNotIn("nothing was changed", text)
+        self.assertTrue(bootstrap._failed)
 
     def test_clean_install_is_registered_and_brought_to_the_latest_release(self):
         stack = FakeStack(registry=False, content=0)

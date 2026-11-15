@@ -52,9 +52,10 @@ docker exec -w /tmp/neg -e PYTHONPATH=/tmp/neg edu_ai_search python -m eduai_nor
 docker exec -w /tmp/neg -e PYTHONPATH=/tmp/neg edu_ai_search python -m eduai_normalize.negation_build --write
 docker cp edu_ai_search:/tmp/neg/eduai_normalize/_negated_lemmas.py search/eduai_normalize/eduai_normalize/
 
-# migration registry and runner (isolated synthetic databases only; spec.migration-registry)
-# No published release manifest: plan/apply need an operator-generated synthetic release.
+# migration registry and runner (spec.migration-registry); installations are updated by
+# bootstrap step 4b (setup.py install): init or adopt, then apply of the latest release
 python3 scripts/migrate.py status --container <name> --user edu_ai_admin --db edu_ai        # read-only; plan likewise
+python3 scripts/migrate.py adopt --check --container <name>   # read-only: can an installation with data be taken over?
 python3 tests/test_migrate_lint.py && python3 tests/test_migrate_fingerprint.py
 python3 tests/migrate_test_env.py up b03e_pg_a              # own container, then:
 EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py
@@ -130,11 +131,12 @@ EDU_AI_MIGRATE_TEST_CONTAINER=b03e_pg_a python3 tests/test_migrate_runner.py
   dumps, the baseline and release manifests) by hand — regenerate them.
 - Put transaction control (`BEGIN`, `COMMIT`, `END`, `ROLLBACK`), `CONCURRENTLY`,
   `VACUUM` or psql `\` commands in a migration from 217 on: the runner owns the
-  transaction. A migration that changes data carries its own self-check.
-- Use the migration runner on production or a school installation, or claim a
-  supported upgrade: B03e-1 is approved for isolated synthetic databases only.
-  The one exception is bootstrap step 4b, which registers a clean install and
-  applies the latest release while the database holds no school data.
+  transaction. A migration that changes data carries its own self-check, and every
+  migration is idempotent (adopt may follow a data migration applied by hand).
+- Run the runner's write commands (`init`, `adopt`, `apply`) by hand against
+  production or a school installation. The supported path is bootstrap step 4b
+  (`setup.py install`): it takes over an installation whose schema is exactly B216
+  (D11) and applies the latest release after a local dump.
 - Hard-code a legal entity, a language or a threshold. All three are data.
 
 ## Expected patterns

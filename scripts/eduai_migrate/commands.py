@@ -1,4 +1,4 @@
-"""Runner commands: status, plan, init, apply, gen-baseline, gen-release."""
+"""Runner commands: status, plan, init, adopt, apply, gen-baseline, gen-release."""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +19,8 @@ GUARD = "migration_tx guard"
 
 NO_REGISTRY = ("database '{db}' has no migration registry (edu_ai.schema_migration). Nothing was "
                "changed or converted. A clean B216 installation is registered with `init`; an "
-               "existing installation needs the separate takeover path (D11), which does not exist yet.")
+               "installation that already holds school data is taken over with `adopt` (D11), "
+               "which bootstrap step 4b runs.")
 DATA_CAVEAT = ("note: the schema fingerprint covers the schema only. It does not detect changes to "
                "rows in settings, prompt_registry or other configuration tables.")
 
@@ -115,8 +116,8 @@ def analyze(layout: Layout, target: pg.Target, release_name: str | None, migrati
         a.problems.append(f"registry holds {len(anchors)} baseline/adopted rows, expected exactly 1")
     elif anchors[0]["id"] != base["id"]:
         a.problems.append(f"registry baseline is {anchors[0]['id']}, this runner knows {base['id']}")
-    elif anchors[0]["kind"] == "baseline" and anchors[0]["checksum"] != base["fingerprint"]["schema"]:
-        a.problems.append("registry baseline checksum differs from the baseline manifest")
+    elif anchors[0]["checksum"] != base["fingerprint"]["schema"]:
+        a.problems.append(f"registry {anchors[0]['kind']} checksum differs from the baseline manifest")
     applied = [r for r in a.rows if r["kind"] == "migration"]
 
     try:
@@ -322,7 +323,8 @@ def cmd_init(args, layout: Layout, target: pg.Target) -> int:
             problems.append("configuration fingerprint differs from baseline B216")
         if problems:
             return _refuse("init refused", problems)
-        return _init_transaction(sess, target, base, sfp, cfp, contract)
+        return _init_transaction(sess, target, base, sfp, contract, "baseline",
+                                 "baseline installed from init_clean; configuration fingerprint " + cfp)
     except pg.PgError as e:  # COMMIT and what follows it are handled inside _init_transaction
         say(f"init failed before COMMIT: {(getattr(e, 'output', '') or str(e)).strip()}")
         try:
@@ -337,8 +339,10 @@ def cmd_init(args, layout: Layout, target: pg.Target) -> int:
         sess.close()
 
 
-def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str, cfp: str,
-                      contract: list[str] = ()) -> int:
+def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str, contract: list[str],
+                      kind: str, note: str) -> int:
+    """Registry + its one anchor row (`baseline` from init, `adopted` from adopt) in one transaction."""
+    cmd = "init" if kind == "baseline" else "adopt"
     sess.run("BEGIN;\nSET LOCAL lock_timeout = '5s';")
     sess.run(registry.DDL)
     for stmt in contract:
@@ -347,23 +351,22 @@ def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str,
     drift = registry.drift([l for l in sess.run(registry.DESCRIBE_SQL).splitlines() if l])
     if drift:
         sess.run("ROLLBACK;")
-        return _refuse("init refused (registry definition)", drift)
+        return _refuse(f"{cmd} refused (registry definition)", drift)
     sess.run("INSERT INTO edu_ai.schema_migration (migration_id, kind, checksum, applied_by, notes) VALUES "
-             f"({lit(base['id'])}, 'baseline', {lit(sfp)}, {lit(manifest.TOOL)}, "
-             f"{lit('baseline installed from init_clean; configuration fingerprint ' + cfp)});")
+             f"({lit(base['id'])}, {lit(kind)}, {lit(sfp)}, {lit(manifest.TOOL)}, {lit(note)});")
     _fault("init:after_insert", sess)
     # Second connection: cannot see the uncommitted registry (which is excluded anyway), but
     # proves the schema did not move while the transaction was open and that it is not blocked.
     if fingerprint.measure_schema(target) != base["fingerprint"]["schema"]:
         sess.run("ROLLBACK;")
-        return _refuse("init refused", ["schema fingerprint changed while init was running"])
+        return _refuse(f"{cmd} refused", [f"schema fingerprint changed while {cmd} was running"])
     outcome, alive = _commit(sess, target, lambda: _registry_present(target), "init:commit")
     if outcome == "not_committed":
-        say("init failed: the connection was lost while COMMIT was in flight. The registry does not exist and "
+        say(f"{cmd} failed: the connection was lost while COMMIT was in flight. The registry does not exist and "
             "no runner session is left, so the transaction did not commit; nothing was created.")
         return EXIT_FAILED
     if outcome == "unknown":
-        say("init: the connection was lost while COMMIT was in flight and the outcome is UNKNOWN. "
+        say(f"{cmd}: the connection was lost while COMMIT was in flight and the outcome is UNKNOWN. "
             "Do not assume a rollback; run `status` to see whether the registry exists.")
         return EXIT_UNVERIFIED
 
@@ -375,7 +378,7 @@ def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str,
         drift = registry.drift(registry_lines(target))
         rows = registry_rows(target)
     except pg.PgError as e:
-        say(f"init: the registry is COMMITTED, but the verification afterwards could not be completed "
+        say(f"{cmd}: the registry is COMMITTED, but the verification afterwards could not be completed "
             f"({(getattr(e, 'output', '') or str(e)).strip()}). Nothing was dropped; run `status`.")
         return EXIT_UNVERIFIED
     found = []
@@ -385,17 +388,76 @@ def _init_transaction(sess: pg.Session, target: pg.Target, base: dict, sfp: str,
     if [r["id"] for r in rows] != [base["id"]]:
         found.append(f"registry rows are {[r['id'] for r in rows]}, expected only {[base['id']]}")
     if found:  # the registry stays: it is committed, and the changes may be someone else's
-        say("init: the baseline registry is COMMITTED, but the final verification did not succeed. "
+        say(f"{cmd}: the {kind} registry is COMMITTED, but the final verification did not succeed. "
             "Nothing was dropped and no rollback was attempted; run `status` to judge the state "
             "(this is expected if another runner applied a migration in between).")
         for p in found:
             say(f"  - {p}")
         return EXIT_UNVERIFIED
-    say(f"init ok: registry v{registry.VERSION} created, baseline {base['id']} registered.")
+    say(f"{cmd} ok: registry v{registry.VERSION} created, {base['id']} registered as {kind}.")
     if not alive:
         say("The connection was lost during COMMIT; the registry confirms that the commit happened.")
     say(f"schema fingerprint {after[:16]}..., registry definition v{registry.VERSION} ok.")
     return EXIT_OK
+
+
+# -- adopt (D11) ---------------------------------------------------------------
+NOT_B216 = ("schema fingerprint differs from baseline {id}: this installation's schema is not exactly "
+            "{id} (a manual schema change, a schema migration applied by hand, or an installation older "
+            "than {id}). It is not taken over automatically; see docs/OPERATIONS_LINUX.md.")
+
+
+def cmd_adopt(args, layout: Layout, target: pg.Target) -> int:
+    """Take over an installation that holds school data and whose schema is exactly B216.
+
+    Like init, but the content tables may hold rows and the configuration fingerprint is not
+    compared (a school changes its configuration). Every migration from 217 on is idempotent,
+    so one applied by hand before the takeover is harmless when apply runs it again; a schema
+    migration applied by hand moves the fingerprint and is refused here.
+    """
+    base = manifest.load_baseline(layout)
+    contract = registry.contract_sql(layout.root)
+    problems = manifest.verify_init_clean(layout, base)
+    f = facts(target)
+    if not f["schema"]:
+        problems.append("schema edu_ai does not exist; this is not an EDU-AI installation")
+    else:
+        problems += environment_problems(base, f)
+        if f["registry"]:
+            problems.append("registry already exists; use `status` (adopt is for an installation without one)")
+        if not f["content_rows"]:
+            problems.append("content tables are empty; a clean install is registered with `init`")
+    if problems:
+        return _refuse("adopt refused; nothing was changed", problems)
+    sfp = fingerprint.measure_schema(target)
+    if sfp != base["fingerprint"]["schema"]:
+        return _refuse("adopt refused; nothing was changed", [NOT_B216.format(id=base["id"])])
+    cfp = fingerprint.measure_config(target)
+    if args.check:
+        say(f"adopt check ok: the schema is exactly {base['id']}, content tables hold {f['content_rows']} rows. "
+            "Nothing was changed; `adopt` would register this installation.")
+        return EXIT_OK
+
+    sess = pg.Session(target)
+    try:
+        if not try_lock(sess):
+            say("another update is running (advisory lock is held); nothing was changed.")
+            return EXIT_BUSY
+        note = (f"existing installation adopted (D11): {f['content_rows']} content rows; "
+                f"configuration fingerprint {cfp} (not compared)")
+        return _init_transaction(sess, target, base, sfp, contract, "adopted", note)
+    except pg.PgError as e:
+        say(f"adopt failed before COMMIT: {(getattr(e, 'output', '') or str(e)).strip()}")
+        try:
+            present = _registry_present(target)
+        except pg.PgError:
+            say("the registry could not be read afterwards; run `status` before anything else.")
+            return EXIT_FAILED
+        say("registry table present afterwards: YES (unexpected; run `status`)." if present else
+            "registry table present afterwards: no. The transaction was rolled back, nothing was created.")
+        return EXIT_FAILED
+    finally:
+        sess.close()
 
 
 def _refuse(title: str, problems: list[str]) -> int:
@@ -534,6 +596,11 @@ def cmd_apply(args, layout: Layout, target: pg.Target) -> int:
         if not try_lock(sess):
             say("another update is running (advisory lock is held); nothing was changed.")
             return EXIT_BUSY
+        rows = facts(target)["content_rows"]
+        if rows and not args.confirm_installation:
+            return _refuse("apply refused; nothing was changed", [
+                f"the content tables hold {rows} rows: this is an installation with school data, not an "
+                "isolated database; pass --confirm-installation (bootstrap step 4b does)"])
         a = analyze(layout, target, args.release, mdir)
         if not a.release:
             a.problems.append("no release manifest found; give --release NAME")
@@ -690,13 +757,17 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--release", help="release manifest name (postgres/releases/<name>.json)")
     common.add_argument("--migrations-dir")
     common.add_argument("--confirm-isolated", action="store_true",
-                        help="required for commands that write: B03e-1 is approved for isolated synthetic "
-                             "databases only")
+                        help="init, gen-baseline, gen-release and apply on an isolated synthetic database")
+    common.add_argument("--confirm-installation", action="store_true",
+                        help="adopt, and apply on an installation that holds school data (D11); bootstrap "
+                             "step 4b passes it after its checks")
 
     ap = argparse.ArgumentParser(prog="migrate.py", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("status", "plan", "init", "apply", "gen-baseline", "gen-release"):
+    for name in ("status", "plan", "init", "adopt", "apply", "gen-baseline", "gen-release"):
         p = sub.add_parser(name, parents=[common])
+        if name == "adopt":
+            p.add_argument("--check", action="store_true", help="read-only: would adopt succeed?")
         if name == "apply":
             p.add_argument("--dump-dir", required=True, help="where the pre-apply pg_dump goes")
         if name in ("gen-baseline", "gen-release"):
@@ -706,16 +777,30 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-COMMANDS = {"status": cmd_status, "plan": cmd_plan, "init": cmd_init, "apply": cmd_apply,
-            "gen-baseline": cmd_gen_baseline, "gen-release": cmd_gen_release}
-WRITES = {"init", "apply", "gen-baseline", "gen-release"}
+COMMANDS = {"status": cmd_status, "plan": cmd_plan, "init": cmd_init, "adopt": cmd_adopt,
+            "apply": cmd_apply, "gen-baseline": cmd_gen_baseline, "gen-release": cmd_gen_release}
+WRITES = {"init", "adopt", "apply", "gen-baseline", "gen-release"}
+
+
+def confirmation_problem(args) -> str | None:
+    """Every write names what it writes to: an isolated database or an installation (D11)."""
+    if args.cmd in ("init", "gen-baseline", "gen-release") and not args.confirm_isolated:
+        return (f"`{args.cmd}` writes to the database and is for isolated synthetic databases only; "
+                "pass --confirm-isolated to confirm this is one.")
+    if args.cmd == "adopt" and not args.check and not args.confirm_installation:
+        return ("`adopt` registers an installation that holds school data; pass --confirm-installation "
+                "(or --check for a read-only answer).")
+    if args.cmd == "apply" and not (args.confirm_isolated or args.confirm_installation):
+        return ("`apply` writes to the database; pass --confirm-isolated (a synthetic database) or "
+                "--confirm-installation (an installation with school data).")
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.cmd in WRITES and not args.confirm_isolated:
-        say(f"`{args.cmd}` writes to the database. B03e-1 is approved for isolated synthetic databases only; "
-            "pass --confirm-isolated to confirm this is one.")
+    problem = confirmation_problem(args)
+    if problem:
+        say(problem)
         return EXIT_USAGE
     if args.cmd == "gen-release" and not args.release:
         say("gen-release needs --release NAME")

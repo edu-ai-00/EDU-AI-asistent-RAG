@@ -116,6 +116,15 @@ class Base(unittest.TestCase):
         return fingerprint.measure_schema(self.target(db))
 
 
+    def with_content(self):
+        db = self.new_db()
+        self.psql(db, "INSERT INTO edu_ai.question_answer_log (raw_query) VALUES ('synthetic');")
+        return db
+
+    def adopt(self, db, *extra):
+        return self.migrate("adopt", "--confirm-installation", *extra, db=db, confirm=False)
+
+
 # ── A: baseline manifest ──────────────────────────────────────────────────────
 @needs_db
 class BaselineTest(Base):
@@ -289,7 +298,7 @@ class RegistryTest(Base):
             rc, out = self.migrate(cmd, "--release", "r1", *extra, db=db)
             self.assertEqual(1, rc, (cmd, out))
             self.assertIn("has no migration registry", out)
-            self.assertIn("takeover path", out)
+            self.assertIn("`adopt`", out)
             self.assertFalse(self.has_registry(db), cmd)
         self.assertFalse(self.dumps.exists())
 
@@ -781,6 +790,81 @@ class DumpTest(Base):
         self.assertIn("dump is not usable", out.getvalue())
         self.assertEqual(["B216"], self.ids(db))
         self.assertFalse(self.has_column(db, "b03e_note"))
+
+
+# ── E: takeover of an installation with school data (D11) ─────────────────────
+@needs_db
+class AdoptTest(Base):
+    def test_check_is_read_only_and_needs_no_confirmation(self):
+        db = self.with_content()
+        rc, out = self.migrate("adopt", "--check", db=db, confirm=False)
+        self.assertEqual(0, rc, out)
+        self.assertIn("adopt check ok", out)
+        self.assertFalse(self.has_registry(db))
+
+    def test_adopt_needs_its_own_confirmation(self):
+        db = self.with_content()
+        rc, out = self.migrate("adopt", db=db)          # only --confirm-isolated
+        self.assertEqual(2, rc, out)
+        self.assertIn("--confirm-installation", out)
+        self.assertFalse(self.has_registry(db))
+
+    def test_adopt_registers_one_adopted_row_and_status_is_clean(self):
+        db = self.with_content()
+        rc, out = self.adopt(db)
+        self.assertEqual(0, rc, out)
+        self.assertIn("registered as adopted", out)
+        row = self.psql(db, "SELECT migration_id || '|' || kind || '|' || checksum FROM edu_ai.schema_migration;")
+        self.assertEqual(f"{self.baseline['id']}|adopted|{self.baseline['fingerprint']['schema']}", row)
+        self.assertIn("content rows", self.psql(db, "SELECT notes FROM edu_ai.schema_migration;"))
+        rc, out = self.migrate("status", db=db)
+        self.assertEqual(0, rc, out)
+        self.assertEqual(self.baseline["fingerprint"]["schema"], self.fp(db))
+
+    def test_adopt_then_apply_as_an_installation(self):
+        self.make_release("r1", {"217_a.sql": M217, "218_b.sql": M218})
+        db = self.with_content()
+        self.assertEqual(0, self.adopt(db)[0])
+        rc, out = self.apply(db)                          # --confirm-isolated only
+        self.assertEqual(1, rc, out)
+        self.assertIn("--confirm-installation", out)
+        self.assertEqual([self.baseline["id"]], self.ids(db))
+        self.assertFalse(self.dumps.exists())
+        rc, out = self.migrate("apply", "--release", "r1", "--dump-dir", str(self.dumps),
+                               "--confirm-installation", db=db, confirm=False)
+        self.assertEqual(0, rc, out)
+        self.assertEqual([self.baseline["id"], "217_a", "218_b"], self.ids(db))
+        self.assertTrue(self.has_column(db, "b03e_note2"))
+        self.assertEqual(1, len(list(self.dumps.iterdir())))
+        self.assertEqual("1", self.psql(db, "SELECT count(*) FROM edu_ai.question_answer_log;"))
+
+    def test_adopt_refuses_a_schema_that_is_not_b216(self):
+        db = self.with_content()
+        self.psql(db, "ALTER TABLE edu_ai.settings ADD COLUMN applied_by_hand int;")
+        for args in (("--check",), ()):
+            rc, out = self.adopt(db, *args)
+            self.assertEqual(1, rc, out)
+            self.assertIn("is not exactly", out)
+        self.assertFalse(self.has_registry(db))
+
+    def test_adopt_refuses_an_empty_database_and_a_registered_one(self):
+        rc, out = self.adopt(self.new_db())
+        self.assertEqual(1, rc, out)
+        self.assertIn("`init`", out)
+        db = self.initialised()
+        self.psql(db, "INSERT INTO edu_ai.question_answer_log (raw_query) VALUES ('synthetic');")
+        rc, out = self.adopt(db)
+        self.assertEqual(1, rc, out)
+        self.assertIn("registry already exists", out)
+        self.assertEqual([self.baseline["id"]], self.ids(db))
+
+    def test_configuration_changed_by_the_school_does_not_block_adopt(self):
+        db = self.with_content()
+        self.psql(db, "UPDATE edu_ai.settings SET notes = coalesce(notes, '') || ' school';")
+        self.psql(db, "INSERT INTO edu_ai.qa_stopword (term, lang, is_active, note) "
+                      "VALUES ('b03e', 'cs', true, 'school change');")
+        rc, out = self.adopt(db)
+        self.assertEqual(0, rc, out)
 
 
 if __name__ == "__main__":
