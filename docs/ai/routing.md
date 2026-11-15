@@ -95,6 +95,11 @@ Matching is stricter than the blocklist: the **whole** query, after its filler
 words are stripped, must equal a phrase. "Co umíš spočítat?" and "Jak se jmenuje
 školník?" are real questions and stay on the cascade.
 
+Questions about the assistant itself ("Kolik ti je let?", "Jak se máš?", "Žiješ?")
+get the capabilities message too (migration 229, cs/en/de/es). They belong here and
+not in a school's QA pack: the meta list is global, so every organisation answers
+them, and a curated entry for them could be offered among the questions of real ones.
+
 The identity path exists because the name is **metadata, not corpus**. It is in
 no index, so no wording can retrieve it — measured on production 2026-09-11,
 where an entity whose documents name it ten times still answered `no_answer`:
