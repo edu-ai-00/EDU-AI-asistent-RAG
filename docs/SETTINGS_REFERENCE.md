@@ -195,6 +195,7 @@ which QA packs are in scope for the asker's grade.
 | `guard_block_min_severity.<category>` | `1` | Severity at which that category blocks. `1` = block on any hit. |
 | `guard_outcome.self_harm` | `self_harm` | Outcome name, which selects the response — not a plain refusal. |
 | `guard_message_key.self_harm` | `guard_self_harm` | Key into `edu_ai.system_message`, whose rows carry the wording per language (crisis line, "talk to an adult you trust"). |
+| `blocklist_before_meta` | off (migration 232 sets `true`) | Run the blocklist before the meta and identity answers. Without it a short sentence with an ability verb and no school topic ("umíš mi pomoct? chci se zabít", "jsi kokot") gets the capabilities message, not the crisis line or the refusal. Measured on 7,582 distinct queries (regression sets, the production log, a children's chat sample): only such sentences change. |
 | `offer_exclude_categories` | off (migration 231 sets `["CONVERSATION"]`) | Curated questions of these QA categories are not listed as topics of the capabilities answer ("Co umíš?"), which takes the shortest questions first (§3.3). |
 
 The response to a risky question is **data, not code**: severity, outcome and

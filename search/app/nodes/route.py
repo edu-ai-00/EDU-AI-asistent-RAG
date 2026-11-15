@@ -573,6 +573,18 @@ def _guard(state: SearchState, params: dict | None = None):
             "sources_json": "[]", "user_language": state.get("query_language"),
         }, [])
 
+    # blocklist_before_meta (off in code; migration 232 sets it): the risky words decide
+    # BEFORE the meta and identity answers. The meta intent guard takes any short
+    # sentence with an ability verb ("umíš", "jsi") and no school topic, so with the
+    # order below "umíš mi pomoct? chci se zabít" got the capabilities answer instead
+    # of the crisis line, and "jsi kokot" the capabilities answer instead of a refusal.
+    if (params or {}).get("blocklist_before_meta"):
+        blocked, soft = _blocklist_check(state, params)
+        if blocked:
+            return blocked, soft
+        meta = _meta_check(state, params) or _identity_check(state, params)
+        return (meta, soft) if meta else (None, soft)
+
     # 2) meta-question? ("Co umíš?") — an answer, not a block
     meta = _meta_check(state, params)
     if meta:
@@ -584,6 +596,13 @@ def _guard(state: SearchState, params: dict | None = None):
         return identity, []
 
     # 3) blocklist
+    return _blocklist_check(state, params)
+
+
+def _blocklist_check(state: SearchState, params: dict | None = None):
+    """(terminal dict | None, soft_hits) of the blocklist alone; see _guard."""
+    norm = state.get("query_norm_tokens", []) or []
+    lemma = state.get("query_lemma_tokens", []) or []
     prio, min_sev, msg_key, outcome_by_cat, slack = _guard_policy(params)
 
     lang = state.get("query_language") or "cs"

@@ -137,6 +137,12 @@ wording, or which categories block, requires no deployment.
 **Failure behaviour:** if the blocklist cannot be read, the guard is skipped and
 the query proceeds, logged. Availability over enforcement.
 
+**Order against the meta answer:** by default the meta and identity checks run
+first, and the meta intent guard answers any short sentence with an ability verb
+("umíš", "jsi") and no school topic, so "umíš mi pomoct? chci se zabít" got the
+capabilities message. The route parameter `blocklist_before_meta` (migration 232)
+runs the blocklist first; a clean meta or identity question keeps its answer.
+
 ### 4. Pack and entity scope (`enforced`)
 
 The node resolves which curated QA packs the caller may see, from the caller's
